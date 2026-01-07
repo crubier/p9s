@@ -1,0 +1,7 @@
+{
+  "name": "permit",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

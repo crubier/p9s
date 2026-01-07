@@ -1,0 +1,17 @@
+{
+  "name": "@permit/core",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "pg-sql2": "^4.14.1"
+  }
+}
