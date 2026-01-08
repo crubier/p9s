@@ -1,19 +1,23 @@
 import { expect, test } from 'bun:test'
-import { deepMerge, replaceNestedStrings, capitalizeFirstLetter } from './util';
+import { deepMerge, replaceNestedStrings, capitalizeFirstLetter, type DeepMergeable } from './util';
 
 test('deepMerge - null and undefined handling', () => {
-  expect(deepMerge(null, { a: 1 })).toEqual({ a: 1 });
-  expect(deepMerge({ a: 1 }, null)).toEqual({ a: 1 });
-  expect(deepMerge(undefined, { a: 1 })).toEqual({ a: 1 });
-  expect(deepMerge({ a: 1 }, undefined)).toEqual({ a: 1 });
+  const obj: DeepMergeable = { a: 1 };
+  expect(deepMerge(null, obj)).toEqual({ a: 1 });
+  expect(deepMerge(obj, null)).toEqual({ a: 1 });
+  expect(deepMerge(undefined, obj)).toEqual({ a: 1 });
+  expect(deepMerge(obj, undefined)).toEqual({ a: 1 });
   expect(deepMerge(null, null)).toEqual(null);
   expect(deepMerge(undefined, undefined)).toEqual(undefined);
 });
 
 test('deepMerge - array concatenation', () => {
-  expect(deepMerge([1, 2], [3, 4])).toEqual([1, 2, 3, 4]);
-  expect(deepMerge([], [1, 2])).toEqual([1, 2]);
-  expect(deepMerge([1, 2], [])).toEqual([1, 2]);
+  const arr1: DeepMergeable = [1, 2];
+  const arr2: DeepMergeable = [3, 4];
+  const empty: DeepMergeable = [];
+  expect(deepMerge(arr1, arr2)).toEqual([1, 2, 3, 4]);
+  expect(deepMerge(empty, arr2)).toEqual([3, 4]);
+  expect(deepMerge(arr1, empty)).toEqual([1, 2]);
 });
 
 test('deepMerge - object merging', () => {
@@ -50,9 +54,13 @@ test('deepMerge - nested object merging', () => {
   });
 });
 
-test('deepMerge - mixed types', () => {
-  expect(deepMerge({ a: 1 }, { a: { b: 2 } })).toEqual({ a: { b: 2 } });
-  expect(deepMerge({ a: { b: 2 } }, { a: 1 })).toEqual({ a: 1 });
+test('deepMerge - mixed types override', () => {
+  const obj1: DeepMergeable = { a: 1 };
+  const obj2: DeepMergeable = { a: { b: 2 } };
+  const obj3: DeepMergeable = { a: { b: 2 } };
+  const obj4: DeepMergeable = { a: 1 };
+  expect(deepMerge(obj1, obj2)).toEqual({ a: { b: 2 } });
+  expect(deepMerge(obj3, obj4)).toEqual({ a: 1 });
 });
 
 test('replaceNestedStrings - simple object', () => {

@@ -4,7 +4,10 @@ export type RecursivePartial<T> = {
 
 export type DeepMergeable = { [key: string]: any } | any[] | null | undefined;
 
-export const deepMerge = <T extends DeepMergeable, U extends DeepMergeable>(obj1: T, obj2: U): T & U => {
+export function deepMerge<T extends DeepMergeable>(obj1: null | undefined, obj2: T): T;
+export function deepMerge<T extends DeepMergeable>(obj1: T, obj2: null | undefined): T;
+export function deepMerge<T extends DeepMergeable, U extends DeepMergeable>(obj1: T, obj2: U): T & U;
+export function deepMerge<T extends DeepMergeable, U extends DeepMergeable>(obj1: T, obj2: U): DeepMergeable {
   if (obj1 === null || obj1 === undefined) {
     return obj2 as T & U;
   }
