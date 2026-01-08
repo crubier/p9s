@@ -6,10 +6,7 @@ test('Default Migration', () => {
   expect(compile(createMigration({
     engine: {
       permission: { bitmap: { size: 4 } },
-      users: ["user1"],
-      id: {
-        mode: 'uuid'
-      }
+      users: ["user1"]
     },
     tables: [{
       name: "human_user",
@@ -30,7 +27,7 @@ test('Default Migration', () => {
     }]
   })).text).toMatchInlineSnapshot(`
     "
-      create extension if not exists "uuid-ossp";
+      
 
       
     -----------------------------------------------------------------------------------------------------------------------
@@ -55,7 +52,7 @@ test('Default Migration', () => {
     drop table if exists "resource_node" cascade;
 
     create table "resource_node" (
-      "id" uuid unique not null default uuid_generate_v4(),
+      "id" serial unique not null,
       constraint "resource_pkey" primary key ("id")
     );
 
@@ -67,8 +64,8 @@ test('Default Migration', () => {
     drop table if exists "resource_edge" cascade;
 
     create table "resource_edge" (
-      "parent_id" uuid not null,
-      "child_id" uuid not null,
+      "parent_id" integer not null,
+      "child_id" integer not null,
       "permission" bit(4),
       constraint "resource_edge_pkey" primary key ("parent_id", "child_id"),
       constraint "resource_edge_parent_fkey" foreign key ("parent_id") references "resource_node" ("id") on delete cascade on update cascade,
@@ -87,8 +84,8 @@ test('Default Migration', () => {
     drop table if exists "resource_edge_cache" cascade;
 
     create table "resource_edge_cache" (
-      "parent_id" uuid not null,
-      "child_id" uuid not null,
+      "parent_id" integer not null,
+      "child_id" integer not null,
       "permission" bit(4),
       constraint "resource_edge_cache_pkey" primary key ("parent_id", "child_id"),
       constraint "resource_edge_cache_parent_pkey" foreign key ("parent_id") references "resource_node" ("id"),
@@ -104,12 +101,12 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' compute recursive permissions, towards parent
     -----------------------------------------------------------------------------------------------------------------------
-    create or replace function "resource_edge_cache_parent_compute" ("var_child_id" uuid)
+    create or replace function "resource_edge_cache_parent_compute" ("var_child_id" integer)
       returns setof "resource_edge_cache"
       as $$
       with recursive "search_graph" ("parent_id", "child_id", "permission", "depth", "path") 
       as (
-        (values ("var_child_id", "var_child_id", ~  b'0'::bit(4), 0, array[]::uuid[])) -- seed
+        (values ("var_child_id", "var_child_id", ~  b'0'::bit(4), 0, array[]::integer[])) -- seed
         union all
         select -- recursive query
           "the_edge"."parent_id" as "parent_id",
@@ -135,17 +132,17 @@ test('Default Migration', () => {
     language sql
     stable;
 
-    grant execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) to "user1";
+    grant execute on function "resource_edge_cache_parent_compute" ("var_child_id" integer) to "user1";
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' compute recursive permissions, towards child
     -----------------------------------------------------------------------------------------------------------------------
-    create or replace function "resource_edge_cache_child_compute" ("var_parent_id" uuid)
+    create or replace function "resource_edge_cache_child_compute" ("var_parent_id" integer)
       returns setof "resource_edge_cache"
       as $$
       with recursive "search_graph" ("parent_id", "child_id", "permission", "depth", "path") 
       as (
-        (values ("var_parent_id", "var_parent_id", ~  b'0'::bit(4), 0, array[]::uuid[])) -- seed
+        (values ("var_parent_id", "var_parent_id", ~  b'0'::bit(4), 0, array[]::integer[])) -- seed
         union all
         select -- recursive query
           "the_search_graph"."parent_id" as "parent_id",
@@ -171,7 +168,7 @@ test('Default Migration', () => {
     language sql
     stable;
 
-    grant execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) to "user1";
+    grant execute on function "resource_edge_cache_child_compute" ("var_parent_id" integer) to "user1";
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' view of all transitive edges. 
@@ -517,7 +514,7 @@ test('Default Migration', () => {
     drop table if exists "role_node" cascade;
 
     create table "role_node" (
-      "id" uuid unique not null default uuid_generate_v4(),
+      "id" serial unique not null,
       constraint "role_pkey" primary key ("id")
     );
 
@@ -529,8 +526,8 @@ test('Default Migration', () => {
     drop table if exists "role_edge" cascade;
 
     create table "role_edge" (
-      "parent_id" uuid not null,
-      "child_id" uuid not null,
+      "parent_id" integer not null,
+      "child_id" integer not null,
       "permission" bit(4),
       constraint "role_edge_pkey" primary key ("parent_id", "child_id"),
       constraint "role_edge_parent_fkey" foreign key ("parent_id") references "role_node" ("id") on delete cascade on update cascade,
@@ -549,8 +546,8 @@ test('Default Migration', () => {
     drop table if exists "role_edge_cache" cascade;
 
     create table "role_edge_cache" (
-      "parent_id" uuid not null,
-      "child_id" uuid not null,
+      "parent_id" integer not null,
+      "child_id" integer not null,
       "permission" bit(4),
       constraint "role_edge_cache_pkey" primary key ("parent_id", "child_id"),
       constraint "role_edge_cache_parent_pkey" foreign key ("parent_id") references "role_node" ("id"),
@@ -566,12 +563,12 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' compute recursive permissions, towards parent
     -----------------------------------------------------------------------------------------------------------------------
-    create or replace function "role_edge_cache_parent_compute" ("var_child_id" uuid)
+    create or replace function "role_edge_cache_parent_compute" ("var_child_id" integer)
       returns setof "role_edge_cache"
       as $$
       with recursive "search_graph" ("parent_id", "child_id", "permission", "depth", "path") 
       as (
-        (values ("var_child_id", "var_child_id", ~  b'0'::bit(4), 0, array[]::uuid[])) -- seed
+        (values ("var_child_id", "var_child_id", ~  b'0'::bit(4), 0, array[]::integer[])) -- seed
         union all
         select -- recursive query
           "the_edge"."parent_id" as "parent_id",
@@ -597,17 +594,17 @@ test('Default Migration', () => {
     language sql
     stable;
 
-    grant execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) to "user1";
+    grant execute on function "role_edge_cache_parent_compute" ("var_child_id" integer) to "user1";
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' compute recursive permissions, towards child
     -----------------------------------------------------------------------------------------------------------------------
-    create or replace function "role_edge_cache_child_compute" ("var_parent_id" uuid)
+    create or replace function "role_edge_cache_child_compute" ("var_parent_id" integer)
       returns setof "role_edge_cache"
       as $$
       with recursive "search_graph" ("parent_id", "child_id", "permission", "depth", "path") 
       as (
-        (values ("var_parent_id", "var_parent_id", ~  b'0'::bit(4), 0, array[]::uuid[])) -- seed
+        (values ("var_parent_id", "var_parent_id", ~  b'0'::bit(4), 0, array[]::integer[])) -- seed
         union all
         select -- recursive query
           "the_search_graph"."parent_id" as "parent_id",
@@ -633,7 +630,7 @@ test('Default Migration', () => {
     language sql
     stable;
 
-    grant execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) to "user1";
+    grant execute on function "role_edge_cache_child_compute" ("var_parent_id" integer) to "user1";
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' view of all transitive edges. 
@@ -979,8 +976,8 @@ test('Default Migration', () => {
     drop table if exists "assignment_edge" cascade;
 
     create table "assignment_edge" (
-      "resource_id" uuid not null,
-      "role_id" uuid not null,
+      "resource_id" integer not null,
+      "role_id" integer not null,
       "permission" bit(4),
       constraint "assignment_edge_pkey" primary key ("resource_id", "role_id"),
       constraint "assignment_edge_resource_fkey" foreign key ("resource_id") references "resource_node" ("id") on delete cascade on update cascade,
@@ -1005,7 +1002,7 @@ test('Default Migration', () => {
 
       
     alter table "public"."human_user" drop column if exists "role_id" cascade;
-    alter table "public"."human_user" add column "role_id" uuid unique not null;
+    alter table "public"."human_user" add column "role_id" integer unique not null;
     alter table "public"."human_user" drop constraint if exists "role_human_user_fkey" cascade;
     alter table "public"."human_user" add constraint "role_human_user_fkey" foreign key ("role_id") references "role_node" ("id") on delete cascade on update cascade;
 
@@ -1013,7 +1010,7 @@ test('Default Migration', () => {
 
       
     alter table "public"."blog_post" drop column if exists "resource_id" cascade;
-    alter table "public"."blog_post" add column "resource_id" uuid unique not null;
+    alter table "public"."blog_post" add column "resource_id" integer unique not null;
     alter table "public"."blog_post" drop constraint if exists "resource_blog_post_fkey" cascade;
     alter table "public"."blog_post" add constraint "resource_blog_post_fkey" foreign key ("resource_id") references "resource_node" ("id") on delete cascade on update cascade;
 

@@ -1,7 +1,8 @@
 {
-  "name": "permit",
+  "name": "p9s",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "benchmarks/*"
   ]
 }

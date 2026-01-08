@@ -1,14 +1,14 @@
 
 // To get syntax highlighting in VSCode with the qufiwefefwoyn.inline-sql-syntax extension
 import { type SQL, query as sql, join, literal, identifier } from "pg-sql2";
-import { getCompleteConfig, getNaming } from "../core/configuration";
-import type { CompleteConfig, Naming, Config } from "../core/configuration";
+import { getCompleteConfig, getNaming } from "@p9s/core";
+import type { CompleteConfig, Naming, Config } from "@p9s/core";
 
 
 export const createMigration = <User extends string>(config: Config<User>) => {
   const completeConfig = getCompleteConfig(config);
   const naming = getNaming(completeConfig);
-  // const users = completeConfig.engine.config.engine.users.map(user => sql.identifier(user));
+  // const users = completeConfig.engine.config.engine.users.map(user => identifier(user));
 
   const result = sql`
   ${createMigrationExtensions(naming, completeConfig)}
@@ -718,7 +718,11 @@ export const createMigrationDataModelBindings = <User extends string>(naming: Na
 -- Table bindings
 -----------------------------------------------------------------------------------------------------------------------
 ${join(config.tables.map(table => {
-    const { schema, name, resourceId, resourceFkey, roleId, roleFkey } = naming.tables[table.name];
+    const tableNaming = naming.tables[table.name];
+    if (!tableNaming) {
+      throw new Error(`Table naming config not found for table: ${table.name}`);
+    }
+    const { schema, name, resourceId, resourceFkey, roleId, roleFkey } = tableNaming;
     const { resource, role } = naming;
     let resourceBlock = sql``;
 
@@ -756,9 +760,13 @@ export const createMigrationDataModelPolicies = <User extends string>(naming: Na
 -- Table policies
 -----------------------------------------------------------------------------------------------------------------------
 ${join(config.tables.flatMap(table => {
+    const tableNaming = naming.tables[table.name];
+    if (!tableNaming) {
+      throw new Error(`Table naming config not found for table: ${table.name}`);
+    }
     return config.engine.users.flatMap(user => {
       return (["select", "insert", "update", "delete"] as const).flatMap(operation => {
-        const { schema, name, resourceId, permission } = naming.tables[table.name];
+        const { schema, name, resourceId, permission } = tableNaming;
         const { resource, role, assignment } = naming;
         if (!table.isResource || table.permission[user] == null || table.permission[user][operation] == null) {
           return [];
@@ -766,7 +774,7 @@ ${join(config.tables.flatMap(table => {
         return [sql`
 drop policy if exists ${(permission as any)[user][operation]} on ${schema}.${name};
 create policy ${(permission as any)[user][operation]} on ${schema}.${name} 
-as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${sql.identifier(user)} 
+as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
 ${["select", "update", "delete"].includes(operation) ? sql`using ( 
   exists (
     select
@@ -817,7 +825,11 @@ ${["insert", "update"].includes(operation) ? sql`with check (
 -- Enable RLS on tables
 -----------------------------------------------------------------------------------------------------------------------
 ${join(config.tables.flatMap(table => {
-      const { schema, name } = naming.tables[table.name];
+      const tableNaming = naming.tables[table.name];
+      if (!tableNaming) {
+        throw new Error(`Table naming config not found for table: ${table.name}`);
+      }
+      const { schema, name } = tableNaming;
       if (!table.isResource) {
         return [];
       }

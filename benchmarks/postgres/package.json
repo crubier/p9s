@@ -1,7 +1,7 @@
 {
-  "name": "@p9s/core",
-  "module": "index.ts",
+  "name": "@p9s/benchmark-postgres",
   "type": "module",
+  "private": true,
   "scripts": {
     "test": "bun test"
   },
@@ -12,6 +12,9 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@p9s/postgres-testing": "workspace:*",
+    "@p9s/postgres": "workspace:*",
+    "@p9s/core-testing": "workspace:*",
     "pg-sql2": "^4.14.1"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@p9s/postgres",
+  "name": "@p9s/postgres-testing",
   "module": "index.ts",
   "type": "module",
   "scripts": {
@@ -12,7 +12,10 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "pg-sql2": "^4.14.1",
-    "@p9s/core": "workspace:*"
+    "@electric-sql/pglite": "^0.3.14",
+    "@p9s/core-testing": "workspace:*",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.16.3",
+    "pg-sql2": "^4.14.1"
   }
 }

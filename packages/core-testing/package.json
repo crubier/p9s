@@ -1,5 +1,5 @@
 {
-  "name": "@p9s/postgres",
+  "name": "@p9s/core-testing",
   "module": "index.ts",
   "type": "module",
   "scripts": {
@@ -10,9 +10,5 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {
-    "pg-sql2": "^4.14.1",
-    "@p9s/core": "workspace:*"
   }
 }

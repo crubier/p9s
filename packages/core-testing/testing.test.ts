@@ -1,18 +1,14 @@
 import { expect, test } from 'bun:test'
-import { compile, query as sql } from "pg-sql2";
-import { type PostgresTestContext } from './testing.mts';
-import { setupTests, enumerateTreeNodesAndEdgesBreadthFirst, generateUuidFromInteger } from './testing.mts';
-setupTests();
+import { enumerateTreeNodesAndEdgesBreadthFirst, generateUuidFromInteger } from './testing';
 
-test<PostgresTestContext>('generateUuidFromInteger', async () => {
+test('generateUuidFromInteger', async () => {
   expect(generateUuidFromInteger(1)).toMatchInlineSnapshot('"00000000-0000-0000-0000-000000000001"');
   expect(generateUuidFromInteger(165242)).toMatchInlineSnapshot('"00000000-0000-0000-0000-00000002857a"');
   expect(generateUuidFromInteger(1188277438292938219283992828)).toMatchInlineSnapshot('"00000000-03d6-eb89-0171-570000000000"');
   expect(generateUuidFromInteger(11882774382929382192839928288383838382)).toMatchInlineSnapshot('"08f08a02-8004-f380-0000-000000000000"');
 });
 
-
-test<PostgresTestContext>('enumerateTreeNodesAndEdgesBreadthFirst', async () => {
+test('enumerateTreeNodesAndEdgesBreadthFirst', async () => {
   expect(enumerateTreeNodesAndEdgesBreadthFirst([2, 2])).toMatchInlineSnapshot(`
     {
       "edges": [
@@ -55,15 +51,4 @@ test<PostgresTestContext>('enumerateTreeNodesAndEdgesBreadthFirst', async () => 
       ],
     }
   `);
-});
-
-test<PostgresTestContext>('SQL basics', async ({ client }) => {
-  const result = (await client.query(compile(sql`select 1 as one;`))).rows;
-  expect(result).toMatchInlineSnapshot(`
-    [
-      {
-        "one": 1,
-      },
-    ]
-  `)
 });
