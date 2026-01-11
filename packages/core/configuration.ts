@@ -1,9 +1,40 @@
 import type { SQL, } from "pg-sql2";
 import type { ReplaceNestedTypes, RecursivePartial } from "./util";
+import type {
+  BaseNamingConfig as BaseNamingConfigSchema,
+  DerivedResourceOrRoleNamingConfig as DerivedResourceOrRoleNamingConfigSchema,
+  DerivedNamingConfig as DerivedNamingConfigSchema,
+  PermissionPerOperation,
+  PermissionPerOperationNaming,
+} from "./configuration-schema";
 
 import { identifier } from "pg-sql2";
 import { deepMerge, replaceNestedStrings } from "./util";
 
+// Re-export base types from schema (non-generic)
+export type BaseNamingConfig = BaseNamingConfigSchema;
+export type DerivedResourceOrRoleNamingConfig = DerivedResourceOrRoleNamingConfigSchema;
+export type DerivedNamingConfig = DerivedNamingConfigSchema;
+export type { PermissionPerOperation, PermissionPerOperationNaming };
+
+// Generic types that extend the schema types with User parameter
+export type TableNamingConfig<User extends string> = {
+  tables: {
+    [key: string]: {
+      schema: string,
+      name: string,
+      resourceId: string,
+      resourceFkey: string,
+      roleId: string,
+      roleFkey: string,
+      permission: {
+        [user in User]: PermissionPerOperationNaming
+      }
+    }
+  }
+};
+
+export type NamingConfig<User extends string> = BaseNamingConfig & DerivedNamingConfig & TableNamingConfig<User>;
 
 export type CompleteConfig<User extends string> = {
   engine: {
@@ -42,121 +73,10 @@ export type CompleteConfig<User extends string> = {
     roleId: string,
     roleFkey: string,
     permission: {
-      [user in User]: {
-        select: number,
-        insert: number,
-        update: number,
-        delete: number
-      }
+      [user in User]: PermissionPerOperation
     }
   }>
 }
-
-export type BaseNamingConfig = typeof defaultBaseNamingConfig;
-
-export type DerivedResourceOrRoleNamingConfig = {
-  id: string,
-  pkey: string,
-  node: string,
-  edge: string,
-  parentId: string,
-  childId: string,
-  permission: string,
-  edgePkey: string,
-  parentFkey: string,
-  childFkey: string,
-  edgeParentIdIndex: string,
-  edgeChildIdIndex: string,
-  edgeCache: string,
-  edgeCachePkey: string,
-  edgeCacheParentFkey: string,
-  edgeCacheChildFkey: string,
-  edgeCacheParentIdIndex: string,
-  edgeCacheChildIdIndex: string,
-  edgeCacheParentCompute: string,
-  edgeCacheChildCompute: string,
-  varParentId: string,
-  varChildId: string,
-  edgeCacheView: string,
-  edgeCacheBackfill: string,
-  edgeInsertTriggerFunction: string,
-  edgeInsertTrigger: string,
-  edgeUpdateTriggerFunction: string,
-  edgeUpdateTrigger: string,
-  edgeDeleteTriggerFunction: string,
-  edgeDeleteTrigger: string,
-  nodeInsertTriggerFunction: string,
-  nodeInsertTrigger: string,
-  nodeUpdateTriggerFunction: string,
-  nodeUpdateTrigger: string,
-  nodeDeleteTriggerFunction: string,
-  nodeDeleteTrigger: string,
-  enableTriggerFunction: string,
-  disableTriggerFunction: string
-};
-
-export type DerivedNamingConfig = {
-  resource: DerivedResourceOrRoleNamingConfig,
-  role: DerivedResourceOrRoleNamingConfig,
-  assignment: {
-    edge: string,
-    resourceId: string,
-    roleId: string,
-    edgePkey: string,
-    resourceFkey: string,
-    roleFkey: string,
-    edgeResourceIdIndex: string,
-    edgeRoleIdIndex: string,
-    permission: string,
-    edgeCache: string,
-    edgeCachePkey: string,
-    edgeCacheResourceFkey: string,
-    edgeCacheRoleFkey: string,
-    edgeCacheResourceIdIndex: string,
-    edgeCacheRoleIdIndex: string,
-    edgeCacheView: string
-    edgeCacheBackfill: string,
-    edgeInsertTriggerFunction: string,
-    edgeInsertTrigger: string,
-    edgeUpdateTriggerFunction: string,
-    edgeUpdateTrigger: string,
-    edgeDeleteTriggerFunction: string,
-    edgeDeleteTrigger: string,
-    combinedEdgeInsertTriggerFunction: string,
-    combinedEdgeInsertTrigger: string,
-    combinedEdgeUpdateTriggerFunction: string,
-    combinedEdgeUpdateTrigger: string,
-    combinedEdgeDeleteTriggerFunction: string,
-    combinedEdgeDeleteTrigger: string,
-    enableTriggerFunction: string,
-    disableTriggerFunction: string
-  },
-  schema: string,
-  orBitmap: string,
-};
-
-export type TableNamingConfig<User extends string> = {
-  tables: {
-    [key: string]: {
-      schema: string,
-      name: string,
-      resourceId: string,
-      resourceFkey: string,
-      roleId: string,
-      roleFkey: string,
-      permission: {
-        [user in User]: {
-          select: string,
-          insert: string,
-          update: string,
-          delete: string,
-        }
-      }
-    }
-  }
-};
-
-export type NamingConfig<User extends string> = BaseNamingConfig & DerivedNamingConfig & TableNamingConfig<User>;
 
 export const defaultBaseNamingConfig = {
   prefix: "",

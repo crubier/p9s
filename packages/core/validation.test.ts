@@ -227,6 +227,272 @@ describe("Configuration Validation", () => {
     });
   });
 
+  describe("permission user validation", () => {
+    const baseConfig = {
+      engine: {
+        schema: "public",
+        users: ["admin", "user", "guest"],
+        permission: {
+          bitmap: { size: 128 },
+          maxDepth: { resource: 16, role: 16 },
+        },
+        authentication: { getCurrentUserId: "get_current_user_id" },
+        id: { mode: "integer" as const },
+        combineAssignmentsWith: "none" as const,
+        naming: {},
+      },
+      migration: {
+        output: { sql: "migration.sql" },
+      },
+    };
+
+    const validTable = {
+      schema: "public",
+      name: "posts",
+      isResource: true,
+      resourceId: "id",
+      resourceFkey: "post_fkey",
+      isRole: false,
+      roleId: "",
+      roleFkey: "",
+    };
+
+    test("[valid] all permission users exist in engine.users", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              admin: { select: 1, insert: 1, update: 1, delete: 1 },
+              user: { select: 1, insert: 1, update: 0, delete: 0 },
+              guest: { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("[valid] subset of users have permissions (not all users required)", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              admin: { select: 1, insert: 1, update: 1, delete: 1 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("[valid] empty permission object", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {},
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("[invalid] single unknown user in permissions", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              unknown_user: { select: 1, insert: 1, update: 1, delete: 1 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("unknown_user"))).toBe(true);
+        expect(errors.some((e) => e.includes("not in the users array"))).toBe(true);
+      }
+    });
+
+    test("[invalid] mix of valid and invalid users in permissions", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              admin: { select: 1, insert: 1, update: 1, delete: 1 },
+              invalid_user: { select: 1, insert: 0, update: 0, delete: 0 },
+              user: { select: 1, insert: 1, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("invalid_user"))).toBe(true);
+        expect(errors.every((e) => !e.includes("admin"))).toBe(true);
+        expect(errors.every((e) => !e.includes('"user"'))).toBe(true);
+      }
+    });
+
+    test("[invalid] multiple unknown users in same table", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              fake_user_1: { select: 1, insert: 1, update: 1, delete: 1 },
+              fake_user_2: { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("fake_user_1"))).toBe(true);
+        expect(errors.some((e) => e.includes("fake_user_2"))).toBe(true);
+      }
+    });
+
+    test("[invalid] unknown users across multiple tables", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            name: "posts",
+            permission: {
+              admin: { select: 1, insert: 1, update: 1, delete: 1 },
+              unknown_in_posts: { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+          {
+            ...validTable,
+            name: "comments",
+            permission: {
+              user: { select: 1, insert: 1, update: 1, delete: 1 },
+              unknown_in_comments: { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("unknown_in_posts"))).toBe(true);
+        expect(errors.some((e) => e.includes("unknown_in_comments"))).toBe(true);
+        expect(errors.length).toBeGreaterThanOrEqual(2);
+      }
+    });
+
+    test("[invalid] case-sensitive user matching", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              Admin: { select: 1, insert: 1, update: 1, delete: 1 },
+              USER: { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("Admin"))).toBe(true);
+        expect(errors.some((e) => e.includes("USER"))).toBe(true);
+      }
+    });
+
+    test("[invalid] empty string as user name", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              "": { select: 1, insert: 1, update: 1, delete: 1 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("[invalid] whitespace user name", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              "  ": { select: 1, insert: 1, update: 1, delete: 1 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("[valid] special characters in user names when defined in engine.users", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        engine: {
+          ...baseConfig.engine,
+          users: ["user@domain.com", "user-with-dash", "user_with_underscore"],
+        },
+        tables: [
+          {
+            ...validTable,
+            permission: {
+              "user@domain.com": { select: 1, insert: 1, update: 1, delete: 1 },
+              "user-with-dash": { select: 1, insert: 0, update: 0, delete: 0 },
+              "user_with_underscore": { select: 1, insert: 0, update: 0, delete: 0 },
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("[invalid] error message includes table index for debugging", () => {
+      const result = validateCompleteConfig({
+        ...baseConfig,
+        tables: [
+          {
+            ...validTable,
+            name: "first_table",
+            permission: { admin: { select: 1, insert: 1, update: 1, delete: 1 } },
+          },
+          {
+            ...validTable,
+            name: "second_table",
+            permission: { nonexistent: { select: 1, insert: 1, update: 1, delete: 1 } },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = getValidationErrors(result);
+        expect(errors.some((e) => e.includes("tables.1"))).toBe(true);
+      }
+    });
+  });
+
   describe("parseConfig", () => {
     test("[valid] returns parsed config on valid input", () => {
       const config = parseConfig({
