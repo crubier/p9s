@@ -227,9 +227,9 @@ export const migrationConfigSchema = z.object({
   }),
 });
 
-// Complete config base schema (without refinements)
+// Complete config base schema (uses refined engine schema for validation)
 export const completeConfigBaseSchema = z.object({
-  engine: engineConfigBaseSchema,
+  engine: engineConfigSchema,
   migration: migrationConfigSchema,
   tables: z.array(tableConfigSchema),
 });
