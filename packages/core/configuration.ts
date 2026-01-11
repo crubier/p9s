@@ -1,9 +1,13 @@
 import type { SQL, } from "pg-sql2";
 import type { ReplaceNestedTypes, RecursivePartial } from "./util";
 import type {
-  BaseNamingConfig as BaseNamingConfigSchema,
-  DerivedResourceOrRoleNamingConfig as DerivedResourceOrRoleNamingConfigSchema,
-  DerivedNamingConfig as DerivedNamingConfigSchema,
+  BaseNamingConfig,
+  DerivedNamingConfig,
+  DerivedResourceOrRoleNamingConfig,
+  TableNamingConfigEntry as TableNamingConfigEntryBase,
+  TableConfig as TableConfigBase,
+  EngineConfig as EngineConfigBase,
+  MigrationConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
 } from "./configuration-schema";
@@ -12,71 +16,46 @@ import { identifier } from "pg-sql2";
 import { deepMerge, replaceNestedStrings } from "./util";
 
 // Re-export base types from schema (non-generic)
-export type BaseNamingConfig = BaseNamingConfigSchema;
-export type DerivedResourceOrRoleNamingConfig = DerivedResourceOrRoleNamingConfigSchema;
-export type DerivedNamingConfig = DerivedNamingConfigSchema;
-export type { PermissionPerOperation, PermissionPerOperationNaming };
+export type {
+  BaseNamingConfig,
+  DerivedNamingConfig,
+  DerivedResourceOrRoleNamingConfig,
+  MigrationConfig,
+  PermissionPerOperation,
+  PermissionPerOperationNaming,
+};
 
-// Generic types that extend the schema types with User parameter
+// Generic types that extend the zod base types with User parameter for compile-time safety
+export type TableNamingConfigEntry<User extends string> = Omit<TableNamingConfigEntryBase, 'permission'> & {
+  permission: { [user in User]: PermissionPerOperationNaming }
+};
+
 export type TableNamingConfig<User extends string> = {
-  tables: {
-    [key: string]: {
-      schema: string,
-      name: string,
-      resourceId: string,
-      resourceFkey: string,
-      roleId: string,
-      roleFkey: string,
-      permission: {
-        [user in User]: PermissionPerOperationNaming
-      }
-    }
-  }
+  tables: { [key: string]: TableNamingConfigEntry<User> }
 };
 
 export type NamingConfig<User extends string> = BaseNamingConfig & DerivedNamingConfig & TableNamingConfig<User>;
 
+export type TableConfig<User extends string> = Omit<TableConfigBase, 'permission'> & {
+  permission: { [user in User]: PermissionPerOperation }
+};
+
+export type EngineConfig<User extends string> = Omit<EngineConfigBase, 'users' | 'naming'> & {
+  users: Array<User>,
+  naming: RecursivePartial<NamingConfig<User>>
+};
+
 export type CompleteConfig<User extends string> = {
-  engine: {
-    schema: string,
-    users: Array<User>,
-    permission: {
-      bitmap: {
-        size: number
-      },
-      maxDepth: {
-        resource: number,
-        role: number,
-      }
-    },
-    authentication: {
-      getCurrentUserId: string,
-    },
-    id: {
-      mode: "integer" | "uuid"
-    },
-    combineAssignmentsWith: "none" | "role" | "resource",
-    naming: RecursivePartial<NamingConfig<User>>
-  },
-  migration: {
-    output: {
-      sql: string,
-    }
-  },
-  tables: Array<{
-    schema: string,
-    name: string,
-    isResource: boolean,
-    resourceId: string,
-    resourceFkey: string,
-    isRole: boolean,
-    roleId: string,
-    roleFkey: string,
-    permission: {
-      [user in User]: PermissionPerOperation
-    }
-  }>
-}
+  engine: EngineConfig<User>,
+  migration: MigrationConfig,
+  tables: Array<TableConfig<User>>
+};
+
+export type Config<User extends string> = {
+  engine?: RecursivePartial<EngineConfig<User>>,
+  migration?: RecursivePartial<MigrationConfig>,
+  tables?: Array<RecursivePartial<TableConfig<User>>>,
+};
 
 export const defaultBaseNamingConfig = {
   prefix: "",
@@ -316,12 +295,6 @@ export const getNaming = <User extends string>(config: CompleteConfig<User>): Na
   return replaceNestedStrings(getCompleteNamingConfig(config), identifier)
 }
 
-
-export type Config<User extends string> = {
-  engine?: RecursivePartial<CompleteConfig<User>["engine"]>,
-  migration?: RecursivePartial<CompleteConfig<User>["migration"]>,
-  tables?: RecursivePartial<CompleteConfig<User>["tables"]>,
-}
 
 export const defaultConfig: CompleteConfig<any> = {
   engine: {

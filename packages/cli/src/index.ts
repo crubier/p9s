@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { postgres } from "./commands/postgres.js";
+import { validate } from "./commands/validate.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -13,6 +14,7 @@ async function main() {
     .version("0.0.1", "-v, --version", "display the version number");
 
   program.addCommand(postgres);
+  program.addCommand(validate);
 
   program.parse();
 }
