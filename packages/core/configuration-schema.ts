@@ -1,6 +1,22 @@
 import { z } from "zod";
 
-// Base naming config schema (mirrors defaultBaseNamingConfig structure)
+// Permission per operation (numeric values for table config)
+export const permissionPerOperationSchema = z.object({
+  select: z.number(),
+  insert: z.number(),
+  update: z.number(),
+  delete: z.number(),
+});
+
+// Permission per operation (string values for naming config)
+export const permissionPerOperationNamingSchema = z.object({
+  select: z.string(),
+  insert: z.string(),
+  update: z.string(),
+  delete: z.string(),
+});
+
+// Base naming config schema (matches defaultBaseNamingConfig structure)
 export const baseNamingConfigSchema = z.object({
   prefix: z.string(),
   id: z.string(),
@@ -33,8 +49,6 @@ export const baseNamingConfigSchema = z.object({
   enable: z.string(),
   disable: z.string(),
 });
-
-export type BaseNamingConfig = z.infer<typeof baseNamingConfigSchema>;
 
 // Derived resource or role naming config schema
 export const derivedResourceOrRoleNamingConfigSchema = z.object({
@@ -78,8 +92,6 @@ export const derivedResourceOrRoleNamingConfigSchema = z.object({
   disableTriggerFunction: z.string(),
 });
 
-export type DerivedResourceOrRoleNamingConfig = z.infer<typeof derivedResourceOrRoleNamingConfigSchema>;
-
 // Assignment naming config schema
 export const assignmentNamingConfigSchema = z.object({
   edge: z.string(),
@@ -115,9 +127,7 @@ export const assignmentNamingConfigSchema = z.object({
   disableTriggerFunction: z.string(),
 });
 
-export type AssignmentNamingConfig = z.infer<typeof assignmentNamingConfigSchema>;
-
-// Derived naming config schema
+// Derived naming config schema (combines resource, role, assignment)
 export const derivedNamingConfigSchema = z.object({
   resource: derivedResourceOrRoleNamingConfigSchema,
   role: derivedResourceOrRoleNamingConfigSchema,
@@ -125,44 +135,6 @@ export const derivedNamingConfigSchema = z.object({
   schema: z.string(),
   orBitmap: z.string(),
 });
-
-export type DerivedNamingConfig = z.infer<typeof derivedNamingConfigSchema>;
-
-// Permission per operation schema
-export const permissionPerOperationSchema = z.object({
-  select: z.number(),
-  insert: z.number(),
-  update: z.number(),
-  delete: z.number(),
-});
-
-export type PermissionPerOperation = z.infer<typeof permissionPerOperationSchema>;
-
-// Permission per operation (string version for naming)
-export const permissionPerOperationNamingSchema = z.object({
-  select: z.string(),
-  insert: z.string(),
-  update: z.string(),
-  delete: z.string(),
-});
-
-export type PermissionPerOperationNaming = z.infer<typeof permissionPerOperationNamingSchema>;
-
-// Table config schema (for CompleteConfig.tables)
-// Note: User generic is handled via z.record for permission
-export const tableConfigSchema = z.object({
-  schema: z.string(),
-  name: z.string(),
-  isResource: z.boolean(),
-  resourceId: z.string(),
-  resourceFkey: z.string(),
-  isRole: z.boolean(),
-  roleId: z.string(),
-  roleFkey: z.string(),
-  permission: z.record(z.string(), permissionPerOperationSchema),
-});
-
-export type TableConfig = z.infer<typeof tableConfigSchema>;
 
 // Table naming config entry schema
 export const tableNamingConfigEntrySchema = z.object({
@@ -175,24 +147,31 @@ export const tableNamingConfigEntrySchema = z.object({
   permission: z.record(z.string(), permissionPerOperationNamingSchema),
 });
 
-export type TableNamingConfigEntry = z.infer<typeof tableNamingConfigEntrySchema>;
-
 // Table naming config schema
 export const tableNamingConfigSchema = z.object({
   tables: z.record(z.string(), tableNamingConfigEntrySchema),
 });
 
-export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
-
-// Full naming config schema (combines base, derived, and table naming)
+// Full naming config schema (base + derived + tables)
 export const namingConfigSchema = baseNamingConfigSchema
   .merge(derivedNamingConfigSchema)
   .merge(tableNamingConfigSchema);
 
-export type NamingConfig = z.infer<typeof namingConfigSchema>;
+// Table config schema (for CompleteConfig.tables array entries)
+export const tableConfigSchema = z.object({
+  schema: z.string(),
+  name: z.string(),
+  isResource: z.boolean(),
+  resourceId: z.string(),
+  resourceFkey: z.string(),
+  isRole: z.boolean(),
+  roleId: z.string(),
+  roleFkey: z.string(),
+  permission: z.record(z.string(), permissionPerOperationSchema),
+});
 
-// Engine config schema
-export const engineConfigSchema = z.object({
+// Engine config base schema (without refinements, for partial/optional use)
+export const engineConfigBaseSchema = z.object({
   schema: z.string(),
   users: z.array(z.string()),
   permission: z.object({
@@ -211,10 +190,35 @@ export const engineConfigSchema = z.object({
     mode: z.enum(["integer", "uuid"]),
   }),
   combineAssignmentsWith: z.enum(["none", "role", "resource"]),
-  naming: namingConfigSchema.deepPartial(),
+  naming: namingConfigSchema.partial(),
 });
 
-export type EngineConfig = z.infer<typeof engineConfigSchema>;
+// Engine config schema with superRefine for complex validation
+export const engineConfigSchema = engineConfigBaseSchema.superRefine((data, ctx) => {
+  // Validate bitmap size is within reasonable bounds
+  if (data.permission.bitmap.size < 1 || data.permission.bitmap.size > 1024) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Bitmap size must be between 1 and 1024",
+      path: ["permission", "bitmap", "size"],
+    });
+  }
+  // Validate maxDepth values are positive
+  if (data.permission.maxDepth.resource < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Resource max depth must be at least 1",
+      path: ["permission", "maxDepth", "resource"],
+    });
+  }
+  if (data.permission.maxDepth.role < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Role max depth must be at least 1",
+      path: ["permission", "maxDepth", "role"],
+    });
+  }
+});
 
 // Migration config schema
 export const migrationConfigSchema = z.object({
@@ -223,22 +227,49 @@ export const migrationConfigSchema = z.object({
   }),
 });
 
-export type MigrationConfig = z.infer<typeof migrationConfigSchema>;
-
-// Complete config schema
-export const completeConfigSchema = z.object({
-  engine: engineConfigSchema,
+// Complete config base schema (without refinements)
+export const completeConfigBaseSchema = z.object({
+  engine: engineConfigBaseSchema,
   migration: migrationConfigSchema,
   tables: z.array(tableConfigSchema),
 });
 
-export type CompleteConfig = z.infer<typeof completeConfigSchema>;
+// Complete config schema with superRefine for cross-field validation
+export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, ctx) => {
+  // Validate that permission keys in tables match the users array
+  const validUsers = new Set(data.engine.users);
+  data.tables.forEach((table, tableIndex) => {
+    Object.keys(table.permission).forEach((user) => {
+      if (!validUsers.has(user)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Permission user "${user}" is not in the users array`,
+          path: ["tables", tableIndex, "permission", user],
+        });
+      }
+    });
+  });
+});
 
 // User-facing config schema (partial version for user input)
 export const configSchema = z.object({
-  engine: engineConfigSchema.deepPartial().optional(),
-  migration: migrationConfigSchema.deepPartial().optional(),
-  tables: z.array(tableConfigSchema.deepPartial()).optional(),
+  engine: engineConfigBaseSchema.partial().optional(),
+  migration: migrationConfigSchema.partial().optional(),
+  tables: z.array(tableConfigSchema.partial()).optional(),
 });
 
+// Type exports inferred from schemas
+export type PermissionPerOperation = z.infer<typeof permissionPerOperationSchema>;
+export type PermissionPerOperationNaming = z.infer<typeof permissionPerOperationNamingSchema>;
+export type BaseNamingConfig = z.infer<typeof baseNamingConfigSchema>;
+export type DerivedResourceOrRoleNamingConfig = z.infer<typeof derivedResourceOrRoleNamingConfigSchema>;
+export type AssignmentNamingConfig = z.infer<typeof assignmentNamingConfigSchema>;
+export type DerivedNamingConfig = z.infer<typeof derivedNamingConfigSchema>;
+export type TableNamingConfigEntry = z.infer<typeof tableNamingConfigEntrySchema>;
+export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
+export type NamingConfig = z.infer<typeof namingConfigSchema>;
+export type TableConfig = z.infer<typeof tableConfigSchema>;
+export type EngineConfig = z.infer<typeof engineConfigSchema>;
+export type MigrationConfig = z.infer<typeof migrationConfigSchema>;
+export type CompleteConfig = z.infer<typeof completeConfigSchema>;
 export type Config = z.infer<typeof configSchema>;
