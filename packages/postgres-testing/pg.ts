@@ -75,13 +75,13 @@ export const setupTests = (databaseUrl: string) => {
       connectionString: databaseUrl,
     });
     await rootClient.connect();
-    if ((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_admin_username)}`))).rowCount ?? 0 <= 0) {
+    if (((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_admin_username)}`))).rowCount ?? 0) <= 0) {
       await rootClient.query(compile(sql`create user ${identifier(database_admin_username)} with login password ${literal(database_admin_password)}`));
     }
-    if ((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_user_username)}`))).rowCount ?? 0 <= 0) {
+    if (((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_user_username)}`))).rowCount ?? 0) <= 0) {
       await rootClient.query(compile(sql`create user ${identifier(database_user_username)} with login password ${literal(database_user_password)}`));
     }
-    if ((await rootClient.query(compile(sql`select datname from pg_database where datname = ${literal(database_name)}`))).rowCount ?? 0 <= 0) {
+    if (((await rootClient.query(compile(sql`select datname from pg_database where datname = ${literal(database_name)}`))).rowCount ?? 0) <= 0) {
       await rootClient.query(compile(sql`create database ${identifier(database_name)} owner ${identifier(database_admin_username)}`));
     }
     await rootClient.query(compile(sql`grant connect on database ${identifier(database_name)} to ${identifier(database_user_username)}`));

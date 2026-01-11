@@ -3,4 +3,7 @@ const [{ result: pgliteResult }, { result: pgResult }] = await Promise.all([
   import("./pg"),
 ]);
 
-console.table([{ Name: "PGLite", result: pgliteResult }, { Name: "PG", result: pgResult }])
+console.table([
+  { Name: "PGLite", Duration: (pgliteResult / 1000).toFixed(3) },
+  { Name: "PG", Duration: (pgResult / 1000).toFixed(3) }
+])
