@@ -64,8 +64,6 @@ describe('pglite validation playground', async () => {
 `);
   });
 
-
-
   test('pglite introspection', async () => {
     const db = new PGlite()
     await db.exec(compile(sql`
@@ -131,6 +129,25 @@ describe('pglite validation playground', async () => {
       },
     ]
   `);
+  });
+
+  test('pglite security definer function', async () => {
+    const db = new PGlite()
+    await db.exec(compile(sql`
+      CREATE FUNCTION foo() RETURNS text
+        LANGUAGE sql SECURITY DEFINER
+      AS $$
+        SELECT current_user;
+      $$;
+    `).text);
+    const { rows } = await db.query(compile(sql`SELECT foo()`).text);
+    expect(rows).toMatchInlineSnapshot(`
+      [
+        {
+          "foo": "postgres",
+        },
+      ]
+    `);
   });
 
 });

@@ -117,6 +117,7 @@
       "name": "@p9s/postgres",
       "dependencies": {
         "@p9s/core": "workspace:*",
+        "@p9s/postgres-testing": "workspace:*",
         "pg-sql2": "^4.14.1",
       },
       "devDependencies": {

@@ -2,6 +2,11 @@
   "name": "@p9s/postgres-testing",
   "module": "index.ts",
   "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./pglite": "./pglite.ts",
+    "./pg": "./pg.ts"
+  },
   "scripts": {
     "test": "bun test"
   },

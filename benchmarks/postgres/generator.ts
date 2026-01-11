@@ -4,7 +4,6 @@ import { createMigration } from '@p9s/postgres'
 import { computeIndexRange, computeProduct, enumerateTreeNodesAndEdgesBreadthFirst, generateRandomBitmap, generateRandomPairsInRanges, generateRegularPairsInRanges, generateUuidFromInteger } from '@p9s/core-testing'
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
-import { type PostgresTestContext } from '@p9s/postgres-testing/pglite'
 
 export const nullConsole = {
   ...console,
