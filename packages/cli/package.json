@@ -1,0 +1,26 @@
+{
+  "name": "@p9s/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "p9s": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@p9s/core": "workspace:*",
+    "@p9s/postgres": "workspace:*",
+    "commander": "^14.0.0",
+    "cosmiconfig": "^9.0.0",
+    "pg-sql2": "^4.14.1"
+  }
+}
