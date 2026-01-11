@@ -1,9 +1,16 @@
-const [{ result: pgliteResult }, { result: pgResult }] = await Promise.all([
-  import("./pglite"),
-  import("./pg"),
-]);
+const benchmarks = [
+  { name: "PGLite", module: "./pglite" },
+  { name: "PG", module: "./pg" },
+];
 
-console.table([
-  { Name: "PGLite", Duration: (pgliteResult / 1000).toFixed(3) },
-  { Name: "PG", Duration: (pgResult / 1000).toFixed(3) }
-])
+const modules = await Promise.all(benchmarks.map(b => import(b.module)));
+
+const results = benchmarks.flatMap((b, i) =>
+  Object.entries(modules[i]).map(([idMode, result]) => ({
+    DB: b.name,
+    "ID Mode": idMode,
+    Duration: ((result as { totalTime: number }).totalTime / 1000).toFixed(3),
+  }))
+);
+
+console.table(results);

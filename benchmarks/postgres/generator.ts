@@ -1,7 +1,9 @@
 
 import { query as sql, join, identifier, literal, type SQL } from "pg-sql2";
 import { createMigration } from '@p9s/postgres'
-import { computeIndexRange, computeProduct, enumerateTreeNodesAndEdgesBreadthFirst, generateRandomBitmap, generateRandomPairsInRanges, generateRegularPairsInRanges, } from '@p9s/core-testing'
+import { computeIndexRange, computeProduct, enumerateTreeNodesAndEdgesBreadthFirst, generateRandomBitmap, generateRandomPairsInRanges, generateRegularPairsInRanges, generateUuidFromInteger } from '@p9s/core-testing'
+
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 import { type PostgresTestContext } from '@p9s/postgres-testing/pglite'
 
 export const nullConsole = {
@@ -18,7 +20,7 @@ export interface Context {
   exec: (query: SQL) => Promise<any>;
 }
 
-export async function runPostgresBenchmark(context: Context, { benchmarkSizeFactor = 5, logger = nullConsole }: { benchmarkSizeFactor?: number, logger?: typeof console }) {
+export async function runPostgresBenchmark(context: Context, { benchmarkSizeFactor = 5, idMode = "uuid", logger = nullConsole }: { benchmarkSizeFactor?: number, idMode?: "integer" | "uuid", logger?: typeof console }) {
   const startTime = performance.now();
 
   const { database_admin_username, database_user_username, runTestQuery, exec } = context;
@@ -90,7 +92,12 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
     
   `);
 
-  await exec(sql`
+  await exec(idMode === "uuid" ? sql`
+    -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
+    create function "current_role_id"() returns uuid as $$
+      select nullif(current_setting('jwt.claims.role_id', true), ${literal(NIL_UUID)})::uuid
+    $$ language sql stable;
+  ` : sql`
     -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
     create function "current_role_id"() returns integer as $$
       select nullif(current_setting('jwt.claims.role_id', true), '-1')::integer
@@ -116,7 +123,7 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
         database_user_username
       ],
       id: {
-        mode: "integer"
+        mode: idMode
       }
     },
     tables: [{
@@ -155,7 +162,48 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
     }))]
   }));
 
-  await exec(sql`
+  await exec(idMode === "uuid" ? sql`
+    -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
+    create type "jwt_token" as (
+      role_id uuid,
+      exp bigint
+    );
+
+    -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
+    create function "register_human_user"(
+      "human_user_email" varchar(1024)
+    ) returns "human_user" as $$
+    declare
+      "result_role_node" "role_node";
+      "result_human_user" "human_user";
+    begin
+      insert into "role_node" 
+      default values
+      returning * into "result_role_node";
+
+      insert into "human_user" ("email", "role_id") 
+      values ("human_user_email", "result_role_node"."id")
+      returning * into "result_human_user";
+
+      return "result_human_user";
+    end;
+    $$ language plpgsql strict security definer;
+
+    -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
+    create function "authenticate_human_user"(
+      "human_user_email" varchar(1024)
+    ) returns "jwt_token" as $$
+    declare
+      "result_human_user" "human_user";
+    begin
+      select * into "result_human_user"
+      from "human_user"
+      where "email" = "human_user_email";
+
+      return ("result_human_user"."role_id", extract(epoch from (now() + interval '2 days')))::jwt_token;
+    end;
+    $$ language plpgsql strict security definer;
+  ` : sql`
     -- See https://postgraphile.org/postgraphile/next/postgresql-schema-design
     create extension if not exists "uuid-ossp";
 
@@ -280,7 +328,9 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
   await exec(sql`
     insert into "resource_node" ("id") values
       ${join(resourceNodes.map((node) => {
-    return sql`(${literal(node.id)})`
+    return idMode === "uuid"
+      ? sql`(${literal(generateUuidFromInteger(node.id))}::uuid)`
+      : sql`(${literal(node.id)})`
   }), ",")};
   `);
   logger.timeEnd("resource_node");
@@ -290,7 +340,9 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
   await exec(sql`
   insert into "resource_edge" ("parent_id", "child_id", "permission") values
   ${join(resourceEdges.map((edge) => {
-    return sql`(${literal(edge.parent)}, ${literal(edge.child)}, b${literal(generateRandomBitmap(bitmapSize, 0.8, -edge.parent))}::bit(${literal(bitmapSize)}))`
+    return idMode === "uuid"
+      ? sql`(${literal(generateUuidFromInteger(edge.parent))}::uuid, ${literal(generateUuidFromInteger(edge.child))}::uuid, b${literal(generateRandomBitmap(bitmapSize, 0.8, -edge.parent))}::bit(${literal(bitmapSize)}))`
+      : sql`(${literal(edge.parent)}, ${literal(edge.child)}, b${literal(generateRandomBitmap(bitmapSize, 0.8, -edge.parent))}::bit(${literal(bitmapSize)}))`
   }), ",\n")};
 `);
   logger.timeEnd("resource_edge");
@@ -300,7 +352,9 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
   await exec(sql`
     insert into "role_node" ("id") values
       ${join(roleNodes.map((node) => {
-    return sql`(${literal(node.id)})`
+    return idMode === "uuid"
+      ? sql`(${literal(generateUuidFromInteger(node.id))}::uuid)`
+      : sql`(${literal(node.id)})`
   }), ",")};
   `);
   logger.timeEnd("role_node");
@@ -310,7 +364,9 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
   await exec(sql`
   insert into "role_edge" ("parent_id", "child_id", "permission") values
   ${join(roleEdges.map((edge) => {
-    return sql`(${literal(edge.parent)}, ${literal(edge.child)}, b${literal(generateRandomBitmap(bitmapSize, 0.8, edge.parent))}::bit(${literal(bitmapSize)}))`
+    return idMode === "uuid"
+      ? sql`(${literal(generateUuidFromInteger(edge.parent))}::uuid, ${literal(generateUuidFromInteger(edge.child))}::uuid, b${literal(generateRandomBitmap(bitmapSize, 0.8, edge.parent))}::bit(${literal(bitmapSize)}))`
+      : sql`(${literal(edge.parent)}, ${literal(edge.child)}, b${literal(generateRandomBitmap(bitmapSize, 0.8, edge.parent))}::bit(${literal(bitmapSize)}))`
   }), ",\n")};
 `);
   logger.timeEnd("role_edge");
@@ -333,6 +389,13 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
     assignmentRandomUserFolderPairs.length +
     assignmentRandomUserProjectPairs.length
   );
+
+  const makeAssignmentRow = ({ left, right }: { left: number, right: number }, index: number, probability: number, seed: number) => {
+    return idMode === "uuid"
+      ? sql`(${literal(generateUuidFromInteger(left))}::uuid, ${literal(generateUuidFromInteger(right))}::uuid, b${literal(generateRandomBitmap(bitmapSize, probability, index * seed))}::bit(${literal(bitmapSize)}))`
+      : sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, probability, index * seed))}::bit(${literal(bitmapSize)}))`
+  };
+
   await runTestQuery(sql`
     with "deduped" as (
     select distinct on ("role_id", "resource_id") "role_id", "resource_id", "permission"
@@ -340,54 +403,24 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
     ${join(
     [
 
-      ...assignmentRegularOrgOrgPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.3, index * 27367181))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRegularTeamWorkspacePairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.5, index * 8374))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRegularUserFolderPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.7, index * 15553))}::bit(${literal(bitmapSize)}))`
-      }),
+      ...assignmentRegularOrgOrgPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.3, 27367181)),
+      ...assignmentRegularTeamWorkspacePairs.map((pair, index) => makeAssignmentRow(pair, index, 0.5, 8374)),
+      ...assignmentRegularUserFolderPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.7, 15553)),
 
-      ...assignmentRandomOrgOrgPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.3, index * 43627829))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomOrgWorkspacePairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 828734))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomOrgFolderPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 22651))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomOrgProjectPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.3, index * 127647))}::bit(${literal(bitmapSize)}))`
-      }),
+      ...assignmentRandomOrgOrgPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.3, 43627829)),
+      ...assignmentRandomOrgWorkspacePairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 828734)),
+      ...assignmentRandomOrgFolderPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 22651)),
+      ...assignmentRandomOrgProjectPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.3, 127647)),
 
-      ...assignmentRandomTeamOrgPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.3, index * 987394))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomTeamWorkspacePairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 42123))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomTeamFolderPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 212131))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomTeamProjectPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.3, index * 556455))}::bit(${literal(bitmapSize)}))`
-      }),
+      ...assignmentRandomTeamOrgPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.3, 987394)),
+      ...assignmentRandomTeamWorkspacePairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 42123)),
+      ...assignmentRandomTeamFolderPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 212131)),
+      ...assignmentRandomTeamProjectPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.3, 556455)),
 
-      ...assignmentRandomUserOrgPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.5, index * 8787867))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomUserWorkspacePairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 7373737))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomUserFolderPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 3472497))}::bit(${literal(bitmapSize)}))`
-      }),
-      ...assignmentRandomUserProjectPairs.map(({ left, right }, index) => {
-        return sql`(${literal(left)}, ${literal(right)}, b${literal(generateRandomBitmap(bitmapSize, 0.4, index * 4294797))}::bit(${literal(bitmapSize)}))`
-      }),
+      ...assignmentRandomUserOrgPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.5, 8787867)),
+      ...assignmentRandomUserWorkspacePairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 7373737)),
+      ...assignmentRandomUserFolderPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 3472497)),
+      ...assignmentRandomUserProjectPairs.map((pair, index) => makeAssignmentRow(pair, index, 0.4, 4294797)),
     ]
 
     , ",\n")}
@@ -416,5 +449,5 @@ export async function runPostgresBenchmark(context: Context, { benchmarkSizeFact
   const totalTime = performance.now() - startTime;
   logger.log(`Total benchmark time: ${totalTime.toFixed(2)}ms`);
 
-  return totalTime;
+  return { totalTime };
 }

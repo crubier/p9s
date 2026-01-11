@@ -1,4 +1,4 @@
-import * as fs from "node:fs";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Command } from "commander";
 import { compile } from "pg-sql2";
@@ -35,11 +35,8 @@ postgres
     const sql = compile(migration).text;
 
     const outputDir = path.dirname(outputPath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    fs.writeFileSync(outputPath, sql, "utf-8");
+    await fs.mkdir(outputDir, { recursive: true });
+    await fs.writeFile(outputPath, sql, "utf-8");
 
     console.log(`Migration written to: ${outputPath}`);
   });
