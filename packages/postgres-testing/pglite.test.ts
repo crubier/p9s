@@ -1,7 +1,6 @@
-import { expect, describe, test } from 'bun:test'
+import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { compile, query as sql } from "pg-sql2";
 import { PGlite } from '@electric-sql/pglite'
-import { type PostgresTestContext } from './pglite';
 import { setupTests } from './pglite';
 
 
@@ -9,9 +8,9 @@ import { setupTests } from './pglite';
 
 
 describe('pglite testing', async () => {
-  const context = {} as PostgresTestContext;
-
-  setupTests(context);
+  const { setup, teardown, context } = setupTests();
+  beforeEach(setup)
+  afterEach(teardown)
 
   test('sql basics', async () => {
     const { client } = context;

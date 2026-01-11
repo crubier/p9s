@@ -3,6 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "benchmark": "bun all.ts",
     "test": "bun test"
   },
   "devDependencies": {

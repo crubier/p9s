@@ -1,4 +1,3 @@
-import { beforeEach, afterEach } from 'bun:test'
 import { compile, query as sql, literal, identifier } from "pg-sql2";
 import type { SQL } from "pg-sql2";
 import { generateRandomString, orderByIdChildParent } from '@p9s/core-testing';
@@ -60,8 +59,10 @@ export interface PostgresTestContext {
 }
 
 // Export the setup functions
-export const setupTests = (context: Partial<PostgresTestContext>) => {
-  beforeEach(async () => {
+export const setupTests = () => {
+  const context = {} as Partial<PostgresTestContext>;
+
+  const setup = async () => {
     // Create the testing database and user
     context.database_admin_username = `admin_${generateRandomString(4)}`;
     context.database_admin_password = `admin_${generateRandomString(4)}`;
@@ -104,10 +105,10 @@ export const setupTests = (context: Partial<PostgresTestContext>) => {
     context.client = client;
     context.runTestQuery = createRunTestQuery(client);
     context.exec = createExec(client);
-  })
+  }
 
 
-  afterEach(async () => {
+  const teardown = async () => {
     const { client, database_admin_username, database_user_username, database_name } = context as PostgresTestContext;
 
     const dataDirDump = await client.dumpDataDir();
@@ -127,5 +128,11 @@ export const setupTests = (context: Partial<PostgresTestContext>) => {
     }
 
 
-  })
+  }
+
+  return {
+    context: context as PostgresTestContext,
+    setup,
+    teardown
+  }
 };

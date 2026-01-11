@@ -1,0 +1,29 @@
+version: "3.2"
+services:
+  # pgadmin:
+  #   image: dpage/pgadmin4:7.7
+  #   user: root
+  #   restart: always
+  #   ports:
+  #     - "8080:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: user@email.com
+  #     PGADMIN_DEFAULT_PASSWORD: password
+  #   volumes:
+  #     - ./volumes/pgadmin:/var/lib/pgadmin
+  postgres:
+    image: postgres:18.1
+    restart: always
+    # command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    healthcheck:
+      test: /usr/bin/pg_isready -U postgres
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    ports:
+      - "54321:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql

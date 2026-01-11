@@ -1,13 +1,13 @@
-import { expect, describe, test } from 'bun:test'
+import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { compile, query as sql } from "pg-sql2";
-import { type PostgresTestContext } from './pg';
 import { setupTests } from './pg';
 
 
 describe.skip('pg testing', async () => {
-  const context = {} as PostgresTestContext;
 
-  setupTests(context);
+  const { setup, teardown, context } = setupTests(process.env.ROOT_DATABASE_URL!);
+  beforeEach(setup)
+  afterEach(teardown)
 
   test('sql basics', async () => {
     const { client } = context;
