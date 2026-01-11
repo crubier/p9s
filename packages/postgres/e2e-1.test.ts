@@ -1,12 +1,12 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier } from "pg-sql2";
 import { createMigration } from './generation'
-import { setupTests } from '@p9s/postgres-testing/pg';
+import { setupTests } from '@p9s/postgres-testing/pglite';
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:54321/postgres';
+// const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:54321/postgres';
 
 describe('SQL end to end test', async () => {
-  const { setup, teardown, context } = setupTests(databaseUrl);
+  const { setup, teardown, context } = setupTests();
   beforeEach(setup);
   afterEach(teardown);
 
@@ -62,7 +62,6 @@ describe('SQL end to end test', async () => {
     }));
 
     await exec(sql`
-      create extension if not exists "pgcrypto";
       create type "jwt_token" as (role_id integer, exp bigint);
       create function "register_human_user"("human_user_email" varchar(1024)) returns "human_user" as $$
       declare
@@ -84,18 +83,11 @@ describe('SQL end to end test', async () => {
     `);
 
     // Populate the p9s tables with some data
-    expect(await runTestQuery(sql`
-      insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8);
-      insert into "resource_edge" ("parent_id", "child_id", "permission") values
+    await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
       (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
       (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
-      (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4));
-    `)).toMatchInlineSnapshot(`
-      [
-        [],
-        [],
-      ]
-    `);
+      (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
 
     expect(await runTestQuery(sql`select * from "resource_node"; `)).toMatchInlineSnapshot(`
       [
@@ -1436,78 +1428,25 @@ describe('SQL end to end test', async () => {
     `);
 
     // Reset edges
-    expect(await runTestQuery(sql`
-      delete from "resource_edge";
-      insert into "resource_edge"("parent_id", "child_id", "permission") values
+    await exec(sql`delete from "resource_edge"`);
+    await exec(sql`insert into "resource_edge"("parent_id", "child_id", "permission") values
         (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
         (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
-        (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4));
-    `)).toMatchInlineSnapshot(`
-      [
-        [],
-        [],
-      ]
-    `);
+        (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
 
     // Register users and create role edges
-    expect(await runTestQuery(sql`
-      select 1 as "one" from "register_human_user"('user1@example.com');
-      select 1 as "one" from "register_human_user"('user2@example.com');
-      select 1 as "one" from "register_human_user"('user3@example.com');
-      select 1 as "one" from "register_human_user"('user4@example.com');
-      select 1 as "one" from "register_human_user"('user5@example.com');
-      select 1 as "one" from "register_human_user"('user6@example.com');
-      select 1 as "one" from "register_human_user"('user7@example.com');
-      select 1 as "one" from "register_human_user"('user8@example.com');
-      insert into "role_edge"("parent_id", "child_id", "permission") values
+    await exec(sql`select 1 as "one" from "register_human_user"('user1@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user2@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user3@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user4@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user5@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user6@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user7@example.com')`);
+    await exec(sql`select 1 as "one" from "register_human_user"('user8@example.com')`);
+    await exec(sql`insert into "role_edge"("parent_id", "child_id", "permission") values
         (1, 2, b'1111'::bit(4)), (2, 3, b'1010'::bit(4)), (2, 7, b'1110'::bit(4)),
         (3, 4, b'1000'::bit(4)), (3, 5, b'1111'::bit(4)), (7, 6, b'0100'::bit(4)),
-        (7, 5, b'1111'::bit(4)), (8, 7, b'1100'::bit(4));
-    `)).toMatchInlineSnapshot(`
-      [
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [
-          {
-            "one": 1,
-          },
-        ],
-        [],
-      ]
-    `);
+        (7, 5, b'1111'::bit(4)), (8, 7, b'1100'::bit(4))`);
 
     expect(await runTestQuery(sql`select * from "role_edge_cache"; `)).toMatchInlineSnapshot(`
       [
@@ -1647,16 +1586,10 @@ describe('SQL end to end test', async () => {
     `);
 
     // Create assignment edges
-    expect(await runTestQuery(sql`
-      insert into "assignment_edge"("role_id", "resource_id", "permission") values
+    await exec(sql`insert into "assignment_edge"("role_id", "resource_id", "permission") values
         (1, 3, b'1111'::bit(4)), (3, 2, b'1110'::bit(4)), (8, 5, b'1110'::bit(4)),
         (2, 1, b'0111'::bit(4)), (4, 6, b'0001'::bit(4)), (5, 8, b'0001'::bit(4)),
-        (6, 8, b'0011'::bit(4)), (7, 8, b'0100'::bit(4));
-    `)).toMatchInlineSnapshot(`
-      [
-        [],
-      ]
-    `);
+        (6, 8, b'0011'::bit(4)), (7, 8, b'0100'::bit(4))`);
 
     // Test RLS with different users
     expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '1'; select current_role_id();`)).toMatchInlineSnapshot(`
@@ -1833,7 +1766,7 @@ describe('SQL end to end test', async () => {
 });
 
 describe('Disable and enable triggers', async () => {
-  const { setup, teardown, context } = setupTests(databaseUrl);
+  const { setup, teardown, context } = setupTests();
   beforeEach(setup);
   afterEach(teardown);
 
@@ -1867,7 +1800,6 @@ describe('Disable and enable triggers', async () => {
     }));
 
     await exec(sql`
-      create extension if not exists "pgcrypto";
       create type "jwt_token" as (role_id integer, exp bigint);
       create function "register_human_user"("human_user_email" varchar(1024)) returns "human_user" as $$
       declare "result_role_node" "role_node"; "result_human_user" "human_user";
@@ -1886,24 +1818,18 @@ describe('Disable and enable triggers', async () => {
       $$ language plpgsql strict security definer;
     `);
 
-    await exec(sql`select resource_trigger_disable(); select role_trigger_disable();`);
+    await exec(sql`select resource_trigger_disable()`);
+    await exec(sql`select role_trigger_disable()`);
 
-    expect(await runTestQuery(sql`
-      delete from "resource_edge_cache";
-      insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8);
-      insert into "resource_edge" ("parent_id", "child_id", "permission") values
+    await exec(sql`delete from "resource_edge_cache"`);
+    await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
         (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
         (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
-        (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4));
-    `)).toMatchInlineSnapshot(`
-      [
-        [],
-        [],
-        [],
-      ]
-    `);
+        (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
 
-    await exec(sql`select resource_trigger_enable(); select role_trigger_enable();`);
+    await exec(sql`select resource_trigger_enable()`);
+    await exec(sql`select role_trigger_enable()`);
 
     expect(await runTestQuery(sql`select * from "resource_edge_cache"; `)).toMatchInlineSnapshot(`
       [

@@ -11,7 +11,25 @@ export const createRunTestQuery = (client: PGlite) => async (sqlquery: SQL): Pro
   let results: Results | Results[];
   try {
     const compiled = compile(sqlquery);
-    results = await client.query(compiled.text, compiled.values);
+    // Check if query contains multiple statements (has semicolon followed by non-whitespace)
+    const hasMultipleStatements = /;[\s]*\S/.test(compiled.text);
+    if (hasMultipleStatements) {
+      // Use transaction with multiple queries for multi-statement queries
+      // This ensures set local statements persist across the transaction
+      // Split by semicolon and filter empty statements
+      const statements = compiled.text.split(';').map(s => s.trim()).filter(s => s.length > 0);
+      results = await client.transaction(async (tx) => {
+        const allResults: Results<{ [key: string]: any }>[] = [];
+        for (const stmt of statements) {
+          const result = await tx.query<{ [key: string]: any }>(stmt, compiled.values);
+          allResults.push(result);
+        }
+        return allResults;
+      });
+    } else {
+      // Use query for single statements
+      results = await client.query(compiled.text, compiled.values);
+    }
   } catch (e) {
     console.log("errr");
     console.log(e);
