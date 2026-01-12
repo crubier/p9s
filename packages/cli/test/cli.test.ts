@@ -81,4 +81,38 @@ describe("p9s CLI", () => {
       expect(error.stderr.toString()).toContain("ENOENT");
     }
   });
+
+  test("shows validate subcommand help", async () => {
+    const result = await $`bun run ${cliPath} validate --help`.text();
+
+    expect(result).toContain("validate");
+    expect(result).toContain("config");
+    expect(result).toContain("Validate configuration file");
+  });
+
+  test("shows validate config help", async () => {
+    const result = await $`bun run ${cliPath} validate config --help`.text();
+
+    expect(result).toContain("Validate the p9s configuration file");
+    expect(result).toContain("--config");
+    expect(result).toContain("--strict");
+  });
+
+  test("validates config file", async () => {
+    const result = await $`bun run ${cliPath} validate config --config ${configPath}`.text();
+
+    expect(result).toContain("Loading configuration");
+    expect(result).toContain("Validating configuration");
+  });
+
+  test("validate fails gracefully when no config file found", async () => {
+    const fakeConfig = path.resolve(testDir, "nonexistent.config.ts");
+
+    try {
+      await $`bun run ${cliPath} validate config --config ${fakeConfig}`.text();
+      expect(true).toBe(false);
+    } catch (error: any) {
+      expect(error.stderr.toString()).toContain("ENOENT");
+    }
+  });
 });
