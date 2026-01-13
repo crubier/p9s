@@ -1,0 +1,23 @@
+{
+  "name": "@p9s/drizzle",
+  "module": "generate-config.ts",
+  "main": "generate-config.ts",
+  "exports": {
+    ".": "./generate-config.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "drizzle-orm": "^0.30.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "drizzle-orm": "^0.30.0"
+  },
+  "dependencies": {
+    "@p9s/core": "workspace:*"
+  }
+}

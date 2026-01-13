@@ -1,41 +1,28 @@
-# Website
+# p9s Documentation Website
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+Documentation website for p9s, built with [Docusaurus](https://docusaurus.io/).
 
-## Installation
-
-```bash
-yarn
-```
-
-## Local Development
+## Development
 
 ```bash
-yarn start
+bun install
+bun start
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+This starts a local development server at http://localhost:3000.
 
 ## Build
 
 ```bash
-yarn build
+bun run build
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+Generates static content into the `build` directory.
 
 ## Deployment
 
-Using SSH:
-
 ```bash
-USE_SSH=true yarn deploy
+bun run deploy
 ```
 
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+Deploys to GitHub Pages.

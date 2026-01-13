@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@p9s/core": "workspace:*",
+    "@p9s/drizzle": "workspace:*",
     "@p9s/postgres": "workspace:*",
     "commander": "^14.0.0",
     "cosmiconfig": "^9.0.0",

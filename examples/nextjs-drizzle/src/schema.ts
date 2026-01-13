@@ -120,6 +120,9 @@ export const textContent = pgTable("text_content", {
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  folders: many(folder),
+  images: many(image),
+  textContents: many(textContent),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -133,5 +136,42 @@ export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
     references: [user.id],
+  }),
+}));
+
+export const folderRelations = relations(folder, ({ one, many }) => ({
+  user: one(user, {
+    fields: [folder.userId],
+    references: [user.id],
+  }),
+  parent: one(folder, {
+    fields: [folder.parentId],
+    references: [folder.id],
+    relationName: "parentChild",
+  }),
+  children: many(folder, { relationName: "parentChild" }),
+  images: many(image),
+  textContents: many(textContent),
+}));
+
+export const imageRelations = relations(image, ({ one }) => ({
+  user: one(user, {
+    fields: [image.userId],
+    references: [user.id],
+  }),
+  folder: one(folder, {
+    fields: [image.folderId],
+    references: [folder.id],
+  }),
+}));
+
+export const textContentRelations = relations(textContent, ({ one }) => ({
+  user: one(user, {
+    fields: [textContent.userId],
+    references: [user.id],
+  }),
+  folder: one(folder, {
+    fields: [textContent.folderId],
+    references: [folder.id],
   }),
 }));

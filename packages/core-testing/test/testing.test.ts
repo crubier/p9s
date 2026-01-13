@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { enumerateTreeNodesAndEdgesBreadthFirst, generateUuidFromInteger } from './testing';
+import { enumerateTreeNodesAndEdgesBreadthFirst, generateUuidFromInteger } from '../testing';
 
 test('generateUuidFromInteger', async () => {
   expect(generateUuidFromInteger(1)).toMatchInlineSnapshot('"00000000-0000-0000-0000-000000000001"');

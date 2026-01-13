@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import { postgres } from "./commands/postgres.js";
 import { validate } from "./commands/validate.js";
+import { drizzle } from "./commands/drizzle.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -15,6 +16,7 @@ async function main() {
 
   program.addCommand(postgres);
   program.addCommand(validate);
+  program.addCommand(drizzle);
 
   program.parse();
 }

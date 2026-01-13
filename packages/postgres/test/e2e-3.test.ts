@@ -1,14 +1,14 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier } from "pg-sql2";
-import { createMigration } from './generation'
+import { createMigration } from '../generation'
 import { setupTests } from '@p9s/postgres-testing/pglite';
 
-describe('SQL end to end test 2', async () => {
+describe('SQL end to end test combined roles', async () => {
   const { setup, teardown, context } = setupTests();
   beforeEach(setup);
   afterEach(teardown);
 
-  test('SQL end to end test 2', async () => {
+  test('SQL end to end test combined roles', async () => {
     const { database_admin_username, database_user_username, runTestQuery, exec } = context;
 
     // Setup a simple datamodel
@@ -44,7 +44,7 @@ describe('SQL end to end test 2', async () => {
       engine: {
         permission: { bitmap: { size: 4 } },
         authentication: { getCurrentUserId: "current_role_id" },
-        combineAssignmentsWith: "none",
+        combineAssignmentsWith: "role",
         users: [database_admin_username, database_user_username]
       },
       tables: [{
@@ -85,18 +85,18 @@ describe('SQL end to end test 2', async () => {
     // Populate the p9s tables with some data
     await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
     await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
-        (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
-        (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
-        (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
+      (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
+      (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
+      (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
     await exec(sql`insert into "role_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
     await exec(sql`insert into "role_edge"("parent_id", "child_id", "permission") values
-        (1, 2, b'1111'::bit(4)), (2, 3, b'1010'::bit(4)), (2, 7, b'1110'::bit(4)),
-        (3, 4, b'1000'::bit(4)), (3, 5, b'1111'::bit(4)), (7, 6, b'0100'::bit(4)),
-        (7, 5, b'1111'::bit(4)), (8, 7, b'1100'::bit(4))`);
+      (1, 2, b'1111'::bit(4)), (2, 3, b'1010'::bit(4)), (2, 7, b'1110'::bit(4)),
+      (3, 4, b'1000'::bit(4)), (3, 5, b'1111'::bit(4)), (7, 6, b'0100'::bit(4)),
+      (7, 5, b'1111'::bit(4)), (8, 7, b'1100'::bit(4))`);
     await exec(sql`insert into "assignment_edge"("role_id", "resource_id", "permission") values
-        (1, 3, b'1111'::bit(4)), (3, 2, b'1110'::bit(4)), (8, 5, b'1110'::bit(4)),
-        (2, 1, b'0111'::bit(4)), (4, 6, b'0001'::bit(4)), (5, 8, b'0001'::bit(4)),
-        (6, 8, b'0011'::bit(4)), (7, 8, b'0100'::bit(4))`);
+      (1, 3, b'1111'::bit(4)), (3, 2, b'1110'::bit(4)), (8, 5, b'1110'::bit(4)),
+      (2, 1, b'0111'::bit(4)), (4, 6, b'0001'::bit(4)), (5, 8, b'0001'::bit(4)),
+      (6, 8, b'0011'::bit(4)), (7, 8, b'0100'::bit(4))`);
 
     expect(await runTestQuery(sql`select * from "resource_edge_cache"; `)).toMatchInlineSnapshot(`
       [
@@ -375,10 +375,13 @@ describe('SQL end to end test 2', async () => {
     // Disable triggers, clear caches, re-enable triggers
     await exec(sql`select resource_trigger_disable()`);
     await exec(sql`select role_trigger_disable()`);
+    await exec(sql`select assignment_trigger_disable()`);
     await exec(sql`delete from "resource_edge_cache"`);
     await exec(sql`delete from "role_edge_cache"`);
+    await exec(sql`delete from "assignment_edge_cache"`);
     await exec(sql`select resource_trigger_enable()`);
     await exec(sql`select role_trigger_enable()`);
+    await exec(sql`select assignment_trigger_enable()`);
 
     expect(await runTestQuery(sql`select * from "resource_edge_cache"; `)).toMatchInlineSnapshot(`
       [
@@ -653,5 +656,132 @@ describe('SQL end to end test 2', async () => {
         ],
       ]
     `)
+
+    expect(await runTestQuery(sql`select * from "assignment_edge_cache"; `)).toMatchInlineSnapshot(`
+      [
+        [
+          {
+            "permission": "1111",
+            "resource_id": 3,
+            "role_id": 1,
+          },
+          {
+            "permission": "0111",
+            "resource_id": 1,
+            "role_id": 2,
+          },
+          {
+            "permission": "1111",
+            "resource_id": 3,
+            "role_id": 2,
+          },
+          {
+            "permission": "0010",
+            "resource_id": 1,
+            "role_id": 3,
+          },
+          {
+            "permission": "1110",
+            "resource_id": 2,
+            "role_id": 3,
+          },
+          {
+            "permission": "1010",
+            "resource_id": 3,
+            "role_id": 3,
+          },
+          {
+            "permission": "0000",
+            "resource_id": 1,
+            "role_id": 4,
+          },
+          {
+            "permission": "1000",
+            "resource_id": 2,
+            "role_id": 4,
+          },
+          {
+            "permission": "1000",
+            "resource_id": 3,
+            "role_id": 4,
+          },
+          {
+            "permission": "0001",
+            "resource_id": 6,
+            "role_id": 4,
+          },
+          {
+            "permission": "0110",
+            "resource_id": 1,
+            "role_id": 5,
+          },
+          {
+            "permission": "1110",
+            "resource_id": 2,
+            "role_id": 5,
+          },
+          {
+            "permission": "1110",
+            "resource_id": 3,
+            "role_id": 5,
+          },
+          {
+            "permission": "1100",
+            "resource_id": 5,
+            "role_id": 5,
+          },
+          {
+            "permission": "0101",
+            "resource_id": 8,
+            "role_id": 5,
+          },
+          {
+            "permission": "0100",
+            "resource_id": 1,
+            "role_id": 6,
+          },
+          {
+            "permission": "0100",
+            "resource_id": 3,
+            "role_id": 6,
+          },
+          {
+            "permission": "0100",
+            "resource_id": 5,
+            "role_id": 6,
+          },
+          {
+            "permission": "0111",
+            "resource_id": 8,
+            "role_id": 6,
+          },
+          {
+            "permission": "0110",
+            "resource_id": 1,
+            "role_id": 7,
+          },
+          {
+            "permission": "1110",
+            "resource_id": 3,
+            "role_id": 7,
+          },
+          {
+            "permission": "1100",
+            "resource_id": 5,
+            "role_id": 7,
+          },
+          {
+            "permission": "0100",
+            "resource_id": 8,
+            "role_id": 7,
+          },
+          {
+            "permission": "1110",
+            "resource_id": 5,
+            "role_id": 8,
+          },
+        ],
+      ]
+    `);
   });
 });

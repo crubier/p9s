@@ -4,6 +4,7 @@
   "workspaces": [
     "packages/*",
     "benchmarks/*",
-    "examples/*"
+    "examples/*",
+    "website"
   ]
 }

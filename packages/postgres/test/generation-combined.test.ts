@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { compile } from "pg-sql2";
-import { createMigration } from './generation'
+import { createMigration } from '../generation'
 
 test('Default Migration', () => {
   expect(compile(createMigration({

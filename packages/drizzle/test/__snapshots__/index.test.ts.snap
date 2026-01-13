@@ -1,0 +1,235 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`generateConfigurationFromDrizzleSchema generates basic config from drizzle schema 1`] = `
+{
+  "engine": {
+    "users": [
+      "owner",
+      "viewer",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`generateConfigurationFromDrizzleSchema sets default permissions to 0 for all users 1`] = `
+{
+  "engine": {
+    "users": [
+      "owner",
+      "viewer",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`generateConfigurationFromDrizzleSchema applies custom permissions from options 1`] = `
+{
+  "engine": {
+    "users": [
+      "owner",
+      "viewer",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+      "permission": {
+        "owner": {
+          "delete": 1,
+          "insert": 1,
+          "select": 1,
+          "update": 1,
+        },
+        "viewer": {
+          "select": 1,
+        },
+      },
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`generateConfigurationFromDrizzleSchema marks tables as resource or role 1`] = `
+{
+  "engine": {
+    "users": [
+      "owner",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`generateConfigurationFromDrizzleSchema uses custom schema name 1`] = `
+{
+  "engine": {
+    "schema": "custom_schema",
+    "users": [
+      "owner",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`generateConfigurationFromDrizzleSchema passes through engine and migration options 1`] = `
+{
+  "engine": {
+    "permission": {
+      "bitmap": {
+        "size": 256,
+      },
+    },
+    "users": [
+      "owner",
+    ],
+  },
+  "migration": {
+    "output": {
+      "sql": "custom-migration.sql",
+    },
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "name": "folder",
+    },
+    {
+      "isResource": true,
+      "name": "image",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "user",
+    },
+  ],
+}
+`;
+
+exports[`isResource and isRole inference infers isRole for role-like table names (case insensitive) 1`] = `
+{
+  "engine": {
+    "users": [
+      "admin",
+    ],
+  },
+  "tables": [
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "ACCOUNTS",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "GROUP",
+    },
+    {
+      "isResource": true,
+      "name": "Project",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "Role",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "Teams",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "User",
+    },
+    {
+      "isResource": true,
+      "name": "document",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "members",
+    },
+    {
+      "isResource": true,
+      "name": "settings",
+    },
+    {
+      "isResource": true,
+      "isRole": true,
+      "name": "tokens",
+    },
+  ],
+}
+`;

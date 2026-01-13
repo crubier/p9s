@@ -1,19 +1,14 @@
-facebook:
-  label: Facebook
-  permalink: /facebook
-  description: Facebook tag description
+postgresql:
+  label: PostgreSQL
+  permalink: /postgresql
+  description: PostgreSQL related posts
 
-hello:
-  label: Hello
-  permalink: /hello
-  description: Hello tag description
+permissions:
+  label: Permissions
+  permalink: /permissions
+  description: Permission system posts
 
-docusaurus:
-  label: Docusaurus
-  permalink: /docusaurus
-  description: Docusaurus tag description
-
-hola:
-  label: Hola
-  permalink: /hola
-  description: Hola tag description
+release:
+  label: Release
+  permalink: /release
+  description: Release announcements
