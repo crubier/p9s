@@ -145,3 +145,4 @@ ehthumbs.db
 Thumbs.db
 
 benchmarks/postgres/volumes/postgres
+benchmarks/postgres/results

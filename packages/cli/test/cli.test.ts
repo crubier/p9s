@@ -71,6 +71,20 @@ describe("p9s CLI", () => {
     expect(sql).toContain("bit(64)");
   });
 
+  test("configures graph writers from a Drizzle schema", async () => {
+    const drizzleSchemaPath = path.resolve(testDir, "../../drizzle/test/sample/schema1.ts");
+    const drizzleOutputPath = path.resolve(testDir, "drizzle-output.json");
+    try {
+      await $`bun run ${cliPath} drizzle configure --schema ${drizzleSchemaPath} --output ${drizzleOutputPath} --users app_user --graph-writers app_backend,migrator`.text();
+      const config = JSON.parse(fs.readFileSync(drizzleOutputPath, "utf-8"));
+
+      expect(config.engine.users).toEqual(["app_user"]);
+      expect(config.engine.graphWriters).toEqual(["app_backend", "migrator"]);
+    } finally {
+      fs.rmSync(drizzleOutputPath, { force: true });
+    }
+  });
+
   test("fails gracefully when no config file found", async () => {
     const fakeConfig = path.resolve(testDir, "nonexistent.config.ts");
 

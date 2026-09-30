@@ -3,7 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "benchmark": "bun all.ts",
+    "benchmark": "bun run.ts",
+    "benchmark:quick": "bun run.ts --db pglite --sizes 4 --reps 5",
+    "benchmark:sweep": "bun run.ts --sizes 4,6,8,10 --combine none,role,resource",
     "test": "bun test"
   },
   "devDependencies": {

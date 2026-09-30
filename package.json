@@ -6,5 +6,15 @@
     "benchmarks/*",
     "examples/*",
     "website"
-  ]
+  ],
+  "scripts": {
+    "test": "bun test packages benchmarks",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "bench": "bun benchmarks/postgres/run.ts",
+    "docs": "bun run --cwd website start"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
 }

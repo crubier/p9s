@@ -1,77 +1,60 @@
-# pg-permission-tree
+# p9s (pg-permission-tree)
 
-To install dependencies:
+Hierarchical permissions for Postgres, enforced with Row Level Security.
+
+p9s generates a SQL migration that adds a permission graph to your existing tables: resources (folders, projects, documents...) and roles (users, teams, organizations...) form two trees, assignments link them, and triggers keep cache tables of every transitive permission up to date so that RLS policies only need index lookups.
+
+Documentation: [p9s.dev](https://p9s.dev), sources in [`website/docs`](./website/docs).
+
+## Concepts
+
+- **Resources** are business objects. They are nodes of a tree, or more precisely a DAG, since a node can have several parents (shared folders, symlinks).
+- **Roles** are the entities that access resources, also nodes of a DAG (users in teams in organizations).
+- **Assignments** link a role to a resource (share a folder with a team).
+- **Permission bitmaps**: every edge and assignment carries a bitmap with one bit per operation class. The permission along a path is the AND of its edges, and the permission between a role and a resource is the OR over all paths between them.
+- **Caches**: `resource_edge_cache` and `role_edge_cache` store the transitive closure of each tree with its permissions, and with `combineAssignmentsWith: "role"`, `assignment_edge_cache` also stores assignments combined with the role tree. Triggers keep them exact on every insert, update and delete.
+- **RLS**: each configured table gets `select`, `insert`, `update` and `delete` policies checking one bit of the bitmap for the current user.
+
+## Quick start
+
+```typescript
+import { createMigration } from "@p9s/postgres";
+import { compile } from "pg-sql2";
+
+const migration = createMigration({
+  engine: {
+    users: ["authenticated"],
+    graphWriters: ["app_backend"],
+    authentication: { getCurrentUserId: "current_role_id" },
+    id: { mode: "uuid" },
+    combineAssignmentsWith: "role",
+    permission: { bitmap: { size: 16 } },
+  },
+  tables: [
+    { name: "document", isResource: true, resourceId: "resource_id", permission: { authenticated: { select: 0, insert: 1, update: 2, delete: 3 } } },
+    { name: "user", isRole: true, roleId: "role_id" },
+  ],
+});
+
+await Bun.write("p9s-migration.sql", compile(migration).text);
+```
+
+The migration can be re-run safely, it never drops your data. The `p9s` CLI (`packages/cli`) does the same from a config file, and `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
+
+Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles are read-only on the graph, graph writes must use `READ COMMITTED`, and `TRUNCATE` does not maintain the caches.
+
+## Development
 
 ```bash
 bun install
+bun run typecheck
+bun run test                                    # on in-process PGlite
+P9S_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bun run test   # on a real server, adds concurrency tests
+bun run bench                                   # benchmarks, starts Postgres with Docker
+bun run docs                                    # documentation site
 ```
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.0. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
-
-# Postgres Permissions Deep (p9s)
-
-## Overview
-
-This is a proof of concept for a very generic, yet performant, permissions system for Postgres-based applications. Its key aspects are:
-
-- **Resources:** `resources` represent business-domain objects. They are nodes in a tree. Some can be leaves of the tree (e.g. files, most business domain object) while some can have children (e.g. folders, projects, workspaces).
-  ![resources](./docs/resources.png)
-- **Roles:** `roles` represent the entities that can access `resources`. They are nodes in a tree. Some can be leaves of the tree (e.g. users, api tokens) while some can have children (e.g. user groups, organizations).
-  ![roles](./docs/roles.png)
-- **Flexibility:** As shown above, these trees are actually not strict, they are technically directed acyclic graphs (DAG), since each node can have multiple parents (e.g. symlinks in a file system, shared folders). The system is more performant the closer the DAG looks like a tree, i.e. if each nodes has many children but few parents.
-- **Assignments:** `assignments` represent assignments between resources and roles (e.g. share a folder with a group)
-  ![assignments](./docs/assignments.png)
-- **Unified access control graph:** Once linked, the set of `(resources + roles + assignments)` form a single directed acyclic graph, that is used to compute transitive permissions. In theory we would not even need to differentiate between `resources` and `roles`, but in practice it is useful to do so, since it matches the way most people think of access control, and the tree-like structure of both `resources` and `roles` leads to a hourglass-shaped graph, and harnessing this property is crucial to getting scalably good performance, which would not be atainable with a generalized graph.
-  ![dag](./docs/dag.png)
-- **Permission bitmap:** Each edge in the graph (`resource` tree edges, `role` tree edges and `assignment`) has a `permission` field, that represents the permissions granted by the edge or assignment. Permissions are represented as bitmaps, with one bit per permitted operation / permission class. 1 means the edge grants permission, and 0 means the edge denies permission. The size of the bitmap is configurable depending on the desired granularity of roles. The semantics of each bit is application-specific, and customizable by the user of this library.
-  ![bitmap](./docs/bitmap.png)
-- **Compute permissions:** Permissions are computed by considering all paths in the graph from a role node to a resource node. Each individual path can be made of several edges, and the permission associated with a path is the bitwise AND of the permissions of each edge in the path. The permission associated with a role and a resource is the bitwise OR of the permissions of all paths between the role and the resource. This is implemented using cache tables, and triggers to keep the caches up to date.
-  ![compute](./docs/compute.png)
-- **Row Level Security**: The system can generate Postgres Row Level Security (RLS) policies to enforce permissions of each resource, based on the transitive permissions computed above. This is optional though, the system can also be used with any other access control mechanism, such as a GraphQL middleware, or a custom API.
-
-## Get started
-
-### Setup
-
-```bash
-# Install Docker
-brew install --cask docker
-
-# Install NodeJS 18+
-curl https://get.volta.sh | bash
-volta install node@18
-
-# Install packages
-yarn install
-```
-
-### Develop
-
-```bash
-# Start the docker Postgres database
-yarn db-start
-
-# Run the tests in interactive mode
-yarn test
-```
-
-### Run examples
-
-```bash
-yarn db-start
-yarn dev
-```
-
-Serves:
-
-- http://localhost:8080 PgAdmin, user@email.com, password
-- http://localhost:5678 GraphiQL
+The Postgres test suite checks the caches against a from-scratch recomputation after every step of random graph edits, compares RLS decisions with an in-memory reference model, and covers privileges, migration re-runs and concurrent writes. CI runs it on PGlite and on Postgres 18, see [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
 ## Features & Roadmap
 
@@ -115,6 +98,13 @@ Serves:
 - [x] Combined assignment caches
   - [x] Offer a configuration option to make the `assignmentEdgeCache` table include `role` in the graph computation, such that the `assignmentEdgeCache` table is a transitive combination of the `roleEdge` + `assignment` tables. This is a tiny bit slower when writing new `roleEdge` or `assignment` (which is rare), but is much faster to resolve permissions at read time (which is very frequent), since it avoids a join during permission resolution.
   - [x] Similarly, offer a configuration option to make the `assignmentEdgeCache` table include `resource` in the graph computation. (This is only added for symmetry, but is not useful in practice, since in most cases you'll have many more `resources` than `roles`, so this optimization makes less sense than the reciprocal, and they are mutually exclusive)
+- [x] Security model
+  - [x] Application `users` get read-only access to nodes, edges, assignments and caches, only `graphWriters` can modify the graph
+  - [x] Caches are only written by `security definer` triggers with a pinned `search_path`
+- [x] Re-runnable, non-destructive migration, that backfills nodes for business rows that existed before a table was bound
+- [x] Graph writes are serialized with a transaction-level advisory lock, so concurrent writes keep the caches exact
+- [x] Test suite: random graph edits checked against a from-scratch recomputation, RLS checked against a reference model, privileges, migration re-runs and concurrency on real Postgres
+- [x] Benchmarks of RLS reads against a no-cache baseline, incremental writes, cache size, with JSON output
 - [ ] Nodeless mode. We don't actually need the `resourceNode` and `roleNode` tables. They were only useful for a few things that can be avoided:
   - [ ] Enforcing foreign key constraints can be achieved using correct triggers
   - [ ] Generating integer sequences that are shared over multiple business domain tables can be achieved by sharing an integer sequence between multiple tables, or using UUIDs
@@ -128,182 +118,4 @@ Serves:
   - [ ] Simplify `combineAssignmentsWith`. Currently, if set to e.g. `role`, it still maintains the `roleEdgeCache`, and the `roleAssignmentCache` tables. This is more compute-optimized, but less space-optimized. We could stop maintaining `roleEdgeCache` in that case and only focus on `roleAssignmentCache`. This would be a bit more complex, but could save space. If space is an issue, need to consider adding this.
 - [ ] Customizable prefix for triggers, to allow ordering p9s triggers with other existing triggers (Postgres runs triggers in alphanumerical order). Before that, triggers are prefixed with `10`, `20`, etc.
 - [ ] Functions to batch insert/update/delete edges, to save a lot of compute on redundant things
-
-## Play
-
-```graphql
-mutation createRoleNode {
-  createRoleNode(input: { roleNode: {} }) {
-    roleNode {
-      id
-    }
-  }
-}
-
-mutation createResourceNode {
-  createResourceNode(input: { resourceNode: {} }) {
-    resourceNode {
-      id
-    }
-  }
-}
-
-mutation createAssignmentEdge {
-  createAssignmentEdge(
-    input: {
-      assignmentEdge: {
-        resourceId: 1
-        roleId: 1
-        permission: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-      }
-    }
-  ) {
-    assignmentEdge {
-      role {
-        id
-        humanUser {
-          id
-          roleId
-          email
-        }
-      }
-      resource {
-        id
-        folder {
-          id
-          resourceId
-          name
-        }
-      }
-    }
-  }
-}
-
-mutation createHumanUser {
-  createHumanUser(
-    input: {
-      humanUser: {
-        id: "229eceb9-5854-42bd-bc38-e8a71e1e0898"
-        email: "vincent.lecrubier@skydio.com"
-        roleId: 1
-      }
-    }
-  ) {
-    humanUser {
-      id
-      email
-      roleId
-    }
-  }
-}
-
-mutation createFolder {
-  createFolder(
-    input: {
-      folder: {
-        id: "e8473cd9-f883-46d3-b3ec-a075a2597a33"
-        name: "Vincent's Home"
-        resourceId: 1
-      }
-    }
-  ) {
-    folder {
-      id
-      name
-      resourceId
-    }
-  }
-}
-
-mutation createSubResourceNode {
-  createResourceNode(input: { resourceNode: {} }) {
-    resourceNode {
-      id
-    }
-  }
-}
-
-mutation createResourceEdge {
-  createResourceEdge(
-    input: {
-      resourceEdge: {
-        parentId: 2
-        childId: 3
-        permission: "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-      }
-    }
-  ) {
-    resourceEdge {
-      parentId
-      childId
-      parent {
-        folder {
-          name
-        }
-      }
-      child {
-        imageFile {
-          name
-          url
-        }
-      }
-    }
-  }
-}
-
-mutation createImageFile {
-  createImageFile(
-    input: {
-      imageFile: {
-        name: "foo.jpeg"
-        url: "https://images.unsplash.com/photo-1694933042108-1bfc0418cc5f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2832&q=80"
-        resourceId: 3
-      }
-    }
-  ) {
-    imageFile {
-      id
-      name
-      resourceId
-    }
-  }
-}
-
-query getResourcesTree {
-  resourceNodesList(filter: { not: { parentResourceEdgesExist: true } }) {
-    id
-    folder {
-      name
-    }
-    descendants: resourceNodesByResourceEdgeCacheParentIdAndChildIdList {
-      id
-      imageFile {
-        name
-      }
-    }
-    children: resourceNodesByResourceEdgeParentIdAndChildIdList {
-      id
-      imageFile {
-        name
-      }
-      children: resourceNodesByResourceEdgeParentIdAndChildIdList {
-        id
-        imageFile {
-          name
-        }
-      }
-    }
-  }
-}
-
-query getResourceEdgeCachesList {
-  resourceEdgeCachesList {
-    child {
-      id
-    }
-    parent {
-      id
-    }
-  }
-}
-```
+- [ ] Faster subtree moves: moving a large subtree currently recomputes every cached path through it

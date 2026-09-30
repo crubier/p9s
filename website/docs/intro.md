@@ -56,18 +56,14 @@ The system generates PostgreSQL Row Level Security (RLS) policies to enforce per
 ## Quick Start
 
 ```bash
-# Install dependencies
 bun install
-
-# Start the database
-bun run db-start
-
-# Run tests
-bun test
+bun run test
 ```
 
 ## Next Steps
 
 - [Installation](./getting-started/installation) - Set up p9s in your project
 - [Configuration](./configuration/overview) - Learn about configuration options
+- [Security Model](./configuration/security-model) - Who can change permissions, and the rules the application must follow
+- [Benchmarks](./benchmarks) - What p9s costs at read and write time
 - [Core Package](./packages/core) - API reference for the core package

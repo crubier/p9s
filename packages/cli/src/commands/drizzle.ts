@@ -23,10 +23,15 @@ drizzle
     "comma-separated list of user types",
     "admin,user,viewer"
   )
+  .option(
+    "-w, --graph-writers <roles>",
+    "comma-separated list of database roles allowed to modify the permission graph (default: none)"
+  )
   .action(async (opts) => {
     const schemaPath = path.resolve(opts.schema ?? "./src/db/schema.ts");
     const outputPath = opts.output ?? "p9s.config.json";
     const users = opts.users.split(",").map((u: string) => u.trim());
+    const graphWriters: string[] = opts.graphWriters ? opts.graphWriters.split(",").map((w: string) => w.trim()).filter(Boolean) : [];
 
     const ext = path.extname(outputPath).toLowerCase();
     const format = ext === ".ts" ? "ts" : ext === ".js" ? "js" : "json";
@@ -47,6 +52,7 @@ drizzle
     const config = generateConfigurationFromDrizzleSchema(schemaModule, {
       users,
       tables: {},
+      ...(graphWriters.length > 0 ? { engine: { graphWriters } } : {}),
     });
 
     let configContent: string;
@@ -70,6 +76,7 @@ import { generateConfigurationFromDrizzleSchema } from "@p9s/drizzle";
 
 const config = generateConfigurationFromDrizzleSchema(schema, {
   users: ${JSON.stringify(users)} as const,
+  engine: { graphWriters: ${JSON.stringify(graphWriters)} },
   tables: {
 ${config.tables?.map((t: any) => `    // ${t.name}: { isResource: ${t.isResource ?? false}, isRole: ${t.isRole ?? false} },`).join("\n")}
   },

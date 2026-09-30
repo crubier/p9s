@@ -25,5 +25,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // The website and examples have their own tsconfig
+  "include": ["packages", "benchmarks"],
+  "exclude": ["**/node_modules", "**/dist"]
 }

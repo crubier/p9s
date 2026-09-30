@@ -1,6 +1,6 @@
 
 // To get syntax highlighting in VSCode with the qufiwefefwoyn.inline-sql-syntax extension
-import { type SQL, query as sql, join, literal, identifier } from "pg-sql2";
+import { type SQL, query as sql, join, literal, identifier, compile, raw } from "pg-sql2";
 import { getCompleteConfig, getNaming } from "@p9s/core";
 import type { CompleteConfig, Naming, Config } from "@p9s/core";
 
@@ -8,9 +8,10 @@ import type { CompleteConfig, Naming, Config } from "@p9s/core";
 export const createMigration = <User extends string>(config: Config<User>) => {
   const completeConfig = getCompleteConfig(config);
   const naming = getNaming(completeConfig);
-  // const users = completeConfig.engine.config.engine.users.map(user => identifier(user));
 
   const result = sql`
+  ${createMigrationPreamble(naming, completeConfig)}
+
   ${createMigrationExtensions(naming, completeConfig)}
 
   ${createMigrationAggregates(naming, completeConfig)}
@@ -24,6 +25,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
   ${createMigrationDataModelBindings(naming, completeConfig)}
 
   ${createMigrationDataModelPolicies(naming, completeConfig)}
+
+  ${createMigrationCleanup(naming, completeConfig)}
 
   `
   return result;
@@ -45,6 +48,86 @@ const getIdType = (config: CompleteConfig<any>) => {
   }[config.engine.id.mode];
 }
 
+const getRoles = (config: CompleteConfig<any>) => {
+  const users: string[] = config.engine.users;
+  const writers: string[] = config.engine.graphWriters;
+  return { users, writers, everyone: [...new Set([...users, ...writers])] };
+}
+
+// pg-sql2's literal() turns most strings into bind parameters, which a multi-statement migration script cannot use
+const textLiteral = (value: string) => raw(`'${value.replace(/'/g, "''")}'`);
+
+const roleArray = (roles: string[]) => sql`array[${join(roles.map(textLiteral), ", ")}]::text[]`;
+
+// Tables are passed as a regclass literal so the helper can look up their owner and serial sequences
+const setPrivileges = (target: SQL, readRoles: string[], writeRoles: string[]) =>
+  sql`select pg_temp.p9s_set_privileges(${textLiteral(compile(target).text)}::regclass, ${roleArray(readRoles)}, ${roleArray(writeRoles)});`;
+
+const grantExecute = (fn: SQL, roles: string[]) => sql`
+revoke execute on function ${fn} from public;
+${join(roles.map(role => sql`grant execute on function ${fn} to ${identifier(role)};`), `\n`)}`;
+
+const definer = (naming: Naming<any>) => sql`security definer set search_path = ${naming.schema}, pg_temp`;
+
+// Graph writes are serialized so that, under READ COMMITTED, each trigger statement sees edges committed by
+// concurrent writers. Under REPEATABLE READ / SERIALIZABLE the trigger snapshot would predate those commits.
+const lockKey = (config: CompleteConfig<any>) => textLiteral(`p9s:${config.engine.schema}:${config.engine.naming.prefix ?? ""}`);
+
+const lockGraph = (config: CompleteConfig<any>) => sql`
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+  end if;
+  perform pg_advisory_xact_lock(hashtext(${lockKey(config)}));`;
+
+const lockGraphStatement = (config: CompleteConfig<any>) =>
+  sql`select pg_advisory_xact_lock(hashtext(${lockKey(config)}));`;
+
+
+export const createMigrationPreamble = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Preamble
+-----------------------------------------------------------------------------------------------------------------------
+-- p9s objects are created unqualified, and security definer functions pin search_path to the configured schema
+do $$
+begin
+  if current_schema() is distinct from ${textLiteral(config.engine.schema)} then
+    raise exception 'p9s: run this migration with % as the current schema, got %', ${textLiteral(config.engine.schema)}, current_schema();
+  end if;
+end
+$$;
+
+-- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
+create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[])
+returns void as $$
+declare
+  owner_role name := (select pg_get_userbyid(relowner) from pg_class where oid = target);
+  the_role text;
+  the_sequence text;
+begin
+  foreach the_role in array read_roles || write_roles loop
+    continue when the_role = owner_role;
+    execute format('revoke all on table %s from %I', target, the_role);
+  end loop;
+  foreach the_role in array read_roles loop
+    continue when the_role = owner_role;
+    execute format('grant select on table %s to %I', target, the_role);
+  end loop;
+  foreach the_role in array write_roles loop
+    continue when the_role = owner_role;
+    execute format('grant select, insert, update, delete on table %s to %I', target, the_role);
+    for the_sequence in
+      select pg_get_serial_sequence(target::text, attname) from pg_attribute
+      where attrelid = target and attnum > 0 and not attisdropped and pg_get_serial_sequence(target::text, attname) is not null
+    loop
+      execute format('grant usage, select on sequence %s to %I', the_sequence, the_role);
+    end loop;
+  end loop;
+end;
+$$ language plpgsql;
+`;
+}
+
 
 export const createMigrationExtensions = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   return getIdType(config).extension;
@@ -53,6 +136,7 @@ export const createMigrationExtensions = <User extends string>(naming: Naming<Us
 
 export const createMigrationAggregates = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   const { orBitmap } = naming;
+  const { everyone } = getRoles(config);
 
   const size = config.engine.permission.bitmap.size;
 
@@ -60,16 +144,13 @@ export const createMigrationAggregates = <User extends string>(naming: Naming<Us
 -----------------------------------------------------------------------------------------------------------------------
 -- Special functions
 -----------------------------------------------------------------------------------------------------------------------
-drop aggregate if exists ${orBitmap} (bit);
-
-create aggregate ${orBitmap} (
-  basetype = bit,
+create or replace aggregate ${orBitmap} (bit) (
   sfunc = bitor,
   stype = bit,
   initcond = ${literal(`0`.repeat(size))}
 );
 
-${join(config.engine.users.map(user => sql`grant execute on function ${orBitmap} (bit) to ${identifier(user)};`), `\n`)}
+${join(everyone.map(user => sql`grant execute on function ${orBitmap} (bit) to ${identifier(user)};`), `\n`)}
 `;
 }
 
@@ -86,26 +167,27 @@ export const createMigrationResourceOrRole = <User extends string>(resourceOrRol
   const maxDepth = config.engine.permission.maxDepth[resourceOrRole];
   const { type: idType, declaration: idDeclaration } = getIdType(config);
   const { orBitmap } = naming;
+  const { users, writers, everyone } = getRoles(config);
+  // When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose triggers
+  // would otherwise re-add cache rows (including its self edge) that reference the deleted node
+  const whereNodesExist = sql`where exists (select 1 from ${node} where ${node}.${id} = combined.${parentId})
+  and exists (select 1 from ${node} where ${node}.${id} = combined.${childId})`;
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} node table
 -----------------------------------------------------------------------------------------------------------------------
-drop table if exists ${node} cascade;
-
-create table ${node} (
+create table if not exists ${node} (
   ${id} ${idDeclaration},
   constraint ${pkey} primary key (${id})
 );
 
-${join(config.engine.users.map(user => sql`grant select, insert, update, delete on table ${node} to ${identifier(user)};`), `\n`)}
+${setPrivileges(node, users, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} edge table
 -----------------------------------------------------------------------------------------------------------------------
-drop table if exists ${edge} cascade;
-
-create table ${edge} (
+create table if not exists ${edge} (
   ${parentId} ${idType} not null,
   ${childId} ${idType} not null,
   ${permission} bit(${literal(size)}),
@@ -118,27 +200,30 @@ create index if not exists ${edgeParentIdIndex} on ${edge} (${parentId});
 
 create index if not exists ${edgeChildIdIndex} on ${edge} (${childId});
 
-${join(config.engine.users.map(user => sql`grant select, insert, update, delete on table ${edge} to ${identifier(user)};`), `\n`)}
+${setPrivileges(edge, users, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} transitive edge cache table
 -----------------------------------------------------------------------------------------------------------------------
-drop table if exists ${edgeCache} cascade;
-
-create table ${edgeCache} (
+create table if not exists ${edgeCache} (
   ${parentId} ${idType} not null,
   ${childId} ${idType} not null,
   ${permission} bit(${literal(size)}),
-  constraint ${edgeCachePkey} primary key (${parentId}, ${childId}),
-  constraint ${edgeCacheParentFkey} foreign key (${parentId}) references ${node} (${id}),
-  constraint ${edgeCacheChildFkey} foreign key (${childId}) references ${node} (${id})
+  constraint ${edgeCachePkey} primary key (${parentId}, ${childId})
 );
+
+-- Cache rows are derived data, they go away with their nodes
+alter table ${edgeCache} drop constraint if exists ${edgeCacheParentFkey};
+alter table ${edgeCache} add constraint ${edgeCacheParentFkey} foreign key (${parentId}) references ${node} (${id}) on delete cascade on update cascade;
+alter table ${edgeCache} drop constraint if exists ${edgeCacheChildFkey};
+alter table ${edgeCache} add constraint ${edgeCacheChildFkey} foreign key (${childId}) references ${node} (${id}) on delete cascade on update cascade;
 
 create index if not exists ${edgeCacheParentIdIndex} on ${edgeCache} (${parentId});
 
 create index if not exists ${edgeCacheChildIdIndex} on ${edgeCache} (${childId});
 
-${join(config.engine.users.map(user => sql`grant select, insert, update, delete on table ${edgeCache} to ${identifier(user)};`), `\n`)}
+-- Only p9s triggers write to the cache
+${setPrivileges(edgeCache, everyone, [])}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} compute recursive permissions, towards parent
@@ -174,7 +259,7 @@ $$
 language sql
 stable;
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeCacheParentCompute} (${varChildId} ${idType}) to ${identifier(user)};`), `\n`)}
+${join(everyone.map(user => sql`grant execute on function ${edgeCacheParentCompute} (${varChildId} ${idType}) to ${identifier(user)};`), `\n`)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} compute recursive permissions, towards child
@@ -210,13 +295,13 @@ $$
 language sql
 stable;
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeCacheChildCompute} (${varParentId} ${idType}) to ${identifier(user)};`), `\n`)}
+${join(everyone.map(user => sql`grant execute on function ${edgeCacheChildCompute} (${varParentId} ${idType}) to ${identifier(user)};`), `\n`)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} view of all transitive edges. 
 -----------------------------------------------------------------------------------------------------------------------
 -- This direction is easy, since we have less parents than children in general
-create view ${edgeCacheView} as
+create or replace view ${edgeCacheView} as
 select
   "parent_permissions".${parentId} as ${parentId},
   "parent_permissions".${childId} as ${childId},
@@ -225,28 +310,28 @@ from
   ${node} as "the_node",
   lateral ${edgeCacheParentCompute} ("the_node".${id}) as "parent_permissions";
 
-${join(config.engine.users.map(user => sql`grant select on table ${edgeCacheView} to ${identifier(user)};`), `\n`)}
+${setPrivileges(edgeCacheView, everyone, [])}
 
 -----------------------------------------------------------------------------------------------------------------------
--- ${literal(resourceOrRole)} function to create the cache
+-- ${literal(resourceOrRole)} function to rebuild the cache from scratch
 -----------------------------------------------------------------------------------------------------------------------
 create or replace function ${edgeCacheBackfill} ()
   returns setof ${edgeCache}
   as $$
+  ${lockGraphStatement(config)}
+  delete from ${edgeCache};
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select ${parentId}, ${childId}, ${permission}
   from
     ${edgeCacheView}
-  on conflict on constraint ${edgeCachePkey}
-    do update set
-      ${permission} = excluded.${permission}
     returning
       *
 $$
 language sql
-volatile;
+volatile
+${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeCacheBackfill} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${edgeCacheBackfill} ()`, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} Update cache when insert edge
@@ -254,6 +339,7 @@ ${join(config.engine.users.map(user => sql`grant execute on function ${edgeCache
 create or replace function ${edgeInsertTriggerFunction}()
 returns trigger as $$
 begin
+  ${lockGraph(config)}
 
     -- Add fresh edges from descendants
     with combined as (
@@ -281,9 +367,9 @@ begin
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeInsertTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${edgeInsertTriggerFunction} ()`, [])}
 
 drop trigger if exists ${edgeInsertTrigger} on ${edge};
 create trigger ${edgeInsertTrigger}
@@ -298,6 +384,7 @@ for each row execute function ${edgeInsertTriggerFunction}();
 create or replace function ${edgeUpdateTriggerFunction}()
 returns trigger as $$
 begin
+  ${lockGraph(config)}
 
   -- Remove old all edges from descendants like in delete
   with combined as (
@@ -340,6 +427,7 @@ begin
   )
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select ${parentId}, ${childId}, ${permission} from combined
+  ${whereNodesExist}
   on conflict on constraint ${edgeCachePkey}
   do update set ${permission} = excluded.${permission};
 
@@ -364,14 +452,15 @@ begin
   )
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select ${parentId}, ${childId}, ${permission} from combined
+  ${whereNodesExist}
   on conflict on constraint ${edgeCachePkey}
   do update set ${permission} = excluded.${permission};
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeUpdateTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${edgeUpdateTriggerFunction} ()`, [])}
 
 drop trigger if exists ${edgeUpdateTrigger} on ${edge};
 create trigger ${edgeUpdateTrigger}
@@ -385,6 +474,7 @@ for each row execute function ${edgeUpdateTriggerFunction}();
 create or replace function ${edgeDeleteTriggerFunction}()
 returns trigger as $$
 begin
+  ${lockGraph(config)}
 
   -- Remove old all edges from descendants
   with combined as (
@@ -427,14 +517,15 @@ begin
   )
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select ${parentId}, ${childId}, ${permission} from combined
+  ${whereNodesExist}
   on conflict on constraint ${edgeCachePkey}
   do update set ${permission} = excluded.${permission};
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeDeleteTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${edgeDeleteTriggerFunction} ()`, [])}
 
 drop trigger if exists ${edgeDeleteTrigger} on ${edge};
 create trigger ${edgeDeleteTrigger}
@@ -456,9 +547,9 @@ begin
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${nodeInsertTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${nodeInsertTriggerFunction} ()`, [])}
 
 drop trigger if exists ${nodeInsertTrigger} on ${node};
 create trigger ${nodeInsertTrigger}
@@ -479,9 +570,9 @@ begin
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${nodeUpdateTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${nodeUpdateTriggerFunction} ()`, [])}
 
 
 drop trigger if exists ${nodeUpdateTrigger} on ${node};
@@ -502,9 +593,9 @@ begin
 
   return null;
 end;
-$$ language plpgsql;
+$$ language plpgsql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${nodeDeleteTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${nodeDeleteTriggerFunction} ()`, [])}
 
 
 drop trigger if exists ${nodeDeleteTrigger} on ${node};
@@ -532,9 +623,9 @@ returns void as $$
   alter table ${node} enable trigger ${nodeDeleteTrigger};
   -- Backfill cache
   select 1 from ${edgeCacheBackfill}();
-$$ language sql;
+$$ language sql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${enableTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${enableTriggerFunction} ()`, writers)}
 
 create or replace function ${disableTriggerFunction}()
 returns void as $$
@@ -544,15 +635,15 @@ returns void as $$
   alter table ${node} disable trigger ${nodeInsertTrigger};
   alter table ${node} disable trigger ${nodeUpdateTrigger};
   alter table ${node} disable trigger ${nodeDeleteTrigger};
-$$ language sql;
+$$ language sql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${disableTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${disableTriggerFunction} ()`, writers)}
 `;
 }
 
 
 export const createMigrationAssignments = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { resource, role, id, pkey, permission, orBitmap } = naming;
+  const { resource, role, permission, orBitmap } = naming;
   const size = config.engine.permission.bitmap.size;
   const {
     edge, resourceId, roleId, edgePkey, resourceFkey, roleFkey, edgeResourceIdIndex, edgeRoleIdIndex,
@@ -561,8 +652,11 @@ export const createMigrationAssignments = <User extends string>(naming: Naming<U
     edgeCacheRoleFkey,
     edgeCacheResourceIdIndex,
     edgeCacheRoleIdIndex, enableTriggerFunction, disableTriggerFunction,
+    edgeInsertTriggerFunction,
     edgeInsertTrigger,
+    edgeUpdateTriggerFunction,
     edgeUpdateTrigger,
+    edgeDeleteTriggerFunction,
     edgeDeleteTrigger,
     combinedEdgeInsertTriggerFunction,
     combinedEdgeInsertTrigger,
@@ -572,123 +666,199 @@ export const createMigrationAssignments = <User extends string>(naming: Naming<U
     combinedEdgeDeleteTrigger
   } = naming.assignment;
   const { type: idType } = getIdType(config);
-  const resourceOrRole = config.engine.combineAssignmentsWith;
+  const { users, writers, everyone } = getRoles(config);
+  const combineAssignmentsWith = config.engine.combineAssignmentsWith;
+
+  // Triggers from every mode are dropped first, so switching combineAssignmentsWith leaves no stale ones behind
+  const namingForMode = (mode: "role" | "resource") =>
+    getNaming({ ...config, engine: { ...config.engine, combineAssignmentsWith: mode } }).assignment;
+  const dropAllTriggers = sql`
+drop trigger if exists ${edgeInsertTrigger} on ${edge};
+drop trigger if exists ${edgeUpdateTrigger} on ${edge};
+drop trigger if exists ${edgeDeleteTrigger} on ${edge};
+${join((["role", "resource"] as const).map(mode => {
+    const modeNaming = namingForMode(mode);
+    const cache = naming[mode].edgeCache;
+    return sql`
+drop trigger if exists ${modeNaming.combinedEdgeInsertTrigger} on ${cache};
+drop trigger if exists ${modeNaming.combinedEdgeUpdateTrigger} on ${cache};
+drop trigger if exists ${modeNaming.combinedEdgeDeleteTrigger} on ${cache};`;
+  }), `\n`)}
+`;
 
   const getCombinedCacheBlock = (resourceOrRole: "role" | "resource") => {
     const thingCombinedWith = naming[resourceOrRole];
     const thingNotCombinedWith = naming[resourceOrRole == "role" ? "resource" : "role"];
     const thingCombinedWithId = { role: roleId, resource: resourceId }[resourceOrRole];
     const thingNotCombinedWithId = { role: resourceId, resource: roleId }[resourceOrRole];
-    const thingCombinedWithFkey = { role: edgeCacheRoleFkey, resource: edgeCacheResourceFkey }[resourceOrRole];
-    const thingNotCombinedWithFkey = { role: edgeCacheResourceFkey, resource: edgeCacheRoleFkey }[resourceOrRole];
-    const thingCombinedWithIdIndex = { role: edgeCacheRoleIdIndex, resource: edgeCacheResourceIdIndex }[resourceOrRole];
-    const thingNotCombinedWithIdIndex = { role: edgeCacheResourceIdIndex, resource: edgeCacheRoleIdIndex }[resourceOrRole];
+    // The cache layout is the same in both modes, so switching modes keeps the table and its dependents
+    const combinedColumn = sql`"the_edge_cache".${thingCombinedWith.childId}`;
+    const notCombinedColumn = sql`"the_assignment".${thingNotCombinedWithId}`;
+    const [roleColumn, resourceColumn] = resourceOrRole === "role" ? [combinedColumn, notCombinedColumn] : [notCombinedColumn, combinedColumn];
 
+    const selectCombined = (filter: SQL) => sql`
+    select
+      ${roleColumn} as ${roleId},
+      ${resourceColumn} as ${resourceId},
+      ${orBitmap} ("the_assignment".${permission} & "the_edge_cache".${permission}) as ${permission} -- bitwise "or" on permissions between various paths
+    from
+      ${edge} as "the_assignment"
+    join
+      ${thingCombinedWith.edgeCache} as "the_edge_cache"
+    on
+      "the_assignment".${thingCombinedWithId} = "the_edge_cache".${thingCombinedWith.parentId}
+    where ${filter}
+    group by ("the_assignment".${thingNotCombinedWithId}, "the_edge_cache".${thingCombinedWith.childId})`;
+
+    // Recomputes every cache row sharing a key with the changed rows: a changed assignment affects all rows of its
+    // resource (resp. role), a changed transitive edge affects all rows of its child
+    const recompute = (cacheColumn: SQL, sourceFilter: (keys: SQL) => SQL, keys: SQL) => sql`
+  delete from ${edgeCache} where ${cacheColumn} in (${keys});
+  insert into ${edgeCache} (${roleId}, ${resourceId}, ${permission})
+  ${selectCombined(sourceFilter(keys))};`;
+
+    // Rows of nodes being deleted must not be re-added while foreign key cascades are still in flight
+    const nodesExist = sql`exists (select 1 from ${thingCombinedWith.node} where ${thingCombinedWith.node}.${thingCombinedWith.id} = "the_edge_cache".${thingCombinedWith.childId})
+      and exists (select 1 from ${thingNotCombinedWith.node} where ${thingNotCombinedWith.node}.${thingNotCombinedWith.id} = "the_assignment".${thingNotCombinedWithId})`;
+    const byAssignment = (keys: SQL) => recompute(thingNotCombinedWithId, k => sql`"the_assignment".${thingNotCombinedWithId} in (${k}) and ${nodesExist}`, keys);
+    const byEdgeCache = (keys: SQL) => recompute(thingCombinedWithId, k => sql`"the_edge_cache".${thingCombinedWith.childId} in (${k}) and ${nodesExist}`, keys);
+
+    const newAssignments = sql`select ${thingNotCombinedWithId} from "p9s_new_rows"`;
+    const oldAssignments = sql`select ${thingNotCombinedWithId} from "p9s_old_rows"`;
+    const newEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_new_rows"`;
+    const oldEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_old_rows"`;
+
+    const statementTrigger = (functionName: SQL, triggerName: SQL, table: SQL, event: "insert" | "update" | "delete", body: SQL) => sql`
+create or replace function ${functionName}()
+returns trigger as $$
+begin
+  ${lockGraph(config)}
+${body}
+  return null;
+end;
+$$ language plpgsql ${definer(naming)};
+
+${grantExecute(sql`${functionName} ()`, [])}
+
+create trigger ${triggerName}
+after ${{ insert: sql`insert`, update: sql`update`, delete: sql`delete` }[event]} on ${table}
+referencing ${{ insert: sql`new table as "p9s_new_rows"`, update: sql`old table as "p9s_old_rows" new table as "p9s_new_rows"`, delete: sql`old table as "p9s_old_rows"` }[event]}
+for each statement execute function ${functionName}();
+`;
 
     return sql`
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Assignment transitive edge cache table
 -----------------------------------------------------------------------------------------------------------------------
-drop table if exists ${edgeCache} cascade;
-
-create table ${edgeCache} (
-  ${thingCombinedWithId} ${idType} not null,
-  ${thingNotCombinedWithId} ${idType} not null,
+create table if not exists ${edgeCache} (
+  ${roleId} ${idType} not null,
+  ${resourceId} ${idType} not null,
   ${permission} bit(${literal(size)}),
-  constraint ${edgeCachePkey} primary key (${thingCombinedWithId}, ${thingNotCombinedWithId}),
-  constraint ${thingCombinedWithFkey} foreign key (${thingCombinedWithId}) references ${thingCombinedWith.node} (${thingCombinedWith.id}),
-  constraint ${thingNotCombinedWithFkey} foreign key (${thingNotCombinedWithId}) references ${thingNotCombinedWith.node} (${thingNotCombinedWith.id})
+  constraint ${edgeCachePkey} primary key (${roleId}, ${resourceId})
 );
 
-create index if not exists ${thingCombinedWithIdIndex} on ${edgeCache} (${thingCombinedWithId});
+-- Cache rows are derived data, they go away with their nodes
+alter table ${edgeCache} drop constraint if exists ${edgeCacheRoleFkey};
+alter table ${edgeCache} add constraint ${edgeCacheRoleFkey} foreign key (${roleId}) references ${role.node} (${role.id}) on delete cascade on update cascade;
+alter table ${edgeCache} drop constraint if exists ${edgeCacheResourceFkey};
+alter table ${edgeCache} add constraint ${edgeCacheResourceFkey} foreign key (${resourceId}) references ${resource.node} (${resource.id}) on delete cascade on update cascade;
 
-create index if not exists ${thingNotCombinedWithIdIndex} on ${edgeCache} (${thingNotCombinedWithId});
+create index if not exists ${edgeCacheRoleIdIndex} on ${edgeCache} (${roleId});
 
-${join(config.engine.users.map(user => sql`grant select, insert, update, delete on table ${edgeCache} to ${identifier(user)};`), `\n`)}
+create index if not exists ${edgeCacheResourceIdIndex} on ${edgeCache} (${resourceId});
+
+-- Only p9s triggers write to the cache
+${setPrivileges(edgeCache, everyone, [])}
 
 
 -----------------------------------------------------------------------------------------------------------------------
 -- View of all transitive assignment with cache edges
 -----------------------------------------------------------------------------------------------------------------------
--- This direction is easy, since we have less parents than children in general
-create view ${edgeCacheView} as
-select
-  "the_edge_cache".${thingCombinedWith.childId} as ${thingCombinedWithId},
-  "the_assignment".${thingNotCombinedWithId} as ${thingNotCombinedWithId},
-  ${orBitmap} ("the_assignment".${permission} & "the_edge_cache".${permission}) as ${permission} -- bitwise "or" on permissions between various paths
-from
-  ${edge} as "the_assignment"
-join
-  ${thingCombinedWith.edgeCache} as "the_edge_cache"
-on
-  "the_assignment".${thingCombinedWithId} = "the_edge_cache".${thingCombinedWith.parentId}
-group by ("the_assignment".${thingNotCombinedWithId}, "the_edge_cache".${thingCombinedWith.childId});
+create or replace view ${edgeCacheView} as
+${selectCombined(sql`true`)};
 
-${join(config.engine.users.map(user => sql`grant select on table ${edgeCacheView} to ${identifier(user)};`), `\n`)}
+${setPrivileges(edgeCacheView, everyone, [])}
 
 -----------------------------------------------------------------------------------------------------------------------
--- Assignment function to create the cache
+-- Assignment function to rebuild the cache from scratch
 -----------------------------------------------------------------------------------------------------------------------
 create or replace function ${edgeCacheBackfill} ()
   returns setof ${edgeCache}
   as $$
-  insert into ${edgeCache} (${thingCombinedWithId}, ${thingNotCombinedWithId}, ${permission})
-  select ${thingCombinedWithId}, ${thingNotCombinedWithId}, ${permission}
+  ${lockGraphStatement(config)}
+  delete from ${edgeCache};
+  insert into ${edgeCache} (${roleId}, ${resourceId}, ${permission})
+  select ${roleId}, ${resourceId}, ${permission}
   from
     ${edgeCacheView}
-  on conflict on constraint ${edgeCachePkey}
-    do update set
-      ${permission} = excluded.${permission}
     returning
       *
 $$
 language sql
-volatile;
+volatile
+${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${edgeCacheBackfill} () to ${identifier(user)};`), `\n`)}
-
-
-
-
-
-
+${grantExecute(sql`${edgeCacheBackfill} ()`, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
--- ${literal(resourceOrRole)} functions to enable / disable triggers
+-- Update cache when assignments change
+-----------------------------------------------------------------------------------------------------------------------
+${statementTrigger(edgeInsertTriggerFunction, edgeInsertTrigger, edge, "insert", byAssignment(newAssignments))}
+${statementTrigger(edgeUpdateTriggerFunction, edgeUpdateTrigger, edge, "update", byAssignment(sql`${oldAssignments} union ${newAssignments}`))}
+${statementTrigger(edgeDeleteTriggerFunction, edgeDeleteTrigger, edge, "delete", byAssignment(oldAssignments))}
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Update cache when the ${literal(resourceOrRole)} transitive edge cache changes
+-----------------------------------------------------------------------------------------------------------------------
+${statementTrigger(combinedEdgeInsertTriggerFunction, combinedEdgeInsertTrigger, thingCombinedWith.edgeCache, "insert", byEdgeCache(newEdgeCaches))}
+${statementTrigger(combinedEdgeUpdateTriggerFunction, combinedEdgeUpdateTrigger, thingCombinedWith.edgeCache, "update", byEdgeCache(sql`${oldEdgeCaches} union ${newEdgeCaches}`))}
+${statementTrigger(combinedEdgeDeleteTriggerFunction, combinedEdgeDeleteTrigger, thingCombinedWith.edgeCache, "delete", byEdgeCache(oldEdgeCaches))}
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Assignment actually do bootstrap cache
+-----------------------------------------------------------------------------------------------------------------------
+select 1 from ${edgeCacheBackfill}();
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Assignment functions to enable / disable triggers
 -----------------------------------------------------------------------------------------------------------------------
 create or replace function ${enableTriggerFunction}()
 returns void as $$
-  -- alter table ${edge} enable trigger ${edgeInsertTrigger};
-  -- alter table ${edge} enable trigger ${edgeUpdateTrigger};
-  -- alter table ${edge} enable trigger ${edgeDeleteTrigger};
+  alter table ${edge} enable trigger ${edgeInsertTrigger};
+  alter table ${edge} enable trigger ${edgeUpdateTrigger};
+  alter table ${edge} enable trigger ${edgeDeleteTrigger};
+  alter table ${thingCombinedWith.edgeCache} enable trigger ${combinedEdgeInsertTrigger};
+  alter table ${thingCombinedWith.edgeCache} enable trigger ${combinedEdgeUpdateTrigger};
+  alter table ${thingCombinedWith.edgeCache} enable trigger ${combinedEdgeDeleteTrigger};
   -- Backfill cache
   select 1 from ${edgeCacheBackfill}();
-$$ language sql;
+$$ language sql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${enableTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${enableTriggerFunction} ()`, writers)}
 
 create or replace function ${disableTriggerFunction}()
 returns void as $$
-  -- alter table ${edge} disable trigger ${edgeInsertTrigger};
-  -- alter table ${edge} disable trigger ${edgeUpdateTrigger};
-  -- alter table ${edge} disable trigger ${edgeDeleteTrigger};
-$$ language sql;
+  alter table ${edge} disable trigger ${edgeInsertTrigger};
+  alter table ${edge} disable trigger ${edgeUpdateTrigger};
+  alter table ${edge} disable trigger ${edgeDeleteTrigger};
+  alter table ${thingCombinedWith.edgeCache} disable trigger ${combinedEdgeInsertTrigger};
+  alter table ${thingCombinedWith.edgeCache} disable trigger ${combinedEdgeUpdateTrigger};
+  alter table ${thingCombinedWith.edgeCache} disable trigger ${combinedEdgeDeleteTrigger};
+$$ language sql ${definer(naming)};
 
-${join(config.engine.users.map(user => sql`grant execute on function ${disableTriggerFunction} () to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${disableTriggerFunction} ()`, writers)}
 
   `;
   }
 
-  const combinedCacheBlock = (resourceOrRole === "resource" || resourceOrRole === "role") ? getCombinedCacheBlock(resourceOrRole) : sql``;
+  const combinedCacheBlock = (combineAssignmentsWith === "resource" || combineAssignmentsWith === "role") ? getCombinedCacheBlock(combineAssignmentsWith) : sql``;
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
 -- Assignment from role to resource
 -----------------------------------------------------------------------------------------------------------------------
-drop table if exists ${edge} cascade;
-
-create table ${edge} (
+create table if not exists ${edge} (
   ${resourceId} ${idType} not null,
   ${roleId} ${idType} not null,
   ${permission} bit(${literal(size)}),
@@ -701,7 +871,9 @@ create index if not exists ${edgeResourceIdIndex} on ${edge} (${resourceId});
 
 create index if not exists ${edgeRoleIdIndex} on ${edge} (${roleId});
 
-${join(config.engine.users.map(user => sql`grant select, insert, update, delete on table ${edge} to ${identifier(user)};`), `\n`)}
+${setPrivileges(edge, users, writers)}
+
+${dropAllTriggers}
 
 ${combinedCacheBlock}
 `;
@@ -710,8 +882,52 @@ ${combinedCacheBlock}
 }
 
 
+// Without a combined cache, removes the p9s objects a previous mode may have created. This runs after policies are
+// replaced, since old ones may read the combined cache. No cascade, so objects created by the user on top of them
+// make the migration fail instead of being dropped silently.
+export const createMigrationCleanup = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  if (config.engine.combineAssignmentsWith !== "none") {
+    return sql``;
+  }
+  const { enableTriggerFunction, disableTriggerFunction, edgeCacheBackfill, edgeCacheView, edgeCache,
+    edgeInsertTriggerFunction, edgeUpdateTriggerFunction, edgeDeleteTriggerFunction } = naming.assignment;
+  const combinedTriggerFunctions = (["role", "resource"] as const).flatMap(mode => {
+    const modeNaming = getNaming({ ...config, engine: { ...config.engine, combineAssignmentsWith: mode } }).assignment;
+    return [modeNaming.combinedEdgeInsertTriggerFunction, modeNaming.combinedEdgeUpdateTriggerFunction, modeNaming.combinedEdgeDeleteTriggerFunction];
+  });
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Cleanup of a previous combined assignment cache
+-----------------------------------------------------------------------------------------------------------------------
+${join([enableTriggerFunction, disableTriggerFunction, edgeCacheBackfill, edgeInsertTriggerFunction, edgeUpdateTriggerFunction, edgeDeleteTriggerFunction, ...combinedTriggerFunctions]
+    .map(fn => sql`drop function if exists ${fn} ();`), `\n`)}
+drop view if exists ${edgeCacheView};
+drop table if exists ${edgeCache};
+`;
+}
+
+
 export const createMigrationDataModelBindings = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   const { type: idType } = getIdType(config);
+
+  // Existing rows get a fresh node each, so the column can be made not null without dropping data
+  const bindColumn = (schema: SQL, name: SQL, column: SQL, fkey: SQL, target: Naming<User>["resource"]) => sql`
+alter table ${schema}.${name} add column if not exists ${column} ${idType} unique;
+do $$
+declare
+  "the_row" record;
+  "the_id" ${idType};
+begin
+  for "the_row" in select ctid from ${schema}.${name} where ${column} is null loop
+    insert into ${target.node} default values returning ${target.id} into "the_id";
+    update ${schema}.${name} set ${column} = "the_id" where ctid = "the_row".ctid;
+  end loop;
+end
+$$;
+alter table ${schema}.${name} alter column ${column} set not null;
+alter table ${schema}.${name} drop constraint if exists ${fkey} cascade;
+alter table ${schema}.${name} add constraint ${fkey} foreign key (${column}) references ${target.node} (${target.id}) on delete cascade on update cascade;
+`;
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
@@ -724,25 +940,8 @@ ${join(config.tables.map(table => {
     }
     const { schema, name, resourceId, resourceFkey, roleId, roleFkey } = tableNaming;
     const { resource, role } = naming;
-    let resourceBlock = sql``;
-
-    if (table.isResource) {
-      resourceBlock = sql`
-alter table ${schema}.${name} drop column if exists ${resourceId} cascade;
-alter table ${schema}.${name} add column ${resourceId} ${idType} unique not null;
-alter table ${schema}.${name} drop constraint if exists ${resourceFkey} cascade;
-alter table ${schema}.${name} add constraint ${resourceFkey} foreign key (${resourceId}) references ${resource.node} (${resource.id}) on delete cascade on update cascade;
-`
-    }
-    let roleBlock = sql``;
-    if (table.isRole) {
-      roleBlock = sql`
-alter table ${schema}.${name} drop column if exists ${roleId} cascade;
-alter table ${schema}.${name} add column ${roleId} ${idType} unique not null;
-alter table ${schema}.${name} drop constraint if exists ${roleFkey} cascade;
-alter table ${schema}.${name} add constraint ${roleFkey} foreign key (${roleId}) references ${role.node} (${role.id}) on delete cascade on update cascade;
-`
-    }
+    const resourceBlock = table.isResource ? bindColumn(schema, name, resourceId, resourceFkey, resource) : sql``;
+    const roleBlock = table.isRole ? bindColumn(schema, name, roleId, roleFkey, role) : sql``;
     return sql`
   ${resourceBlock}
 
@@ -755,6 +954,68 @@ alter table ${schema}.${name} add constraint ${roleFkey} foreign key (${roleId})
 
 
 export const createMigrationDataModelPolicies = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { resource, role, assignment } = naming;
+  const currentUserId = sql`${identifier(config.engine.authentication.getCurrentUserId)}()`;
+  const hasBit = (alias: string, column: SQL, bit: number) => sql`(${identifier(alias)}.${column} << ${literal(bit)})::bit = b'1'`;
+
+  // A (user, resource) pair has a bit iff some path role -> assignment -> resource has that bit on every edge.
+  // Each cache stores the OR over paths of its own segment, so checking the bit segment by segment is exact.
+  const accessCheck = (target: SQL, bit: number) => {
+    switch (config.engine.combineAssignmentsWith) {
+      case "role": return sql`
+  exists (
+    select
+      1
+    from
+      ${resource.edgeCache} "var_resource_edge",
+      ${assignment.edgeCache} "var_assignment_edge"
+    where
+      -- Access chain exists
+      ${target} = "var_resource_edge".${resource.childId} and
+      "var_resource_edge".${resource.parentId} = "var_assignment_edge".${assignment.resourceId} and
+      "var_assignment_edge".${assignment.roleId} = ${currentUserId} and
+      -- With correct permission bit
+      ${hasBit("var_resource_edge", resource.permission, bit)} and
+      ${hasBit("var_assignment_edge", assignment.permission, bit)}
+  )`;
+      case "resource": return sql`
+  exists (
+    select
+      1
+    from
+      ${assignment.edgeCache} "var_assignment_edge",
+      ${role.edgeCache} "var_role_edge"
+    where
+      -- Access chain exists
+      ${target} = "var_assignment_edge".${assignment.resourceId} and
+      "var_assignment_edge".${assignment.roleId} = "var_role_edge".${role.parentId} and
+      "var_role_edge".${role.childId} = ${currentUserId} and
+      -- With correct permission bit
+      ${hasBit("var_assignment_edge", assignment.permission, bit)} and
+      ${hasBit("var_role_edge", role.permission, bit)}
+  )`;
+      default: return sql`
+  exists (
+    select
+      1
+    from
+      ${resource.edgeCache} "var_resource_edge",
+      ${assignment.edge} "var_assignment_edge",
+      ${role.edgeCache} "var_role_edge"
+    where
+      -- Access chain exists
+      ${target} = "var_resource_edge".${resource.childId} and
+      "var_resource_edge".${resource.parentId} = "var_assignment_edge".${assignment.resourceId} and
+      "var_assignment_edge".${assignment.roleId} = "var_role_edge".${role.parentId} and
+      "var_role_edge".${role.childId} = ${currentUserId} and
+      -- With correct permission bit
+      ${hasBit("var_resource_edge", resource.permission, bit)} and
+      ${hasBit("var_assignment_edge", assignment.permission, bit)} and
+      ${hasBit("var_role_edge", role.permission, bit)}
+  )`;
+    }
+  };
+
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
 -- Table policies
@@ -767,53 +1028,18 @@ ${join(config.tables.flatMap(table => {
     return config.engine.users.flatMap(user => {
       return (["select", "insert", "update", "delete"] as const).flatMap(operation => {
         const { schema, name, resourceId, permission } = tableNaming;
-        const { resource, role, assignment } = naming;
         if (!table.isResource || table.permission[user] == null || table.permission[user][operation] == null) {
           return [];
         }
+        const bit = table.permission[user][operation];
+        const check = accessCheck(sql`${name}.${resourceId}`, bit);
         return [sql`
 drop policy if exists ${(permission as any)[user][operation]} on ${schema}.${name};
 create policy ${(permission as any)[user][operation]} on ${schema}.${name} 
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
-${["select", "update", "delete"].includes(operation) ? sql`using ( 
-  exists (
-    select
-      1
-    from
-      ${resource.edgeCache} "var_resource_edge",
-      ${assignment.edge} "var_assignment_edge",
-      ${role.edgeCache} "var_role_edge"
-    where
-      -- Access chain exists
-      ${name}.${resourceId} = "var_resource_edge".${resource.childId} and
-      "var_resource_edge".${resource.parentId} = "var_assignment_edge".${assignment.resourceId} and
-      "var_assignment_edge".${assignment.roleId} = "var_role_edge".${role.parentId} and
-      "var_role_edge".${role.childId} = ${identifier(config.engine.authentication.getCurrentUserId)}() and
-      -- With correct permission bit
-      ("var_resource_edge".${resource.permission} << ${literal(table.permission[user][operation])})::bit = b'1' and
-      ("var_assignment_edge".${assignment.permission} << ${literal(table.permission[user][operation])})::bit = b'1' and
-      ("var_role_edge".${role.permission} << ${literal(table.permission[user][operation])})::bit = b'1'
-  )
+${["select", "update", "delete"].includes(operation) ? sql`using (${check}
 )`: sql``}
-${["insert", "update"].includes(operation) ? sql`with check ( 
-  exists (
-    select
-      1
-    from
-      ${resource.edgeCache} "var_resource_edge",
-      ${assignment.edge} "var_assignment_edge",
-      ${role.edgeCache} "var_role_edge"
-    where
-      -- Access chain exists
-      ${name}.${resourceId} = "var_resource_edge".${resource.childId} and
-      "var_resource_edge".${resource.parentId} = "var_assignment_edge".${assignment.resourceId} and
-      "var_assignment_edge".${assignment.roleId} = "var_role_edge".${role.parentId} and
-      "var_role_edge".${role.childId} = ${identifier(config.engine.authentication.getCurrentUserId)}() and
-      -- With correct permission bit
-      ("var_resource_edge".${resource.permission} << ${literal(table.permission[user][operation])})::bit = b'1' and
-      ("var_assignment_edge".${assignment.permission} << ${literal(table.permission[user][operation])})::bit = b'1' and
-      ("var_role_edge".${role.permission} << ${literal(table.permission[user][operation])})::bit = b'1'
-  )
+${["insert", "update"].includes(operation) ? sql`with check (${check}
 )`: sql``};
 `];
       });
@@ -839,4 +1065,3 @@ ${join(config.tables.flatMap(table => {
     }), `\n`)}
     `;
 }
-

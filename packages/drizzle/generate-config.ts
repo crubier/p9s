@@ -106,10 +106,11 @@ export function generateConfigurationFromDrizzleSchema<User extends string>(
         if (tableOptions.permission[user]) {
           const userPerm = tableOptions.permission[user]!;
           const filteredPerm: Partial<{ select: number; insert: number; update: number; delete: number }> = {};
-          if (userPerm.select !== undefined && userPerm.select !== 0) filteredPerm.select = userPerm.select;
-          if (userPerm.insert !== undefined && userPerm.insert !== 0) filteredPerm.insert = userPerm.insert;
-          if (userPerm.update !== undefined && userPerm.update !== 0) filteredPerm.update = userPerm.update;
-          if (userPerm.delete !== undefined && userPerm.delete !== 0) filteredPerm.delete = userPerm.delete;
+          // Values are bit positions in the permission bitmap, so 0 is a real bit
+          if (userPerm.select !== undefined) filteredPerm.select = userPerm.select;
+          if (userPerm.insert !== undefined) filteredPerm.insert = userPerm.insert;
+          if (userPerm.update !== undefined) filteredPerm.update = userPerm.update;
+          if (userPerm.delete !== undefined) filteredPerm.delete = userPerm.delete;
           if (Object.keys(filteredPerm).length > 0) {
             permission[user] = filteredPerm;
           }

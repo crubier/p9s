@@ -173,7 +173,10 @@ export const tableConfigSchema = z.object({
 // Engine config base schema (without refinements, for partial/optional use)
 export const engineConfigBaseSchema = z.object({
   schema: z.string(),
+  // Database roles that query business tables through RLS. They get read-only access to the permission graph.
   users: z.array(z.string()),
+  // Database roles allowed to modify nodes, edges and assignments. Caches are only ever written by p9s triggers.
+  graphWriters: z.array(z.string()).default([]),
   permission: z.object({
     bitmap: z.object({
       size: z.number(),

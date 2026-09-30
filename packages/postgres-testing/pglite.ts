@@ -9,32 +9,25 @@ import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
 
 export const createRunTestQuery = (client: PGlite) => async (sqlquery: SQL): Promise<any[]> => {
   let results: Results | Results[];
-  try {
-    const compiled = compile(sqlquery);
-    // Check if query contains multiple statements (has semicolon followed by non-whitespace)
-    const hasMultipleStatements = /;[\s]*\S/.test(compiled.text);
-    if (hasMultipleStatements) {
-      // Use transaction with multiple queries for multi-statement queries
-      // This ensures set local statements persist across the transaction
-      // Split by semicolon and filter empty statements
-      const statements = compiled.text.split(';').map(s => s.trim()).filter(s => s.length > 0);
-      results = await client.transaction(async (tx) => {
-        const allResults: Results<{ [key: string]: any }>[] = [];
-        for (const stmt of statements) {
-          const result = await tx.query<{ [key: string]: any }>(stmt, compiled.values);
-          allResults.push(result);
-        }
-        return allResults;
-      });
-    } else {
-      // Use query for single statements
-      results = await client.query(compiled.text, compiled.values);
-    }
-  } catch (e) {
-    console.log("errr");
-    console.log(e);
-    throw e;
-    // return [];
+  const compiled = compile(sqlquery);
+  // Check if query contains multiple statements (has semicolon followed by non-whitespace)
+  const hasMultipleStatements = /;[\s]*\S/.test(compiled.text);
+  if (hasMultipleStatements) {
+    // Use transaction with multiple queries for multi-statement queries
+    // This ensures set local statements persist across the transaction
+    // Split by semicolon and filter empty statements
+    const statements = compiled.text.split(';').map(s => s.trim()).filter(s => s.length > 0);
+    results = await client.transaction(async (tx) => {
+      const allResults: Results<{ [key: string]: any }>[] = [];
+      for (const stmt of statements) {
+        const result = await tx.query<{ [key: string]: any }>(stmt, compiled.values);
+        allResults.push(result);
+      }
+      return allResults;
+    });
+  } else {
+    // Use query for single statements
+    results = await client.query(compiled.text, compiled.values);
   }
   if (!Array.isArray(results)) {
     // If the sql contains a single statement, put the result in an array, to match
@@ -45,21 +38,7 @@ export const createRunTestQuery = (client: PGlite) => async (sqlquery: SQL): Pro
 };
 
 export const createExec = (client: PGlite) => async (sqlquery: SQL): Promise<any[]> => {
-  let results: Results | Results[];
-  try {
-    const compiled = compile(sqlquery);
-    results = await client.exec(compiled.text);
-  } catch (e) {
-    console.log("errr");
-    console.log(e);
-    throw e;
-    // return [];
-  }
-  if (!Array.isArray(results)) {
-    // If the sql contains a single statement, put the result in an array, to match
-    // what happens when the sql contains multiple statements
-    results = [results] as Results[];
-  }
+  const results: Results[] = await client.exec(compile(sqlquery).text);
   return results.map((result: Results) => result.rows.sort(orderByIdChildParent));
 };
 
@@ -69,10 +48,13 @@ export interface PostgresTestContext {
   client: PGlite,
   runTestQuery: (sql: SQL) => Promise<any[]>,
   exec: (sql: SQL) => Promise<any[]>,
+  // PGlite is single-connection, so concurrency tests need the real Postgres harness
+  connect: () => Promise<never>,
   database_admin_username: string,
   database_admin_password: string,
   database_user_username: string,
   database_user_password: string,
+  database_writer_username: string,
   database_name: string,
 }
 
@@ -86,8 +68,9 @@ export const setupTests = () => {
     context.database_admin_password = `admin_${generateRandomString(4)}`;
     context.database_user_username = `user_${generateRandomString(4)}`;
     context.database_user_password = `user_${generateRandomString(4)}`;
+    context.database_writer_username = `writer_${generateRandomString(4)}`;
     context.database_name = `test_database_${generateRandomString(4)}`;
-    const { database_admin_username, database_admin_password, database_user_username, database_user_password, database_name } = context;
+    const { database_admin_username, database_admin_password, database_user_username, database_user_password, database_writer_username, database_name } = context;
 
     const rootClient = await PGlite.create({
       extensions: { uuid_ossp }
@@ -102,8 +85,10 @@ export const setupTests = () => {
     if ((await rootClient.query(compile(sql`select datname from pg_database where datname = ${literal(database_name)}`).text)).rows.length <= 0) {
       await rootClient.query(compile(sql`create database ${identifier(database_name)} owner ${identifier(database_admin_username)}`).text);
     }
+    await rootClient.query(compile(sql`create role ${identifier(database_writer_username)} nologin`).text);
     await rootClient.query(compile(sql`grant connect on database ${identifier(database_name)} to ${identifier(database_user_username)}`).text);
     await rootClient.query(compile(sql`GRANT ${identifier(database_user_username)} TO ${identifier(database_admin_username)}`).text);
+    await rootClient.query(compile(sql`GRANT ${identifier(database_writer_username)} TO ${identifier(database_admin_username)}`).text);
 
 
     const dataDirDump = await rootClient.dumpDataDir();
@@ -123,29 +108,13 @@ export const setupTests = () => {
     context.client = client;
     context.runTestQuery = createRunTestQuery(client);
     context.exec = createExec(client);
+    context.connect = async () => { throw new Error("PGlite does not support multiple connections"); };
   }
 
 
+  // The whole cluster lives in memory, closing the client discards it
   const teardown = async () => {
-    const { client, database_admin_username, database_user_username, database_name } = context as PostgresTestContext;
-
-    const dataDirDump = await client.dumpDataDir();
-    await client.close()
-
-    // Drop the testing database and user
-    const rootClient = await PGlite.create({
-      loadDataDir: dataDirDump,
-      extensions: { uuid_ossp }
-    });
-
-    if ((await rootClient.query(compile(sql`select datname from pg_database where datname = ${literal(database_name)}`).text)).rows.length > 0) {
-      await rootClient.query(compile(sql`drop database ${identifier(database_name)}`).text);
-    }
-    if ((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_admin_username)}`).text)).rows.length > 0) {
-      await rootClient.query(compile(sql`drop role ${identifier(database_admin_username)}`).text);
-    }
-
-
+    await (context as PostgresTestContext).client.close();
   }
 
   return {

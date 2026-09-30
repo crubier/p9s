@@ -88,6 +88,17 @@ describe("generateConfigurationFromDrizzleSchema", () => {
 `);
   });
 
+  test("keeps permissions mapped to bit 0", () => {
+    const config = generateConfigurationFromDrizzleSchema(schema1, {
+      users: ["viewer"],
+      tables: {
+        folder: { permission: { viewer: { select: 0, update: 2 } } },
+      },
+    });
+
+    expect(config.tables?.find(table => table.name === "folder")?.permission).toEqual({ viewer: { select: 0, update: 2 } });
+  });
+
   test("uses custom schema name", () => {
     const config = generateConfigurationFromDrizzleSchema(schema1, {
       users: ["owner"],

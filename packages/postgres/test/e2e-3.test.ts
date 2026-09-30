@@ -1,7 +1,7 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier } from "pg-sql2";
 import { createMigration } from '../generation'
-import { setupTests } from '@p9s/postgres-testing/pglite';
+import { setupTests } from '@p9s/postgres-testing';
 
 describe('SQL end to end test combined roles', async () => {
   const { setup, teardown, context } = setupTests();

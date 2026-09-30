@@ -1,20 +1,29 @@
-version: "3.2"
 services:
-  # pgadmin:
-  #   image: dpage/pgadmin4:7.7
-  #   user: root
-  #   restart: always
-  #   ports:
-  #     - "8080:80"
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: user@email.com
-  #     PGADMIN_DEFAULT_PASSWORD: password
-  #   volumes:
-  #     - ./volumes/pgadmin:/var/lib/pgadmin
   postgres:
     image: postgres:18.1
     restart: always
-    # command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    # Sized for a laptop with >= 8 GB of RAM. The whole dataset fits in shared_buffers, so the benchmark measures
+    # CPU work in triggers and policies rather than disk. JIT is off because it only adds compile time to the
+    # short OLTP queries measured here. Durability settings are left at their defaults so write latencies stay realistic.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_timeout=30min
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - jit=off
+    shm_size: 1gb
     healthcheck:
       test: /usr/bin/pg_isready -U postgres
       interval: 5s

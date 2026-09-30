@@ -6,6 +6,7 @@
     "test": "bun test"
   },
   "devDependencies": {
+    "@p9s/core-testing": "workspace:*",
     "@types/bun": "latest"
   },
   "peerDependencies": {

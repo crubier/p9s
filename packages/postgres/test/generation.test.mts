@@ -28,15 +28,55 @@ test('Default Migration', () => {
   })).text).toMatchInlineSnapshot(`
     "
       
+    -----------------------------------------------------------------------------------------------------------------------
+    -- Preamble
+    -----------------------------------------------------------------------------------------------------------------------
+    -- p9s objects are created unqualified, and security definer functions pin search_path to the configured schema
+    do $$
+    begin
+      if current_schema() is distinct from 'public' then
+        raise exception 'p9s: run this migration with % as the current schema, got %', 'public', current_schema();
+      end if;
+    end
+    $$;
+
+    -- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
+    create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[])
+    returns void as $$
+    declare
+      owner_role name := (select pg_get_userbyid(relowner) from pg_class where oid = target);
+      the_role text;
+      the_sequence text;
+    begin
+      foreach the_role in array read_roles || write_roles loop
+        continue when the_role = owner_role;
+        execute format('revoke all on table %s from %I', target, the_role);
+      end loop;
+      foreach the_role in array read_roles loop
+        continue when the_role = owner_role;
+        execute format('grant select on table %s to %I', target, the_role);
+      end loop;
+      foreach the_role in array write_roles loop
+        continue when the_role = owner_role;
+        execute format('grant select, insert, update, delete on table %s to %I', target, the_role);
+        for the_sequence in
+          select pg_get_serial_sequence(target::text, attname) from pg_attribute
+          where attrelid = target and attnum > 0 and not attisdropped and pg_get_serial_sequence(target::text, attname) is not null
+        loop
+          execute format('grant usage, select on sequence %s to %I', the_sequence, the_role);
+        end loop;
+      end loop;
+    end;
+    $$ language plpgsql;
+
+
+      
 
       
     -----------------------------------------------------------------------------------------------------------------------
     -- Special functions
     -----------------------------------------------------------------------------------------------------------------------
-    drop aggregate if exists "or_bitmap_4" (bit);
-
-    create aggregate "or_bitmap_4" (
-      basetype = bit,
+    create or replace aggregate "or_bitmap_4" (bit) (
       sfunc = bitor,
       stype = bit,
       initcond = '0000'
@@ -49,21 +89,17 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' node table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "resource_node" cascade;
-
-    create table "resource_node" (
+    create table if not exists "resource_node" (
       "id" serial unique not null,
       constraint "resource_pkey" primary key ("id")
     );
 
-    grant select, insert, update, delete on table "resource_node" to "user1";
+    select pg_temp.p9s_set_privileges('"resource_node"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' edge table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "resource_edge" cascade;
-
-    create table "resource_edge" (
+    create table if not exists "resource_edge" (
       "parent_id" integer not null,
       "child_id" integer not null,
       "permission" bit(4),
@@ -76,27 +112,30 @@ test('Default Migration', () => {
 
     create index if not exists "resource_edge_child_id_index" on "resource_edge" ("child_id");
 
-    grant select, insert, update, delete on table "resource_edge" to "user1";
+    select pg_temp.p9s_set_privileges('"resource_edge"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' transitive edge cache table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "resource_edge_cache" cascade;
-
-    create table "resource_edge_cache" (
+    create table if not exists "resource_edge_cache" (
       "parent_id" integer not null,
       "child_id" integer not null,
       "permission" bit(4),
-      constraint "resource_edge_cache_pkey" primary key ("parent_id", "child_id"),
-      constraint "resource_edge_cache_parent_pkey" foreign key ("parent_id") references "resource_node" ("id"),
-      constraint "resource_edge_cache_child_pkey" foreign key ("child_id") references "resource_node" ("id")
+      constraint "resource_edge_cache_pkey" primary key ("parent_id", "child_id")
     );
+
+    -- Cache rows are derived data, they go away with their nodes
+    alter table "resource_edge_cache" drop constraint if exists "resource_edge_cache_parent_pkey";
+    alter table "resource_edge_cache" add constraint "resource_edge_cache_parent_pkey" foreign key ("parent_id") references "resource_node" ("id") on delete cascade on update cascade;
+    alter table "resource_edge_cache" drop constraint if exists "resource_edge_cache_child_pkey";
+    alter table "resource_edge_cache" add constraint "resource_edge_cache_child_pkey" foreign key ("child_id") references "resource_node" ("id") on delete cascade on update cascade;
 
     create index if not exists "resource_edge_cache_parent_id_index" on "resource_edge_cache" ("parent_id");
 
     create index if not exists "resource_edge_cache_child_id_index" on "resource_edge_cache" ("child_id");
 
-    grant select, insert, update, delete on table "resource_edge_cache" to "user1";
+    -- Only p9s triggers write to the cache
+    select pg_temp.p9s_set_privileges('"resource_edge_cache"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' compute recursive permissions, towards parent
@@ -174,7 +213,7 @@ test('Default Migration', () => {
     -- 'resource' view of all transitive edges. 
     -----------------------------------------------------------------------------------------------------------------------
     -- This direction is easy, since we have less parents than children in general
-    create view "resource_edge_cache_view" as
+    create or replace view "resource_edge_cache_view" as
     select
       "parent_permissions"."parent_id" as "parent_id",
       "parent_permissions"."child_id" as "child_id",
@@ -183,28 +222,30 @@ test('Default Migration', () => {
       "resource_node" as "the_node",
       lateral "resource_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
-    grant select on table "resource_edge_cache_view" to "user1";
+    select pg_temp.p9s_set_privileges('"resource_edge_cache_view"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
-    -- 'resource' function to create the cache
+    -- 'resource' function to rebuild the cache from scratch
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "resource_edge_cache_backfill" ()
       returns setof "resource_edge_cache"
       as $$
+      select pg_advisory_xact_lock(hashtext('p9s:public:'));
+      delete from "resource_edge_cache";
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission"
       from
         "resource_edge_cache_view"
-      on conflict on constraint "resource_edge_cache_pkey"
-        do update set
-          "permission" = excluded."permission"
         returning
           *
     $$
     language sql
-    volatile;
+    volatile
+    security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_edge_cache_backfill" () to "user1";
+
+    revoke execute on function "resource_edge_cache_backfill" () from public;
+
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' Update cache when insert edge
@@ -212,6 +253,11 @@ test('Default Migration', () => {
     create or replace function "resource_edge_insert_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
         -- Add fresh edges from descendants
         with combined as (
@@ -239,9 +285,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_edge_insert_trigger_function" () to "user1";
+
+    revoke execute on function "resource_edge_insert_trigger_function" () from public;
+
 
     drop trigger if exists "10_resource_edge_insert_trigger" on "resource_edge";
     create trigger "10_resource_edge_insert_trigger"
@@ -256,6 +304,11 @@ test('Default Migration', () => {
     create or replace function "resource_edge_update_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
       -- Remove old all edges from descendants like in delete
       with combined as (
@@ -298,6 +351,8 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -322,14 +377,18 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_edge_update_trigger_function" () to "user1";
+
+    revoke execute on function "resource_edge_update_trigger_function" () from public;
+
 
     drop trigger if exists "10_resource_edge_update_trigger" on "resource_edge";
     create trigger "10_resource_edge_update_trigger"
@@ -343,6 +402,11 @@ test('Default Migration', () => {
     create or replace function "resource_edge_delete_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
       -- Remove old all edges from descendants
       with combined as (
@@ -385,14 +449,18 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_edge_delete_trigger_function" () to "user1";
+
+    revoke execute on function "resource_edge_delete_trigger_function" () from public;
+
 
     drop trigger if exists "10_resource_edge_delete_trigger" on "resource_edge";
     create trigger "10_resource_edge_delete_trigger"
@@ -414,9 +482,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_node_insert_trigger_function" () to "user1";
+
+    revoke execute on function "resource_node_insert_trigger_function" () from public;
+
 
     drop trigger if exists "10_resource_node_insert_trigger" on "resource_node";
     create trigger "10_resource_node_insert_trigger"
@@ -437,9 +507,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_node_update_trigger_function" () to "user1";
+
+    revoke execute on function "resource_node_update_trigger_function" () from public;
+
 
 
     drop trigger if exists "10_resource_node_update_trigger" on "resource_node";
@@ -460,9 +532,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_node_delete_trigger_function" () to "user1";
+
+    revoke execute on function "resource_node_delete_trigger_function" () from public;
+
 
 
     drop trigger if exists "10_resource_node_delete_trigger" on "resource_node";
@@ -490,9 +564,11 @@ test('Default Migration', () => {
       alter table "resource_node" enable trigger "10_resource_node_delete_trigger";
       -- Backfill cache
       select 1 from "resource_edge_cache_backfill"();
-    $$ language sql;
+    $$ language sql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_trigger_enable" () to "user1";
+
+    revoke execute on function "resource_trigger_enable" () from public;
+
 
     create or replace function "resource_trigger_disable"()
     returns void as $$
@@ -502,30 +578,28 @@ test('Default Migration', () => {
       alter table "resource_node" disable trigger "10_resource_node_insert_trigger";
       alter table "resource_node" disable trigger "10_resource_node_update_trigger";
       alter table "resource_node" disable trigger "10_resource_node_delete_trigger";
-    $$ language sql;
+    $$ language sql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "resource_trigger_disable" () to "user1";
+
+    revoke execute on function "resource_trigger_disable" () from public;
+
 
 
       
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' node table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "role_node" cascade;
-
-    create table "role_node" (
+    create table if not exists "role_node" (
       "id" serial unique not null,
       constraint "role_pkey" primary key ("id")
     );
 
-    grant select, insert, update, delete on table "role_node" to "user1";
+    select pg_temp.p9s_set_privileges('"role_node"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' edge table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "role_edge" cascade;
-
-    create table "role_edge" (
+    create table if not exists "role_edge" (
       "parent_id" integer not null,
       "child_id" integer not null,
       "permission" bit(4),
@@ -538,27 +612,30 @@ test('Default Migration', () => {
 
     create index if not exists "role_edge_child_id_index" on "role_edge" ("child_id");
 
-    grant select, insert, update, delete on table "role_edge" to "user1";
+    select pg_temp.p9s_set_privileges('"role_edge"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' transitive edge cache table
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "role_edge_cache" cascade;
-
-    create table "role_edge_cache" (
+    create table if not exists "role_edge_cache" (
       "parent_id" integer not null,
       "child_id" integer not null,
       "permission" bit(4),
-      constraint "role_edge_cache_pkey" primary key ("parent_id", "child_id"),
-      constraint "role_edge_cache_parent_pkey" foreign key ("parent_id") references "role_node" ("id"),
-      constraint "role_edge_cache_child_pkey" foreign key ("child_id") references "role_node" ("id")
+      constraint "role_edge_cache_pkey" primary key ("parent_id", "child_id")
     );
+
+    -- Cache rows are derived data, they go away with their nodes
+    alter table "role_edge_cache" drop constraint if exists "role_edge_cache_parent_pkey";
+    alter table "role_edge_cache" add constraint "role_edge_cache_parent_pkey" foreign key ("parent_id") references "role_node" ("id") on delete cascade on update cascade;
+    alter table "role_edge_cache" drop constraint if exists "role_edge_cache_child_pkey";
+    alter table "role_edge_cache" add constraint "role_edge_cache_child_pkey" foreign key ("child_id") references "role_node" ("id") on delete cascade on update cascade;
 
     create index if not exists "role_edge_cache_parent_id_index" on "role_edge_cache" ("parent_id");
 
     create index if not exists "role_edge_cache_child_id_index" on "role_edge_cache" ("child_id");
 
-    grant select, insert, update, delete on table "role_edge_cache" to "user1";
+    -- Only p9s triggers write to the cache
+    select pg_temp.p9s_set_privileges('"role_edge_cache"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' compute recursive permissions, towards parent
@@ -636,7 +713,7 @@ test('Default Migration', () => {
     -- 'role' view of all transitive edges. 
     -----------------------------------------------------------------------------------------------------------------------
     -- This direction is easy, since we have less parents than children in general
-    create view "role_edge_cache_view" as
+    create or replace view "role_edge_cache_view" as
     select
       "parent_permissions"."parent_id" as "parent_id",
       "parent_permissions"."child_id" as "child_id",
@@ -645,28 +722,30 @@ test('Default Migration', () => {
       "role_node" as "the_node",
       lateral "role_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
-    grant select on table "role_edge_cache_view" to "user1";
+    select pg_temp.p9s_set_privileges('"role_edge_cache_view"'::regclass, array['user1']::text[], array[]::text[]);
 
     -----------------------------------------------------------------------------------------------------------------------
-    -- 'role' function to create the cache
+    -- 'role' function to rebuild the cache from scratch
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "role_edge_cache_backfill" ()
       returns setof "role_edge_cache"
       as $$
+      select pg_advisory_xact_lock(hashtext('p9s:public:'));
+      delete from "role_edge_cache";
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission"
       from
         "role_edge_cache_view"
-      on conflict on constraint "role_edge_cache_pkey"
-        do update set
-          "permission" = excluded."permission"
         returning
           *
     $$
     language sql
-    volatile;
+    volatile
+    security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_edge_cache_backfill" () to "user1";
+
+    revoke execute on function "role_edge_cache_backfill" () from public;
+
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' Update cache when insert edge
@@ -674,6 +753,11 @@ test('Default Migration', () => {
     create or replace function "role_edge_insert_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
         -- Add fresh edges from descendants
         with combined as (
@@ -701,9 +785,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_edge_insert_trigger_function" () to "user1";
+
+    revoke execute on function "role_edge_insert_trigger_function" () from public;
+
 
     drop trigger if exists "10_role_edge_insert_trigger" on "role_edge";
     create trigger "10_role_edge_insert_trigger"
@@ -718,6 +804,11 @@ test('Default Migration', () => {
     create or replace function "role_edge_update_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
       -- Remove old all edges from descendants like in delete
       with combined as (
@@ -760,6 +851,8 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -784,14 +877,18 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_edge_update_trigger_function" () to "user1";
+
+    revoke execute on function "role_edge_update_trigger_function" () from public;
+
 
     drop trigger if exists "10_role_edge_update_trigger" on "role_edge";
     create trigger "10_role_edge_update_trigger"
@@ -805,6 +902,11 @@ test('Default Migration', () => {
     create or replace function "role_edge_delete_trigger_function"()
     returns trigger as $$
     begin
+      
+      if current_setting('transaction_isolation') <> 'read committed' then
+        raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+      end if;
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
       -- Remove old all edges from descendants
       with combined as (
@@ -847,14 +949,18 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_edge_delete_trigger_function" () to "user1";
+
+    revoke execute on function "role_edge_delete_trigger_function" () from public;
+
 
     drop trigger if exists "10_role_edge_delete_trigger" on "role_edge";
     create trigger "10_role_edge_delete_trigger"
@@ -876,9 +982,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_node_insert_trigger_function" () to "user1";
+
+    revoke execute on function "role_node_insert_trigger_function" () from public;
+
 
     drop trigger if exists "10_role_node_insert_trigger" on "role_node";
     create trigger "10_role_node_insert_trigger"
@@ -899,9 +1007,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_node_update_trigger_function" () to "user1";
+
+    revoke execute on function "role_node_update_trigger_function" () from public;
+
 
 
     drop trigger if exists "10_role_node_update_trigger" on "role_node";
@@ -922,9 +1032,11 @@ test('Default Migration', () => {
 
       return null;
     end;
-    $$ language plpgsql;
+    $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_node_delete_trigger_function" () to "user1";
+
+    revoke execute on function "role_node_delete_trigger_function" () from public;
+
 
 
     drop trigger if exists "10_role_node_delete_trigger" on "role_node";
@@ -952,9 +1064,11 @@ test('Default Migration', () => {
       alter table "role_node" enable trigger "10_role_node_delete_trigger";
       -- Backfill cache
       select 1 from "role_edge_cache_backfill"();
-    $$ language sql;
+    $$ language sql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_trigger_enable" () to "user1";
+
+    revoke execute on function "role_trigger_enable" () from public;
+
 
     create or replace function "role_trigger_disable"()
     returns void as $$
@@ -964,18 +1078,18 @@ test('Default Migration', () => {
       alter table "role_node" disable trigger "10_role_node_insert_trigger";
       alter table "role_node" disable trigger "10_role_node_update_trigger";
       alter table "role_node" disable trigger "10_role_node_delete_trigger";
-    $$ language sql;
+    $$ language sql security definer set search_path = "public", pg_temp;
 
-    grant execute on function "role_trigger_disable" () to "user1";
+
+    revoke execute on function "role_trigger_disable" () from public;
+
 
 
       
     -----------------------------------------------------------------------------------------------------------------------
     -- Assignment from role to resource
     -----------------------------------------------------------------------------------------------------------------------
-    drop table if exists "assignment_edge" cascade;
-
-    create table "assignment_edge" (
+    create table if not exists "assignment_edge" (
       "resource_id" integer not null,
       "role_id" integer not null,
       "permission" bit(4),
@@ -988,7 +1102,21 @@ test('Default Migration', () => {
 
     create index if not exists "assignment_edge_role_id_index" on "assignment_edge" ("role_id");
 
-    grant select, insert, update, delete on table "assignment_edge" to "user1";
+    select pg_temp.p9s_set_privileges('"assignment_edge"'::regclass, array['user1']::text[], array[]::text[]);
+
+
+    drop trigger if exists "10_assignment_edge_insert_trigger" on "assignment_edge";
+    drop trigger if exists "10_assignment_edge_update_trigger" on "assignment_edge";
+    drop trigger if exists "10_assignment_edge_delete_trigger" on "assignment_edge";
+
+    drop trigger if exists "20_assignment_edge_role_insert_trigger" on "role_edge_cache";
+    drop trigger if exists "20_assignment_edge_role_update_trigger" on "role_edge_cache";
+    drop trigger if exists "20_assignment_edge_role_delete_trigger" on "role_edge_cache";
+
+    drop trigger if exists "20_assignment_edge_resource_insert_trigger" on "resource_edge_cache";
+    drop trigger if exists "20_assignment_edge_resource_update_trigger" on "resource_edge_cache";
+    drop trigger if exists "20_assignment_edge_resource_delete_trigger" on "resource_edge_cache";
+
 
 
 
@@ -1001,16 +1129,38 @@ test('Default Migration', () => {
       
 
       
-    alter table "public"."human_user" drop column if exists "role_id" cascade;
-    alter table "public"."human_user" add column "role_id" integer unique not null;
+    alter table "public"."human_user" add column if not exists "role_id" integer unique;
+    do $$
+    declare
+      "the_row" record;
+      "the_id" integer;
+    begin
+      for "the_row" in select ctid from "public"."human_user" where "role_id" is null loop
+        insert into "role_node" default values returning "id" into "the_id";
+        update "public"."human_user" set "role_id" = "the_id" where ctid = "the_row".ctid;
+      end loop;
+    end
+    $$;
+    alter table "public"."human_user" alter column "role_id" set not null;
     alter table "public"."human_user" drop constraint if exists "role_human_user_fkey" cascade;
     alter table "public"."human_user" add constraint "role_human_user_fkey" foreign key ("role_id") references "role_node" ("id") on delete cascade on update cascade;
 
       
 
       
-    alter table "public"."blog_post" drop column if exists "resource_id" cascade;
-    alter table "public"."blog_post" add column "resource_id" integer unique not null;
+    alter table "public"."blog_post" add column if not exists "resource_id" integer unique;
+    do $$
+    declare
+      "the_row" record;
+      "the_id" integer;
+    begin
+      for "the_row" in select ctid from "public"."blog_post" where "resource_id" is null loop
+        insert into "resource_node" default values returning "id" into "the_id";
+        update "public"."blog_post" set "resource_id" = "the_id" where ctid = "the_row".ctid;
+      end loop;
+    end
+    $$;
+    alter table "public"."blog_post" alter column "resource_id" set not null;
     alter table "public"."blog_post" drop constraint if exists "resource_blog_post_fkey" cascade;
     alter table "public"."blog_post" add constraint "resource_blog_post_fkey" foreign key ("resource_id") references "resource_node" ("id") on delete cascade on update cascade;
 
@@ -1027,7 +1177,7 @@ test('Default Migration', () => {
     drop policy if exists "blog_post_user1_select_policy" on "public"."blog_post";
     create policy "blog_post_user1_select_policy" on "public"."blog_post" 
     as permissive for select to "user1" 
-    using ( 
+    using (
       exists (
         select
           1
@@ -1054,7 +1204,7 @@ test('Default Migration', () => {
     create policy "blog_post_user1_insert_policy" on "public"."blog_post" 
     as permissive for insert to "user1" 
 
-    with check ( 
+    with check (
       exists (
         select
           1
@@ -1079,7 +1229,7 @@ test('Default Migration', () => {
     drop policy if exists "blog_post_user1_update_policy" on "public"."blog_post";
     create policy "blog_post_user1_update_policy" on "public"."blog_post" 
     as permissive for update to "user1" 
-    using ( 
+    using (
       exists (
         select
           1
@@ -1099,7 +1249,7 @@ test('Default Migration', () => {
           ("var_role_edge"."permission" << 1)::bit = b'1'
       )
     )
-    with check ( 
+    with check (
       exists (
         select
           1
@@ -1124,7 +1274,7 @@ test('Default Migration', () => {
     drop policy if exists "blog_post_user1_delete_policy" on "public"."blog_post";
     create policy "blog_post_user1_delete_policy" on "public"."blog_post" 
     as permissive for delete to "user1" 
-    using ( 
+    using (
       exists (
         select
           1
@@ -1154,6 +1304,26 @@ test('Default Migration', () => {
       alter table "public"."blog_post" enable row level security;
       
         
+
+      
+    -----------------------------------------------------------------------------------------------------------------------
+    -- Cleanup of a previous combined assignment cache
+    -----------------------------------------------------------------------------------------------------------------------
+    drop function if exists "assignment_trigger_enable" ();
+    drop function if exists "assignment_trigger_disable" ();
+    drop function if exists "assignment_edge_cache_backfill" ();
+    drop function if exists "assignment_edge_insert_trigger_function" ();
+    drop function if exists "assignment_edge_update_trigger_function" ();
+    drop function if exists "assignment_edge_delete_trigger_function" ();
+    drop function if exists "assignment_edge_role_insert_trigger_function" ();
+    drop function if exists "assignment_edge_role_update_trigger_function" ();
+    drop function if exists "assignment_edge_role_delete_trigger_function" ();
+    drop function if exists "assignment_edge_resource_insert_trigger_function" ();
+    drop function if exists "assignment_edge_resource_update_trigger_function" ();
+    drop function if exists "assignment_edge_resource_delete_trigger_function" ();
+    drop view if exists "assignment_edge_cache_view";
+    drop table if exists "assignment_edge_cache";
+
 
       "
   `);

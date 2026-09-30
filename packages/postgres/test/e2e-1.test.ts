@@ -1,7 +1,7 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier } from "pg-sql2";
 import { createMigration } from '../generation'
-import { setupTests } from '@p9s/postgres-testing/pglite';
+import { setupTests } from '@p9s/postgres-testing';
 
 // const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:54321/postgres';
 

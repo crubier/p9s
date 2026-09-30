@@ -7,48 +7,34 @@ sidebar_position: 1
 ## Prerequisites
 
 - **PostgreSQL** 14 or higher
-- **Node.js** 18+ or **Bun** runtime
-- **Docker** (optional, for local development)
-
-## Install the Package
-
-```bash
-# Using bun
-bun add p9s
-
-# Using npm
-npm install p9s
-
-# Using yarn
-yarn add p9s
-```
+- **Bun** 1.3 or higher
+- **Docker** (optional, to run the benchmarks and the Postgres tests locally)
 
 ## Development Setup
 
-For local development with Docker:
-
 ```bash
-# Install Docker
-brew install --cask docker
-
-# Clone the repository
 git clone https://github.com/crubier/pg-permission-tree.git
 cd pg-permission-tree
-
-# Install dependencies
 bun install
 
-# Start the database
-bun run db-start
+# Type check, and run every test on in-process PGlite
+bun run typecheck
+bun run test
 
-# Run tests
-bun test
+# Run the same tests against a real Postgres server, this also enables the concurrency tests.
+# The role in the URL must be able to create databases and roles.
+P9S_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bun run test
+
+# Benchmarks, see the Benchmarks page
+bun run bench
 ```
 
 ## Project Structure
 
-The monorepo contains:
-
-- `packages/core` - Core library with configuration types and validation
-- `examples/` - Example implementations
-- `benchmarks/` - Performance benchmarks
+- `packages/core` - Configuration types, defaults, naming and validation
+- `packages/postgres` - Generates the SQL migration: graph tables, caches, triggers and RLS policies
+- `packages/drizzle` - Builds a p9s configuration from a Drizzle schema
+- `packages/cli` - The `p9s` command line
+- `packages/core-testing`, `packages/postgres-testing` - Test helpers, PGlite and Postgres test databases
+- `benchmarks/postgres` - Performance benchmarks
+- `examples/nextjs-drizzle` - A Next.js app using Drizzle and Better Auth, with its p9s configuration in `src/p9s.ts`

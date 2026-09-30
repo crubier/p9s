@@ -300,6 +300,7 @@ export const defaultConfig: CompleteConfig<any> = {
   engine: {
     schema: "public",
     users: [],
+    graphWriters: [],
     permission: {
       bitmap: {
         size: 128
