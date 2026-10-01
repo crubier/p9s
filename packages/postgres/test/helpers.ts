@@ -1,4 +1,4 @@
-import { query as sql, identifier, raw, type SQL } from "pg-sql2";
+import { query as sql, identifier, join, raw, type SQL } from "pg-sql2";
 import { generateUuidFromInteger } from "@p9s/core-testing";
 import { createMigration } from "../generation";
 
@@ -134,6 +134,28 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
       await writer(sql`update ${edgeTable(kind)} set "permission" = ${bits(value)} where "parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`);
       graph.edges[kind].set(edgeKey(edge.parent, edge.child), { ...edge, bits: value });
     },
+    // Batches change several edges in a single statement, so the triggers see them all at once
+    insertEdges: async (kind: Kind, edges: Edge[]) => {
+      const fresh = [...new Map(edges.map(edge => [edgeKey(edge.parent, edge.child), edge])).values()]
+        .filter(edge => !graph.edges[kind].has(edgeKey(edge.parent, edge.child)));
+      if (fresh.length === 0) return;
+      const rows = join(fresh.map(edge => sql`(${id(edge.parent)}, ${id(edge.child)}, ${bits(edge.bits)})`), ", ");
+      await writer(sql`insert into ${edgeTable(kind)} ("parent_id", "child_id", "permission") values ${rows}`);
+      for (const edge of fresh) graph.edges[kind].set(edgeKey(edge.parent, edge.child), edge);
+    },
+    deleteEdges: async (kind: Kind, edges: Edge[]) => {
+      const keys = join(edges.map(edge => sql`(${id(edge.parent)}, ${id(edge.child)})`), ", ");
+      await writer(sql`delete from ${edgeTable(kind)} where ("parent_id", "child_id") in (${keys})`);
+      for (const edge of edges) graph.edges[kind].delete(edgeKey(edge.parent, edge.child));
+    },
+    updateEdgesBits: async (kind: Kind, edges: Edge[]) => {
+      const rows = join(edges.map(edge => sql`(${id(edge.parent)}, ${id(edge.child)}, ${bits(edge.bits)})`), ", ");
+      await writer(sql`
+        update ${edgeTable(kind)} as "the_edge" set "permission" = "the_value"."permission"
+        from (values ${rows}) as "the_value" ("parent_id", "child_id", "permission")
+        where "the_edge"."parent_id" = "the_value"."parent_id" and "the_edge"."child_id" = "the_value"."child_id"`);
+      for (const edge of edges) graph.edges[kind].set(edgeKey(edge.parent, edge.child), edge);
+    },
     moveEdge: async (kind: Kind, edge: Edge, parent: number) => {
       if (graph.edges[kind].has(edgeKey(parent, edge.child))) return;
       await writer(sql`update ${edgeTable(kind)} set "parent_id" = ${id(parent)} where "parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`);
@@ -223,6 +245,41 @@ export const randomOperation = async (driver: GraphDriver, random: Random, { all
   const n = random.int(1, size);
   await driver.resetNode(kind, n);
   return `reset ${kind} node ${n}`;
+};
+
+
+// Changes several edges in one statement. Edges go in any direction, so the graph gets cycles.
+export const randomBatchOperation = async (driver: GraphDriver, random: Random): Promise<string> => {
+  const { graph } = driver;
+  const kind: Kind = random.next() < 0.5 ? "resource" : "role";
+  const size = graph.size[kind];
+  const edges = [...graph.edges[kind].values()];
+  const count = random.int(2, 5);
+  const describe = (batch: Edge[]) => batch.map(edge => `${edge.parent}->${edge.child} ${edge.bits}`).join(", ");
+  const roll = random.next();
+
+  // On a dense graph with cycles the number of paths explodes, and so does the from-scratch recompute of the check
+  if ((roll < 0.5 && edges.length < 2 * size) || edges.length < count) {
+    const batch: Edge[] = [];
+    for (let i = 0; i < count; i++) {
+      const parent = random.int(1, size), child = random.int(1, size);
+      if (parent !== child) batch.push({ parent, child, bits: random.bits() });
+    }
+    await driver.insertEdges(kind, batch);
+    return `insert ${kind} edges ${describe(batch)}`;
+  }
+  const batch: Edge[] = [];
+  const remaining = [...edges];
+  for (let i = 0; i < count; i++) {
+    batch.push(...remaining.splice(random.int(0, remaining.length - 1), 1));
+  }
+  if (roll < 0.75) {
+    await driver.deleteEdges(kind, batch);
+    return `delete ${kind} edges ${describe(batch)}`;
+  }
+  const updated = batch.map(edge => ({ ...edge, bits: random.bits() }));
+  await driver.updateEdgesBits(kind, updated);
+  return `update ${kind} edges ${describe(updated)}`;
 };
 
 

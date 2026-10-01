@@ -26,7 +26,7 @@ Re-running the migration re-applies these privileges, and revokes broader grants
 - **Run the migration with `engine.schema` as the current schema.** The migration refuses to run otherwise, because the p9s objects are created unqualified.
 - **Write the graph in `READ COMMITTED` transactions** (the Postgres default). Every graph write takes a transaction-level advisory lock, so that two concurrent writes can't each compute the caches from a graph that is missing the other one's edge. That only works if a transaction sees rows committed while it was waiting for the lock, so graph writes in `REPEATABLE READ` or `SERIALIZABLE` transactions raise an error.
 - **Create the node before the business row.** Each resource or role table gets a `NOT NULL` column referencing `resource_node` or `role_node`. Insert the node (`insert into resource_node default values returning id`) and use its id.
-- **Don't `TRUNCATE` graph tables.** Row triggers do not fire on `TRUNCATE`, so the caches would keep stale access. Delete rows, or truncate and then call the backfill functions.
+- **Don't `TRUNCATE` graph tables.** The p9s triggers do not fire on `TRUNCATE`, so the caches would keep stale access. Delete rows, or truncate and then call the backfill functions.
 - **Bulk loads**: call `resource_trigger_disable()` / `role_trigger_disable()` (and `assignment_trigger_disable()` when `combineAssignmentsWith` is not `none`), load, then call the matching `*_enable()` functions. They rebuild the caches.
 
 ## Permission bits

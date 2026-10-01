@@ -1,6 +1,6 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { setupTests } from '@p9s/postgres-testing';
-import { cacheMismatches, combineModes, createGraphDriver, createRandom, emptyGraph, idModes, noMismatches, randomOperation, setupBlog } from './helpers';
+import { cacheMismatches, combineModes, createGraphDriver, createRandom, emptyGraph, idModes, noMismatches, randomBatchOperation, randomOperation, setupBlog } from './helpers';
 
 const OPERATIONS = 200;
 
@@ -23,6 +23,20 @@ for (const combineAssignmentsWith of combineModes) {
           history.push(await randomOperation(driver, random));
           const mismatches = await cacheMismatches(context, combineAssignmentsWith);
           // Reporting the history makes a failure reproducible by hand
+          expect({ mismatches, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, history: history.slice(-5) });
+        }
+      }, { timeout: 120000 });
+
+      test('match a full recompute after multi-edge statements on graphs with cycles', async () => {
+        await setupBlog(context, { combineAssignmentsWith, idMode });
+        const driver = createGraphDriver(context, idMode, emptyGraph(12, 8));
+        await driver.createNodes();
+
+        const random = createRandom(combineModes.indexOf(combineAssignmentsWith) * 1000 + idModes.indexOf(idMode) + 7);
+        const history: string[] = [];
+        for (let i = 0; i < OPERATIONS / 2; i++) {
+          history.push(await (random.next() < 0.5 ? randomBatchOperation(driver, random) : randomOperation(driver, random)));
+          const mismatches = await cacheMismatches(context, combineAssignmentsWith);
           expect({ mismatches, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, history: history.slice(-5) });
         }
       }, { timeout: 120000 });

@@ -256,44 +256,94 @@ test('Default Migration', () => {
 
 
     -----------------------------------------------------------------------------------------------------------------------
-    -- 'resource' Update cache when insert edge
+    -- 'resource' Update cache when edges change
     -----------------------------------------------------------------------------------------------------------------------
+
     create or replace function "resource_edge_insert_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_new_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-        -- Add fresh edges from descendants
-        with combined as (
-          -- Old edge
-          select
-            "a_new_edge_cache"."parent_id" as "parent_id",
-            "a_new_edge_cache"."child_id" as "child_id",
-            "a_new_edge_cache"."permission" as "permission"
-          from "resource_edge_cache_parent_compute" (new."child_id") as "a_new_edge_cache"
-          union
-          -- Transitive children of old edge
-          select 
-            "a_new_edge_cache"."parent_id" as "parent_id",
-            "a_new_edge_cache"."child_id" as "child_id",
-            "a_new_edge_cache"."permission" as "permission"
-          from "resource_edge_cache_child_compute" (new."child_id") as "a_old_edge_cache",
-          lateral "resource_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-          -- Don't add the new edge on that side of the union
-          where ( "a_new_edge_cache"."parent_id" <> new."parent_id" or "a_new_edge_cache"."child_id" <> new."child_id" )
-        )
-        insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-        select "parent_id", "child_id", "permission" from combined
-        on conflict on constraint "resource_edge_cache_pkey"
-        do update set "permission" = excluded."permission";
-
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_new_rows")
+        union
+        select "the_edge"."child_id"
+        from "resource_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_new_rows")
+        union
+        select "the_edge"."parent_id"
+        from "resource_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
+        select
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "resource_edge_cache"
+        where "resource_edge_cache"."child_id" in (select "id" from "affected")
+        and ("resource_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("resource_edge_cache"."parent_id", "resource_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
+      )
+      insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "resource_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
+      )
+      on conflict on constraint "resource_edge_cache_pkey"
+      do update set "permission" = excluded."permission";
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "resource_edge_insert_trigger_function" () from public;
@@ -302,97 +352,95 @@ test('Default Migration', () => {
     drop trigger if exists "10_resource_edge_insert_trigger" on "resource_edge";
     create trigger "10_resource_edge_insert_trigger"
     after insert on "resource_edge"
-    for each row execute function "resource_edge_insert_trigger_function"();
+    referencing new table as "p9s_new_rows"
+    for each statement execute function "resource_edge_insert_trigger_function"();
 
-
-    -----------------------------------------------------------------------------------------------------------------------
-    -- 'resource' Update cache when update edge
-    -----------------------------------------------------------------------------------------------------------------------
 
     create or replace function "resource_edge_update_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_new_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-      -- Remove old all edges from descendants like in delete
-      with combined as (
-        -- Old edge
-        select 
-          old."parent_id" as "parent_id",
-          old."child_id" as "child_id",
-          old."permission" as "permission"
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_old_rows" union select "child_id" from "p9s_new_rows")
         union
-        -- Transitive children of old edge
-        select 
-          "a_old_edge_cache"."parent_id" as "parent_id",
-          "a_old_edge_cache"."child_id" as "child_id",
-          "a_old_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache"
-        -- Don't add the old edge on that side of the union
-        where ( "a_old_edge_cache"."parent_id" <> old."parent_id" or "a_old_edge_cache"."child_id" <> old."child_id" )
-      )
-      delete from "resource_edge_cache"
-      where "child_id" in (select "child_id" from combined);
-
-      -- Re-add fresh edges from descendants like in delete
-      with combined as (
-        -- Old edge
+        select "the_edge"."child_id"
+        from "resource_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_old_rows" union select "parent_id" from "p9s_new_rows")
+        union
+        select "the_edge"."parent_id"
+        from "resource_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
         select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_parent_compute" (old."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache",
-        lateral "resource_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> old."parent_id" or "a_new_edge_cache"."child_id" <> old."child_id" )
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "resource_edge_cache"
+        where "resource_edge_cache"."child_id" in (select "id" from "affected")
+        and ("resource_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("resource_edge_cache"."parent_id", "resource_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
-      on conflict on constraint "resource_edge_cache_pkey"
-      do update set "permission" = excluded."permission";
-
-      -- Add fresh edges from descendants like in insert
-      with combined as (
-        -- Old edge
-        select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_parent_compute" (new."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_child_compute" (new."child_id") as "a_old_edge_cache",
-        lateral "resource_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> new."parent_id" or "a_new_edge_cache"."child_id" <> new."child_id" )
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "resource_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
       )
-      insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
-
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "resource_edge_update_trigger_function" () from public;
@@ -401,70 +449,95 @@ test('Default Migration', () => {
     drop trigger if exists "10_resource_edge_update_trigger" on "resource_edge";
     create trigger "10_resource_edge_update_trigger"
     after update on "resource_edge"
-    for each row execute function "resource_edge_update_trigger_function"();
+    referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+    for each statement execute function "resource_edge_update_trigger_function"();
 
-    -----------------------------------------------------------------------------------------------------------------------
-    -- 'resource' Update cache when delete edge
-    -----------------------------------------------------------------------------------------------------------------------
 
     create or replace function "resource_edge_delete_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_old_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-      -- Remove old all edges from descendants
-      with combined as (
-        -- Old edge
-        select 
-          old."parent_id" as "parent_id",
-          old."child_id" as "child_id",
-          old."permission" as "permission"
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_old_rows")
         union
-        -- Transitive children of old edge
-        select 
-          "a_old_edge_cache"."parent_id" as "parent_id",
-          "a_old_edge_cache"."child_id" as "child_id",
-          "a_old_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache"
-        -- Don't add the old edge on that side of the union
-        where ( "a_old_edge_cache"."parent_id" <> old."parent_id" or "a_old_edge_cache"."child_id" <> old."child_id" )
-      )
-      delete from "resource_edge_cache"
-      where "child_id" in (select "child_id" from combined);
-
-      -- Re-add fresh edges from descendants
-      with combined as (
-        -- Old edge
+        select "the_edge"."child_id"
+        from "resource_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_old_rows")
+        union
+        select "the_edge"."parent_id"
+        from "resource_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
         select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_parent_compute" (old."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "resource_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache",
-        lateral "resource_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> old."parent_id" or "a_new_edge_cache"."child_id" <> old."child_id" )
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "resource_node" where "resource_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "resource_edge_cache"
+        where "resource_edge_cache"."child_id" in (select "id" from "affected")
+        and ("resource_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("resource_edge_cache"."parent_id", "resource_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "resource_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
+      )
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
-
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "resource_edge_delete_trigger_function" () from public;
@@ -473,7 +546,9 @@ test('Default Migration', () => {
     drop trigger if exists "10_resource_edge_delete_trigger" on "resource_edge";
     create trigger "10_resource_edge_delete_trigger"
     after delete on "resource_edge"
-    for each row execute function "resource_edge_delete_trigger_function"();
+    referencing old table as "p9s_old_rows"
+    for each statement execute function "resource_edge_delete_trigger_function"();
+
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'resource' Update cache when insert node
@@ -764,44 +839,94 @@ test('Default Migration', () => {
 
 
     -----------------------------------------------------------------------------------------------------------------------
-    -- 'role' Update cache when insert edge
+    -- 'role' Update cache when edges change
     -----------------------------------------------------------------------------------------------------------------------
+
     create or replace function "role_edge_insert_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_new_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-        -- Add fresh edges from descendants
-        with combined as (
-          -- Old edge
-          select
-            "a_new_edge_cache"."parent_id" as "parent_id",
-            "a_new_edge_cache"."child_id" as "child_id",
-            "a_new_edge_cache"."permission" as "permission"
-          from "role_edge_cache_parent_compute" (new."child_id") as "a_new_edge_cache"
-          union
-          -- Transitive children of old edge
-          select 
-            "a_new_edge_cache"."parent_id" as "parent_id",
-            "a_new_edge_cache"."child_id" as "child_id",
-            "a_new_edge_cache"."permission" as "permission"
-          from "role_edge_cache_child_compute" (new."child_id") as "a_old_edge_cache",
-          lateral "role_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-          -- Don't add the new edge on that side of the union
-          where ( "a_new_edge_cache"."parent_id" <> new."parent_id" or "a_new_edge_cache"."child_id" <> new."child_id" )
-        )
-        insert into "role_edge_cache" ("parent_id", "child_id", "permission")
-        select "parent_id", "child_id", "permission" from combined
-        on conflict on constraint "role_edge_cache_pkey"
-        do update set "permission" = excluded."permission";
-
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_new_rows")
+        union
+        select "the_edge"."child_id"
+        from "role_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_new_rows")
+        union
+        select "the_edge"."parent_id"
+        from "role_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
+        select
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "role_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "role_node" where "role_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "role_node" where "role_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "role_edge_cache"
+        where "role_edge_cache"."child_id" in (select "id" from "affected")
+        and ("role_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("role_edge_cache"."parent_id", "role_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
+      )
+      insert into "role_edge_cache" ("parent_id", "child_id", "permission")
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "role_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
+      )
+      on conflict on constraint "role_edge_cache_pkey"
+      do update set "permission" = excluded."permission";
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "role_edge_insert_trigger_function" () from public;
@@ -810,97 +935,95 @@ test('Default Migration', () => {
     drop trigger if exists "10_role_edge_insert_trigger" on "role_edge";
     create trigger "10_role_edge_insert_trigger"
     after insert on "role_edge"
-    for each row execute function "role_edge_insert_trigger_function"();
+    referencing new table as "p9s_new_rows"
+    for each statement execute function "role_edge_insert_trigger_function"();
 
-
-    -----------------------------------------------------------------------------------------------------------------------
-    -- 'role' Update cache when update edge
-    -----------------------------------------------------------------------------------------------------------------------
 
     create or replace function "role_edge_update_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_new_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-      -- Remove old all edges from descendants like in delete
-      with combined as (
-        -- Old edge
-        select 
-          old."parent_id" as "parent_id",
-          old."child_id" as "child_id",
-          old."permission" as "permission"
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_old_rows" union select "child_id" from "p9s_new_rows")
         union
-        -- Transitive children of old edge
-        select 
-          "a_old_edge_cache"."parent_id" as "parent_id",
-          "a_old_edge_cache"."child_id" as "child_id",
-          "a_old_edge_cache"."permission" as "permission"
-        from "role_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache"
-        -- Don't add the old edge on that side of the union
-        where ( "a_old_edge_cache"."parent_id" <> old."parent_id" or "a_old_edge_cache"."child_id" <> old."child_id" )
-      )
-      delete from "role_edge_cache"
-      where "child_id" in (select "child_id" from combined);
-
-      -- Re-add fresh edges from descendants like in delete
-      with combined as (
-        -- Old edge
+        select "the_edge"."child_id"
+        from "role_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_old_rows" union select "parent_id" from "p9s_new_rows")
+        union
+        select "the_edge"."parent_id"
+        from "role_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
         select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_parent_compute" (old."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache",
-        lateral "role_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> old."parent_id" or "a_new_edge_cache"."child_id" <> old."child_id" )
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "role_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "role_node" where "role_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "role_node" where "role_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "role_edge_cache"
+        where "role_edge_cache"."child_id" in (select "id" from "affected")
+        and ("role_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("role_edge_cache"."parent_id", "role_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
-      on conflict on constraint "role_edge_cache_pkey"
-      do update set "permission" = excluded."permission";
-
-      -- Add fresh edges from descendants like in insert
-      with combined as (
-        -- Old edge
-        select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_parent_compute" (new."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_child_compute" (new."child_id") as "a_old_edge_cache",
-        lateral "role_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> new."parent_id" or "a_new_edge_cache"."child_id" <> new."child_id" )
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "role_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
       )
-      insert into "role_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
-
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "role_edge_update_trigger_function" () from public;
@@ -909,70 +1032,95 @@ test('Default Migration', () => {
     drop trigger if exists "10_role_edge_update_trigger" on "role_edge";
     create trigger "10_role_edge_update_trigger"
     after update on "role_edge"
-    for each row execute function "role_edge_update_trigger_function"();
+    referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+    for each statement execute function "role_edge_update_trigger_function"();
 
-    -----------------------------------------------------------------------------------------------------------------------
-    -- 'role' Update cache when delete edge
-    -----------------------------------------------------------------------------------------------------------------------
 
     create or replace function "role_edge_delete_trigger_function"()
     returns trigger as $$
     begin
+      if not exists (select from "p9s_old_rows") then
+        return null;
+      end if;
       
       if current_setting('transaction_isolation') <> 'read committed' then
         raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
       end if;
       perform pg_advisory_xact_lock(hashtext('p9s:public:'));
 
-      -- Remove old all edges from descendants
-      with combined as (
-        -- Old edge
-        select 
-          old."parent_id" as "parent_id",
-          old."child_id" as "child_id",
-          old."permission" as "permission"
+      with recursive "affected" ("id") as (
+        (select "child_id" from "p9s_old_rows")
         union
-        -- Transitive children of old edge
-        select 
-          "a_old_edge_cache"."parent_id" as "parent_id",
-          "a_old_edge_cache"."child_id" as "child_id",
-          "a_old_edge_cache"."permission" as "permission"
-        from "role_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache"
-        -- Don't add the old edge on that side of the union
-        where ( "a_old_edge_cache"."parent_id" <> old."parent_id" or "a_old_edge_cache"."child_id" <> old."child_id" )
-      )
-      delete from "role_edge_cache"
-      where "child_id" in (select "child_id" from combined);
-
-      -- Re-add fresh edges from descendants
-      with combined as (
-        -- Old edge
+        select "the_edge"."child_id"
+        from "role_edge" as "the_edge"
+        join "affected" on "the_edge"."parent_id" = "affected"."id"
+      ),
+      "upstream" ("id") as (
+        (select "parent_id" from "p9s_old_rows")
+        union
+        select "the_edge"."parent_id"
+        from "role_edge" as "the_edge"
+        join "upstream" on "the_edge"."child_id" = "upstream"."id"
+      ),
+      "walk" ("parent_id", "child_id", "permission", "inside", "depth", "path") as (
+        select "affected"."id", "affected"."id", ~ b'0'::bit(4), true, 0, array["affected"."id"]
+        from "affected"
+        union all
         select
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_parent_compute" (old."child_id") as "a_new_edge_cache"
-        union
-        -- Transitive children of old edge
-        select 
-          "a_new_edge_cache"."parent_id" as "parent_id",
-          "a_new_edge_cache"."child_id" as "child_id",
-          "a_new_edge_cache"."permission" as "permission"
-        from "role_edge_cache_child_compute" (old."child_id") as "a_old_edge_cache",
-        lateral "role_edge_cache_parent_compute" ("a_old_edge_cache"."child_id") as "a_new_edge_cache"
-        -- Don't add the new edge on that side of the union
-        where ( "a_new_edge_cache"."parent_id" <> old."parent_id" or "a_new_edge_cache"."child_id" <> old."child_id" )
+          "the_edge"."parent_id",
+          "walk"."child_id",
+          ("walk"."permission" & "the_edge"."permission")::bit(4), -- bitwise "and" on permission along a path
+          "the_edge"."parent_id" in (select "id" from "affected"),
+          "walk"."depth" + 1,
+          "walk"."path" || "the_edge"."parent_id"
+        from "walk"
+        join "role_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
+        where "walk"."inside"
+        and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
+        and "walk"."depth" <= 16 -- max search depth
+      ),
+      "fresh" as (
+        select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_4" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
+        from (
+          select "walk"."parent_id", "walk"."child_id", "walk"."permission"
+          from "walk"
+          where "walk"."inside"
+          and ("walk"."parent_id" in (select "id" from "upstream")) is true
+          union all
+          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
+          from "walk"
+          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+          where not "walk"."inside"
+          and ("the_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        ) as "the_path"
+        -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+        -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+        where exists (select 1 from "role_node" where "role_node"."id" = "the_path"."parent_id" offset 0)
+        and exists (select 1 from "role_node" where "role_node"."id" = "the_path"."child_id" offset 0)
+        group by ("the_path"."parent_id", "the_path"."child_id")
+      ),
+      "stale" as (
+        delete from "role_edge_cache"
+        where "role_edge_cache"."child_id" in (select "id" from "affected")
+        and ("role_edge_cache"."parent_id" in (select "id" from "upstream")) is true
+        and ("role_edge_cache"."parent_id", "role_edge_cache"."child_id") not in (select "fresh"."parent_id", "fresh"."child_id" from "fresh")
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
-      select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
+      select "fresh"."parent_id", "fresh"."child_id", "fresh"."permission"
+      from "fresh"
+      where not exists (
+        select 1 from "role_edge_cache" as "the_edge_cache"
+        where "the_edge_cache"."parent_id" = "fresh"."parent_id"
+        and "the_edge_cache"."child_id" = "fresh"."child_id"
+        and "the_edge_cache"."permission" = "fresh"."permission"
+      )
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
-
       return null;
     end;
-    $$ language plpgsql security definer set search_path = "public", pg_temp;
+    $$ language plpgsql security definer set search_path = "public", pg_temp
+    set enable_hashjoin = off
+    set enable_mergejoin = off;
 
 
     revoke execute on function "role_edge_delete_trigger_function" () from public;
@@ -981,7 +1129,9 @@ test('Default Migration', () => {
     drop trigger if exists "10_role_edge_delete_trigger" on "role_edge";
     create trigger "10_role_edge_delete_trigger"
     after delete on "role_edge"
-    for each row execute function "role_edge_delete_trigger_function"();
+    referencing old table as "p9s_old_rows"
+    for each statement execute function "role_edge_delete_trigger_function"();
+
 
     -----------------------------------------------------------------------------------------------------------------------
     -- 'role' Update cache when insert node

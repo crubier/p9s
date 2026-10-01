@@ -86,6 +86,36 @@ const lockGraphStatement = (config: CompleteConfig<any>) =>
 // recursive compute functions, and would then hash or scan the whole node table on every graph write
 const nodeExists = (node: SQL, id: SQL, value: SQL) => sql`exists (select 1 from ${node} where ${node}.${id} = ${value} offset 0)`;
 
+// Kept as a hashed subplan. A plain `in` in a where clause becomes a semi-join, and with hash joins disabled that
+// rescans the whole subquery for every outer row.
+const isIn = (value: SQL, subquery: SQL) => sql`(${value} in (${subquery})) is true`;
+
+type TriggerEvent = "insert" | "update" | "delete";
+
+// Statement triggers see the changed rows as "p9s_old_rows" and "p9s_new_rows". They also fire when no row changed,
+// for example on a foreign key cascade with nothing to cascade to, which must not take the lock or check isolation.
+const statementTrigger = (naming: Naming<any>, config: CompleteConfig<any>, functionName: SQL, triggerName: SQL, table: SQL, event: TriggerEvent, body: SQL, settings = sql``) => sql`
+create or replace function ${functionName}()
+returns trigger as $$
+begin
+  if not exists (select from ${event === "delete" ? sql`"p9s_old_rows"` : sql`"p9s_new_rows"`}) then
+    return null;
+  end if;
+  ${lockGraph(config)}
+${body}
+  return null;
+end;
+$$ language plpgsql ${definer(naming)}${settings};
+
+${grantExecute(sql`${functionName} ()`, [])}
+
+drop trigger if exists ${triggerName} on ${table};
+create trigger ${triggerName}
+after ${{ insert: sql`insert`, update: sql`update`, delete: sql`delete` }[event]} on ${table}
+referencing ${{ insert: sql`new table as "p9s_new_rows"`, update: sql`old table as "p9s_old_rows" new table as "p9s_new_rows"`, delete: sql`old table as "p9s_old_rows"` }[event]}
+for each statement execute function ${functionName}();
+`;
+
 
 export const createMigrationPreamble = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   return sql`
@@ -172,10 +202,100 @@ export const createMigrationResourceOrRole = <User extends string>(resourceOrRol
   const { type: idType, declaration: idDeclaration } = getIdType(config);
   const { orBitmap } = naming;
   const { users, writers, everyone } = getRoles(config);
-  // When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose triggers
-  // would otherwise re-add cache rows (including its self edge) that reference the deleted node
-  const whereNodesExist = sql`where ${nodeExists(node, id, sql`combined.${parentId}`)}
-  and ${nodeExists(node, id, sql`combined.${childId}`)}`;
+  const ones = sql`~ b'0'::bit(${literal(size)})`;
+
+  // A cache row (ancestor, descendant) can only change when a changed edge parent -> child lies on one of its paths,
+  // before or after the change. Its descendant is then the child or below it, an "affected" node. Its ancestor reaches
+  // the parent of the first changed edge on that path through unchanged edges, so it is an "upstream" node: a changed
+  // parent or one of their ancestors after the change. The rows ending at a node outside the affected set are the same
+  // before and after the change, so the walk from an affected node towards its ancestors stops at the first node
+  // outside the affected set and reuses that node's cache rows. Only rows whose value differs are written: unchanged
+  // rows would still be locked by the upsert, and the combined assignment cache triggers recompute everything written.
+  const refreshAffected = ({ parents, children }: { parents: SQL, children: SQL }) => sql`
+  with recursive "affected" (${id}) as (
+    (${children})
+    union
+    select "the_edge".${childId}
+    from ${edge} as "the_edge"
+    join "affected" on "the_edge".${parentId} = "affected".${id}
+  ),
+  "upstream" (${id}) as (
+    (${parents})
+    union
+    select "the_edge".${parentId}
+    from ${edge} as "the_edge"
+    join "upstream" on "the_edge".${childId} = "upstream".${id}
+  ),
+  "walk" (${parentId}, ${childId}, ${permission}, "inside", "depth", "path") as (
+    select "affected".${id}, "affected".${id}, ${ones}, true, 0, array["affected".${id}]
+    from "affected"
+    union all
+    select
+      "the_edge".${parentId},
+      "walk".${childId},
+      ("walk".${permission} & "the_edge".${permission})::bit(${literal(size)}), -- bitwise "and" on permission along a path
+      "the_edge".${parentId} in (select ${id} from "affected"),
+      "walk"."depth" + 1,
+      "walk"."path" || "the_edge".${parentId}
+    from "walk"
+    join ${edge} as "the_edge" on "the_edge".${childId} = "walk".${parentId}
+    where "walk"."inside"
+    and "the_edge".${parentId} <> all ("walk"."path") -- prevent from cycling
+    and "walk"."depth" <= ${literal(maxDepth)} -- max search depth
+  ),
+  "fresh" as (
+    select "the_path".${parentId}, "the_path".${childId}, ${orBitmap} ("the_path".${permission}) as ${permission} -- bitwise "or" on permissions between various paths
+    from (
+      select "walk".${parentId}, "walk".${childId}, "walk".${permission}
+      from "walk"
+      where "walk"."inside"
+      and ${isIn(sql`"walk".${parentId}`, sql`select ${id} from "upstream"`)}
+      union all
+      select "the_edge_cache".${parentId}, "walk".${childId}, ("the_edge_cache".${permission} & "walk".${permission})::bit(${literal(size)})
+      from "walk"
+      join ${edgeCache} as "the_edge_cache" on "the_edge_cache".${childId} = "walk".${parentId}
+      where not "walk"."inside"
+      and ${isIn(sql`"the_edge_cache".${parentId}`, sql`select ${id} from "upstream"`)}
+    ) as "the_path"
+    -- When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose
+    -- triggers would otherwise re-add cache rows (including its self edge) that reference the deleted node
+    where ${nodeExists(node, id, sql`"the_path".${parentId}`)}
+    and ${nodeExists(node, id, sql`"the_path".${childId}`)}
+    group by ("the_path".${parentId}, "the_path".${childId})
+  ),
+  "stale" as (
+    delete from ${edgeCache}
+    where ${edgeCache}.${childId} in (select ${id} from "affected")
+    and ${isIn(sql`${edgeCache}.${parentId}`, sql`select ${id} from "upstream"`)}
+    and (${edgeCache}.${parentId}, ${edgeCache}.${childId}) not in (select "fresh".${parentId}, "fresh".${childId} from "fresh")
+  )
+  insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
+  select "fresh".${parentId}, "fresh".${childId}, "fresh".${permission}
+  from "fresh"
+  where not exists (
+    select 1 from ${edgeCache} as "the_edge_cache"
+    where "the_edge_cache".${parentId} = "fresh".${parentId}
+    and "the_edge_cache".${childId} = "fresh".${childId}
+    and "the_edge_cache".${permission} = "fresh".${permission}
+  )
+  on conflict on constraint ${edgeCachePkey}
+  do update set ${permission} = excluded.${permission};`;
+
+  const changed = {
+    insert: { parents: sql`select ${parentId} from "p9s_new_rows"`, children: sql`select ${childId} from "p9s_new_rows"` },
+    update: {
+      parents: sql`select ${parentId} from "p9s_old_rows" union select ${parentId} from "p9s_new_rows"`,
+      children: sql`select ${childId} from "p9s_old_rows" union select ${childId} from "p9s_new_rows"`,
+    },
+    delete: { parents: sql`select ${parentId} from "p9s_old_rows"`, children: sql`select ${childId} from "p9s_old_rows"` },
+  };
+  // The planner has no estimate for recursive queries and assumes many affected nodes, so it hashes the whole edge
+  // and cache tables when a few index lookups would do. Index lookups stay proportional to the rows actually touched.
+  const indexLookupsOnly = sql`
+set enable_hashjoin = off
+set enable_mergejoin = off`;
+  const edgeTrigger = (functionName: SQL, triggerName: SQL, event: TriggerEvent) =>
+    statementTrigger(naming, config, functionName, triggerName, edge, event, refreshAffected(changed[event]), indexLookupsOnly);
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
@@ -346,203 +466,11 @@ ${definer(naming)};
 ${grantExecute(sql`${edgeCacheBackfill} ()`, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
--- ${literal(resourceOrRole)} Update cache when insert edge
+-- ${literal(resourceOrRole)} Update cache when edges change
 -----------------------------------------------------------------------------------------------------------------------
-create or replace function ${edgeInsertTriggerFunction}()
-returns trigger as $$
-begin
-  ${lockGraph(config)}
-
-    -- Add fresh edges from descendants
-    with combined as (
-      -- Old edge
-      select
-        "a_new_edge_cache".${parentId} as ${parentId},
-        "a_new_edge_cache".${childId} as ${childId},
-        "a_new_edge_cache".${permission} as ${permission}
-      from ${edgeCacheParentCompute} (new.${childId}) as "a_new_edge_cache"
-      union
-      -- Transitive children of old edge
-      select 
-        "a_new_edge_cache".${parentId} as ${parentId},
-        "a_new_edge_cache".${childId} as ${childId},
-        "a_new_edge_cache".${permission} as ${permission}
-      from ${edgeCacheChildCompute} (new.${childId}) as "a_old_edge_cache",
-      lateral ${edgeCacheParentCompute} ("a_old_edge_cache".${childId}) as "a_new_edge_cache"
-      -- Don't add the new edge on that side of the union
-      where ( "a_new_edge_cache".${parentId} <> new.${parentId} or "a_new_edge_cache".${childId} <> new.${childId} )
-    )
-    insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
-    select ${parentId}, ${childId}, ${permission} from combined
-    on conflict on constraint ${edgeCachePkey}
-    do update set ${permission} = excluded.${permission};
-
-  return null;
-end;
-$$ language plpgsql ${definer(naming)};
-
-${grantExecute(sql`${edgeInsertTriggerFunction} ()`, [])}
-
-drop trigger if exists ${edgeInsertTrigger} on ${edge};
-create trigger ${edgeInsertTrigger}
-after insert on ${edge}
-for each row execute function ${edgeInsertTriggerFunction}();
-
-
------------------------------------------------------------------------------------------------------------------------
--- ${literal(resourceOrRole)} Update cache when update edge
------------------------------------------------------------------------------------------------------------------------
-
-create or replace function ${edgeUpdateTriggerFunction}()
-returns trigger as $$
-begin
-  ${lockGraph(config)}
-
-  -- Remove old all edges from descendants like in delete
-  with combined as (
-    -- Old edge
-    select 
-      old.${parentId} as ${parentId},
-      old.${childId} as ${childId},
-      old.${permission} as ${permission}
-    union
-    -- Transitive children of old edge
-    select 
-      "a_old_edge_cache".${parentId} as ${parentId},
-      "a_old_edge_cache".${childId} as ${childId},
-      "a_old_edge_cache".${permission} as ${permission}
-    from ${edgeCacheChildCompute} (old.${childId}) as "a_old_edge_cache"
-    -- Don't add the old edge on that side of the union
-    where ( "a_old_edge_cache".${parentId} <> old.${parentId} or "a_old_edge_cache".${childId} <> old.${childId} )
-  )
-  delete from ${edgeCache}
-  where ${childId} in (select ${childId} from combined);
-
-  -- Re-add fresh edges from descendants like in delete
-  with combined as (
-    -- Old edge
-    select
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheParentCompute} (old.${childId}) as "a_new_edge_cache"
-    union
-    -- Transitive children of old edge
-    select 
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheChildCompute} (old.${childId}) as "a_old_edge_cache",
-    lateral ${edgeCacheParentCompute} ("a_old_edge_cache".${childId}) as "a_new_edge_cache"
-    -- Don't add the new edge on that side of the union
-    where ( "a_new_edge_cache".${parentId} <> old.${parentId} or "a_new_edge_cache".${childId} <> old.${childId} )
-  )
-  insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
-  select ${parentId}, ${childId}, ${permission} from combined
-  ${whereNodesExist}
-  on conflict on constraint ${edgeCachePkey}
-  do update set ${permission} = excluded.${permission};
-
-  -- Add fresh edges from descendants like in insert
-  with combined as (
-    -- Old edge
-    select
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheParentCompute} (new.${childId}) as "a_new_edge_cache"
-    union
-    -- Transitive children of old edge
-    select 
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheChildCompute} (new.${childId}) as "a_old_edge_cache",
-    lateral ${edgeCacheParentCompute} ("a_old_edge_cache".${childId}) as "a_new_edge_cache"
-    -- Don't add the new edge on that side of the union
-    where ( "a_new_edge_cache".${parentId} <> new.${parentId} or "a_new_edge_cache".${childId} <> new.${childId} )
-  )
-  insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
-  select ${parentId}, ${childId}, ${permission} from combined
-  ${whereNodesExist}
-  on conflict on constraint ${edgeCachePkey}
-  do update set ${permission} = excluded.${permission};
-
-  return null;
-end;
-$$ language plpgsql ${definer(naming)};
-
-${grantExecute(sql`${edgeUpdateTriggerFunction} ()`, [])}
-
-drop trigger if exists ${edgeUpdateTrigger} on ${edge};
-create trigger ${edgeUpdateTrigger}
-after update on ${edge}
-for each row execute function ${edgeUpdateTriggerFunction}();
-
------------------------------------------------------------------------------------------------------------------------
--- ${literal(resourceOrRole)} Update cache when delete edge
------------------------------------------------------------------------------------------------------------------------
-
-create or replace function ${edgeDeleteTriggerFunction}()
-returns trigger as $$
-begin
-  ${lockGraph(config)}
-
-  -- Remove old all edges from descendants
-  with combined as (
-    -- Old edge
-    select 
-      old.${parentId} as ${parentId},
-      old.${childId} as ${childId},
-      old.${permission} as ${permission}
-    union
-    -- Transitive children of old edge
-    select 
-      "a_old_edge_cache".${parentId} as ${parentId},
-      "a_old_edge_cache".${childId} as ${childId},
-      "a_old_edge_cache".${permission} as ${permission}
-    from ${edgeCacheChildCompute} (old.${childId}) as "a_old_edge_cache"
-    -- Don't add the old edge on that side of the union
-    where ( "a_old_edge_cache".${parentId} <> old.${parentId} or "a_old_edge_cache".${childId} <> old.${childId} )
-  )
-  delete from ${edgeCache}
-  where ${childId} in (select ${childId} from combined);
-
-  -- Re-add fresh edges from descendants
-  with combined as (
-    -- Old edge
-    select
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheParentCompute} (old.${childId}) as "a_new_edge_cache"
-    union
-    -- Transitive children of old edge
-    select 
-      "a_new_edge_cache".${parentId} as ${parentId},
-      "a_new_edge_cache".${childId} as ${childId},
-      "a_new_edge_cache".${permission} as ${permission}
-    from ${edgeCacheChildCompute} (old.${childId}) as "a_old_edge_cache",
-    lateral ${edgeCacheParentCompute} ("a_old_edge_cache".${childId}) as "a_new_edge_cache"
-    -- Don't add the new edge on that side of the union
-    where ( "a_new_edge_cache".${parentId} <> old.${parentId} or "a_new_edge_cache".${childId} <> old.${childId} )
-  )
-  insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
-  select ${parentId}, ${childId}, ${permission} from combined
-  ${whereNodesExist}
-  on conflict on constraint ${edgeCachePkey}
-  do update set ${permission} = excluded.${permission};
-
-  return null;
-end;
-$$ language plpgsql ${definer(naming)};
-
-${grantExecute(sql`${edgeDeleteTriggerFunction} ()`, [])}
-
-drop trigger if exists ${edgeDeleteTrigger} on ${edge};
-create trigger ${edgeDeleteTrigger}
-after delete on ${edge}
-for each row execute function ${edgeDeleteTriggerFunction}();
+${edgeTrigger(edgeInsertTriggerFunction, edgeInsertTrigger, "insert")}
+${edgeTrigger(edgeUpdateTriggerFunction, edgeUpdateTrigger, "update")}
+${edgeTrigger(edgeDeleteTriggerFunction, edgeDeleteTrigger, "delete")}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(resourceOrRole)} Update cache when insert node
@@ -740,23 +668,8 @@ drop trigger if exists ${modeNaming.combinedEdgeDeleteTrigger} on ${cache};`;
     const newEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_new_rows"`;
     const oldEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_old_rows"`;
 
-    const statementTrigger = (functionName: SQL, triggerName: SQL, table: SQL, event: "insert" | "update" | "delete", body: SQL) => sql`
-create or replace function ${functionName}()
-returns trigger as $$
-begin
-  ${lockGraph(config)}
-${body}
-  return null;
-end;
-$$ language plpgsql ${definer(naming)};
-
-${grantExecute(sql`${functionName} ()`, [])}
-
-create trigger ${triggerName}
-after ${{ insert: sql`insert`, update: sql`update`, delete: sql`delete` }[event]} on ${table}
-referencing ${{ insert: sql`new table as "p9s_new_rows"`, update: sql`old table as "p9s_old_rows" new table as "p9s_new_rows"`, delete: sql`old table as "p9s_old_rows"` }[event]}
-for each statement execute function ${functionName}();
-`;
+    const trigger = (functionName: SQL, triggerName: SQL, table: SQL, event: TriggerEvent, body: SQL) =>
+      statementTrigger(naming, config, functionName, triggerName, table, event, body);
 
     return sql`
 
@@ -822,16 +735,16 @@ ${grantExecute(sql`${edgeCacheBackfill} ()`, writers)}
 -----------------------------------------------------------------------------------------------------------------------
 -- Update cache when assignments change
 -----------------------------------------------------------------------------------------------------------------------
-${statementTrigger(edgeInsertTriggerFunction, edgeInsertTrigger, edge, "insert", byAssignment(newAssignments))}
-${statementTrigger(edgeUpdateTriggerFunction, edgeUpdateTrigger, edge, "update", byAssignment(sql`${oldAssignments} union ${newAssignments}`))}
-${statementTrigger(edgeDeleteTriggerFunction, edgeDeleteTrigger, edge, "delete", byAssignment(oldAssignments))}
+${trigger(edgeInsertTriggerFunction, edgeInsertTrigger, edge, "insert", byAssignment(newAssignments))}
+${trigger(edgeUpdateTriggerFunction, edgeUpdateTrigger, edge, "update", byAssignment(sql`${oldAssignments} union ${newAssignments}`))}
+${trigger(edgeDeleteTriggerFunction, edgeDeleteTrigger, edge, "delete", byAssignment(oldAssignments))}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Update cache when the ${literal(resourceOrRole)} transitive edge cache changes
 -----------------------------------------------------------------------------------------------------------------------
-${statementTrigger(combinedEdgeInsertTriggerFunction, combinedEdgeInsertTrigger, thingCombinedWith.edgeCache, "insert", byEdgeCache(newEdgeCaches))}
-${statementTrigger(combinedEdgeUpdateTriggerFunction, combinedEdgeUpdateTrigger, thingCombinedWith.edgeCache, "update", byEdgeCache(sql`${oldEdgeCaches} union ${newEdgeCaches}`))}
-${statementTrigger(combinedEdgeDeleteTriggerFunction, combinedEdgeDeleteTrigger, thingCombinedWith.edgeCache, "delete", byEdgeCache(oldEdgeCaches))}
+${trigger(combinedEdgeInsertTriggerFunction, combinedEdgeInsertTrigger, thingCombinedWith.edgeCache, "insert", byEdgeCache(newEdgeCaches))}
+${trigger(combinedEdgeUpdateTriggerFunction, combinedEdgeUpdateTrigger, thingCombinedWith.edgeCache, "update", byEdgeCache(sql`${oldEdgeCaches} union ${newEdgeCaches}`))}
+${trigger(combinedEdgeDeleteTriggerFunction, combinedEdgeDeleteTrigger, thingCombinedWith.edgeCache, "delete", byEdgeCache(oldEdgeCaches))}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Assignment actually do bootstrap cache

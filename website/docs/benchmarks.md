@@ -47,18 +47,18 @@ Postgres 14 with default settings on an Apple M2 Max, size factor 8 (37k resourc
 
 | Scenario                     | p9s, `combineAssignmentsWith: none` | p9s, `role` | No-cache baseline |
 | ---------------------------- | ----------------------------------- | ----------- | ----------------- |
-| Point lookup                 | 0.56                                | 0.26        | 0.44–0.57         |
-| First page of 50 rows        | 1.4                                 | 1.1         | 21                |
-| Count visible rows (1.8k rows) | 1.3                               | 1.0         | 37                |
+| Point lookup                 | 0.53                                | 0.26        | 0.42–0.53         |
+| First page of 50 rows        | 1.4                                 | 1.1         | 20–28             |
+| Count visible rows (1.8k rows) | 1.3                               | 1.0         | 35                |
 
 | Write                        | `none` | `role` |
 | ---------------------------- | ------ | ------ |
-| Add an object                | 0.25   | 0.22   |
-| Move an object               | 0.38   | 0.40   |
-| Move a project               | 1.4    | 1.4    |
-| Move a workspace (585 nodes) | 80     | 78     |
-| Share a folder with a user   | 0.05   | 0.36   |
-| Add a user to a team         | 0.39   | 0.97   |
-| Move a team to another org   | 2.6    | 8.4    |
+| Add an object                | 0.23   | 0.22   |
+| Move an object               | 0.22   | 0.22   |
+| Move a project               | 0.53   | 0.56   |
+| Move a workspace (585 nodes) | 11     | 11     |
+| Share a folder with a user   | 0.08   | 0.37   |
+| Add a user to a team         | 0.27   | 0.64   |
+| Move a team to another org   | 0.48   | 6.3    |
 
-For a single row, walking the trees at query time is as fast as reading the caches. Reads that touch many rows are where the caches pay off. Moving a large subtree is the most expensive write, because every cached path through the subtree is recomputed. `combineAssignmentsWith: role` makes reads cheaper, and assignment and role changes more expensive.
+For a single row, walking the trees at query time is as fast as reading the caches. Reads that touch many rows are where the caches pay off. A write costs about as much as the number of cache rows it changes: moving a workspace changes the rows between each of its 585 nodes and the workspace's old and new ancestors, so it is the most expensive write here. `combineAssignmentsWith: role` makes reads cheaper, and assignment and role changes more expensive.

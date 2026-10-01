@@ -31,7 +31,14 @@ const migration = createMigration({
     permission: { bitmap: { size: 16 } },
   },
   tables: [
-    { name: "document", isResource: true, resourceId: "resource_id", permission: { authenticated: { select: 0, insert: 1, update: 2, delete: 3 } } },
+    {
+      name: "document",
+      isResource: true,
+      resourceId: "resource_id",
+      permission: {
+        authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
+      },
+    },
     { name: "user", isRole: true, roleId: "role_id" },
   ],
 });
@@ -105,6 +112,8 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
 - [x] Graph writes are serialized with a transaction-level advisory lock, so concurrent writes keep the caches exact
 - [x] Test suite: random graph edits checked against a from-scratch recomputation, RLS checked against a reference model, privileges, migration re-runs and concurrency on real Postgres
 - [x] Benchmarks of RLS reads against a no-cache baseline, incremental writes, cache size, with JSON output
+- [x] Batch edge changes: edge triggers run once per statement, so a multi-row insert, update or delete of edges is processed in one pass
+- [x] Faster subtree moves: an edge change only recomputes the cache rows between the nodes below it and the nodes above it, and only writes the rows whose value changed
 - [ ] Nodeless mode. We don't actually need the `resourceNode` and `roleNode` tables. They were only useful for a few things that can be avoided:
   - [ ] Enforcing foreign key constraints can be achieved using correct triggers
   - [ ] Generating integer sequences that are shared over multiple business domain tables can be achieved by sharing an integer sequence between multiple tables, or using UUIDs
@@ -117,5 +126,4 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
   - [ ] Do not store all combinatorical possibilities in cache tables, but only store edges starting from assignments.
   - [ ] Simplify `combineAssignmentsWith`. Currently, if set to e.g. `role`, it still maintains the `roleEdgeCache`, and the `roleAssignmentCache` tables. This is more compute-optimized, but less space-optimized. We could stop maintaining `roleEdgeCache` in that case and only focus on `roleAssignmentCache`. This would be a bit more complex, but could save space. If space is an issue, need to consider adding this.
 - [ ] Customizable prefix for triggers, to allow ordering p9s triggers with other existing triggers (Postgres runs triggers in alphanumerical order). Before that, triggers are prefixed with `10`, `20`, etc.
-- [ ] Functions to batch insert/update/delete edges, to save a lot of compute on redundant things
-- [ ] Faster subtree moves: moving a large subtree currently recomputes every cached path through it
+- [ ] Build an actual life-sized example SaaS app
