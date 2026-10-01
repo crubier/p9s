@@ -272,12 +272,16 @@ export const cacheMismatches = async (ctx: TestContext, combineAssignmentsWith: 
   const diff = async (table: string, columns: string[]) => {
     const cols = raw(columns.map(column => `"${column}"`).join(", "));
     const cache = identifier(table), view = identifier(`${table}_view`);
-    const [rows] = await ctx.runTestQuery(sql`
+    // The planner estimates the from-scratch views far above the JIT thresholds, and on servers built with LLVM
+    // compiling this query every time takes longer than the rest of the test
+    const [, rows] = await ctx.runTestQuery(sql`
+      set jit = off;
       select count(*)::int as "n" from (
         (select ${cols} from ${cache} except all select ${cols} from ${view})
         union all
         (select ${cols} from ${view} except all select ${cols} from ${cache})
-      ) as "the_diff"`);
+      ) as "the_diff";
+      reset jit;`);
     return rows[0].n as number;
   };
   return {
