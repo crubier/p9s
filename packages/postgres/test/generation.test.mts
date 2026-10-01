@@ -230,16 +230,24 @@ test('Default Migration', () => {
     create or replace function "resource_edge_cache_backfill" ()
       returns setof "resource_edge_cache"
       as $$
-      select pg_advisory_xact_lock(hashtext('p9s:public:'));
+    begin
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+      -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
+      -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
+      -- This has to be plpgsql: a sql function plans every statement before running the first one.
+      analyze "resource_node";
+      analyze "resource_edge";
       delete from "resource_edge_cache";
+      return query
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission"
       from
         "resource_edge_cache_view"
         returning
-          *
+          *;
+    end;
     $$
-    language sql
+    language plpgsql
     volatile
     security definer set search_path = "public", pg_temp;
 
@@ -351,8 +359,8 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -377,8 +385,8 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -449,8 +457,8 @@ test('Default Migration', () => {
       )
       insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id")
-      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id")
+      where exists (select 1 from "resource_node" where "resource_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "resource_node" where "resource_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -730,16 +738,24 @@ test('Default Migration', () => {
     create or replace function "role_edge_cache_backfill" ()
       returns setof "role_edge_cache"
       as $$
-      select pg_advisory_xact_lock(hashtext('p9s:public:'));
+    begin
+      perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+      -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
+      -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
+      -- This has to be plpgsql: a sql function plans every statement before running the first one.
+      analyze "role_node";
+      analyze "role_edge";
       delete from "role_edge_cache";
+      return query
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission"
       from
         "role_edge_cache_view"
         returning
-          *
+          *;
+    end;
     $$
-    language sql
+    language plpgsql
     volatile
     security definer set search_path = "public", pg_temp;
 
@@ -851,8 +867,8 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -877,8 +893,8 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 
@@ -949,8 +965,8 @@ test('Default Migration', () => {
       )
       insert into "role_edge_cache" ("parent_id", "child_id", "permission")
       select "parent_id", "child_id", "permission" from combined
-      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id")
-      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id")
+      where exists (select 1 from "role_node" where "role_node"."id" = combined."parent_id" offset 0)
+      and exists (select 1 from "role_node" where "role_node"."id" = combined."child_id" offset 0)
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
 

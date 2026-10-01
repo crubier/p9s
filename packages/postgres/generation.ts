@@ -80,7 +80,11 @@ const lockGraph = (config: CompleteConfig<any>) => sql`
   perform pg_advisory_xact_lock(hashtext(${lockKey(config)}));`;
 
 const lockGraphStatement = (config: CompleteConfig<any>) =>
-  sql`select pg_advisory_xact_lock(hashtext(${lockKey(config)}));`;
+  sql`perform pg_advisory_xact_lock(hashtext(${lockKey(config)}));`;
+
+// `offset 0` stops the planner from turning this into a semi-join: it overestimates the rows returned by the
+// recursive compute functions, and would then hash or scan the whole node table on every graph write
+const nodeExists = (node: SQL, id: SQL, value: SQL) => sql`exists (select 1 from ${node} where ${node}.${id} = ${value} offset 0)`;
 
 
 export const createMigrationPreamble = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
@@ -170,8 +174,8 @@ export const createMigrationResourceOrRole = <User extends string>(resourceOrRol
   const { users, writers, everyone } = getRoles(config);
   // When a node is deleted, its own delete trigger runs before the foreign key cascades to its edges, whose triggers
   // would otherwise re-add cache rows (including its self edge) that reference the deleted node
-  const whereNodesExist = sql`where exists (select 1 from ${node} where ${node}.${id} = combined.${parentId})
-  and exists (select 1 from ${node} where ${node}.${id} = combined.${childId})`;
+  const whereNodesExist = sql`where ${nodeExists(node, id, sql`combined.${parentId}`)}
+  and ${nodeExists(node, id, sql`combined.${childId}`)}`;
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
@@ -318,16 +322,24 @@ ${setPrivileges(edgeCacheView, everyone, [])}
 create or replace function ${edgeCacheBackfill} ()
   returns setof ${edgeCache}
   as $$
+begin
   ${lockGraphStatement(config)}
+  -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
+  -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
+  -- This has to be plpgsql: a sql function plans every statement before running the first one.
+  analyze ${node};
+  analyze ${edge};
   delete from ${edgeCache};
+  return query
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select ${parentId}, ${childId}, ${permission}
   from
     ${edgeCacheView}
     returning
-      *
+      *;
+end;
 $$
-language sql
+language plpgsql
 volatile
 ${definer(naming)};
 
@@ -718,8 +730,8 @@ drop trigger if exists ${modeNaming.combinedEdgeDeleteTrigger} on ${cache};`;
   ${selectCombined(sourceFilter(keys))};`;
 
     // Rows of nodes being deleted must not be re-added while foreign key cascades are still in flight
-    const nodesExist = sql`exists (select 1 from ${thingCombinedWith.node} where ${thingCombinedWith.node}.${thingCombinedWith.id} = "the_edge_cache".${thingCombinedWith.childId})
-      and exists (select 1 from ${thingNotCombinedWith.node} where ${thingNotCombinedWith.node}.${thingNotCombinedWith.id} = "the_assignment".${thingNotCombinedWithId})`;
+    const nodesExist = sql`${nodeExists(thingCombinedWith.node, thingCombinedWith.id, sql`"the_edge_cache".${thingCombinedWith.childId}`)}
+      and ${nodeExists(thingNotCombinedWith.node, thingNotCombinedWith.id, sql`"the_assignment".${thingNotCombinedWithId}`)}`;
     const byAssignment = (keys: SQL) => recompute(thingNotCombinedWithId, k => sql`"the_assignment".${thingNotCombinedWithId} in (${k}) and ${nodesExist}`, keys);
     const byEdgeCache = (keys: SQL) => recompute(thingCombinedWithId, k => sql`"the_edge_cache".${thingCombinedWith.childId} in (${k}) and ${nodesExist}`, keys);
 
@@ -786,16 +798,22 @@ ${setPrivileges(edgeCacheView, everyone, [])}
 create or replace function ${edgeCacheBackfill} ()
   returns setof ${edgeCache}
   as $$
+begin
   ${lockGraphStatement(config)}
+  -- Same as the edge cache backfills, the join plan needs statistics on freshly loaded tables
+  analyze ${edge};
+  analyze ${thingCombinedWith.edgeCache};
   delete from ${edgeCache};
+  return query
   insert into ${edgeCache} (${roleId}, ${resourceId}, ${permission})
   select ${roleId}, ${resourceId}, ${permission}
   from
     ${edgeCacheView}
     returning
-      *
+      *;
+end;
 $$
-language sql
+language plpgsql
 volatile
 ${definer(naming)};
 
