@@ -918,535 +918,264 @@ create trigger "05_resource_edge_guard_delete_trigger" before delete on "resourc
 -- 'resource' rows of bound tables
 -----------------------------------------------------------------------------------------------------------------------
 
--- 'folder' rows are 'resource' nodes
 
-create or replace function "folder_resource_insert_trigger_function"()
-returns trigger as $$
+create or replace function "resource_node_insert" ("the_ids" uuid[], "the_parents" uuid[])
+returns void as $$
 begin
 
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id") then
+  if exists (select from unnest("the_ids") as "the_row" ("id")
+    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'resource',
-      (select "the_row"."resource_id" from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id" limit 1)
+      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
   insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-  select "the_row"."resource_id", "the_row"."resource_id", ~ b'0'::bit(8) from "p9s_new_rows" as "the_row";
-  
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null) then
+  select "the_row"."id", "the_row"."id", ~ b'0'::bit(8) from unnest("the_ids") as "the_row" ("id");
+  if exists (select from unnest("the_parents") as "the_parent" ("id") where "the_parent"."id" is not null) then
     
   if current_setting('transaction_isolation') <> 'read committed' then
     raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
   end if;
   perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
+    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
+    select "the_row"."parent", "the_row"."id", ~ b'0'::bit(8), true
+    from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+    where "the_row"."parent" is not null
+    on conflict on constraint "resource_edge_pkey" do nothing;
+  end if;
+end;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
+
+
+revoke execute on function "resource_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
+
+
+-- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
+-- gives way to that edge and the edge keeps its bits.
+
+create or replace function "resource_node_update" ("the_ids" uuid[], "the_parents" uuid[])
+returns void as $$
+begin
+
+  
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+  end if;
+  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+  update "resource_edge" as "the_edge" set "parent_id" = "the_row"."parent"
+  from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_edge"."child_id" = "the_row"."id" and "the_edge"."home"
+  and "the_row"."parent" is not null and "the_edge"."parent_id" <> "the_row"."parent"
+  and not exists (select from "resource_edge" as "the_other" where "the_other"."parent_id" = "the_row"."parent" and "the_other"."child_id" = "the_row"."id");
+
+  delete from "resource_edge" as "the_edge"
+  using unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_edge"."child_id" = "the_row"."id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from "the_row"."parent";
+
+  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
+  select "the_row"."parent", "the_row"."id", ~ b'0'::bit(8), true
+  from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_row"."parent" is not null
+  on conflict on constraint "resource_edge_pkey" do nothing;
+end;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
+
+
+revoke execute on function "resource_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
+
+
+-- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
+
+create or replace function "resource_node_delete" ("the_ids" uuid[])
+returns void as $$
+begin
+
+  
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+  end if;
+  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+  delete from "assignment_edge" as "the_assignment"
+  where "the_assignment"."resource_id" = any ("the_ids");
+  delete from "resource_edge" as "the_edge"
+  where "the_edge"."parent_id" = any ("the_ids") or "the_edge"."child_id" = any ("the_ids");
+  delete from "resource_edge_cache" as "the_self"
+  using unnest("the_ids") as "the_row" ("id")
+  where "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id";
+end;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
+
+
+revoke execute on function "resource_node_delete" ("the_ids" uuid[]) from public;
+
+
+
+-- 'folder' rows are 'resource' nodes
+create or replace function "folder_resource_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
       using errcode = 'foreign_key_violation';
   end if;
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
-    from "p9s_new_rows" as "the_row"
-    where "the_row"."parent_id" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'folder' using errcode = 'integrity_constraint_violation';
+    end if;
+    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."parent_id" is distinct from "the_old_row"."parent_id") then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."parent_id" is distinct from "the_old_row"."parent_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
   end if;
   return null;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
 
-
-revoke execute on function "folder_resource_insert_trigger_function" () from public;
-
+revoke execute on function "folder_resource_trigger_function" () from public;
 
 
 drop trigger if exists "10_folder_resource_insert_trigger" on "public"."folder";
 create trigger "10_folder_resource_insert_trigger"
 after insert on "public"."folder"
 referencing new table as "p9s_new_rows"
-for each statement execute function "folder_resource_insert_trigger_function"();
-
-
-create or replace function "folder_resource_update_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select "the_row"."resource_id" from "p9s_old_rows" as "the_row" except select "the_row"."resource_id" from "p9s_new_rows" as "the_row") then
-    raise exception 'p9s: the % id of a % row cannot change', 'resource', 'folder'
-      using errcode = 'integrity_constraint_violation';
-  end if;
-  
-  if exists (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."parent_id" is distinct from "the_old_row"."parent_id") then
-    
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."parent_id" is distinct from "the_old_row"."parent_id")
-    update "resource_edge" as "the_edge" set "parent_id" = "the_change"."parent"
-    from "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_change"."parent" is not null and "the_edge"."parent_id" <> "the_change"."parent"
-    and not exists (select from "resource_edge" as "the_other" where "the_other"."parent_id" = "the_change"."parent" and "the_other"."child_id" = "the_change"."id");
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."parent_id" is distinct from "the_old_row"."parent_id")
-    delete from "resource_edge" as "the_edge"
-    using "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_edge"."parent_id" is distinct from "the_change"."parent";
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."parent_id" is distinct from "the_old_row"."parent_id")
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select "the_change"."parent", "the_change"."id", ~ b'0'::bit(8), true
-    from "the_change"
-    where "the_change"."parent" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "folder_resource_update_trigger_function" () from public;
-
-
+for each statement execute function "folder_resource_trigger_function"();
 
 drop trigger if exists "10_folder_resource_update_trigger" on "public"."folder";
 create trigger "10_folder_resource_update_trigger"
 after update on "public"."folder"
 referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "folder_resource_update_trigger_function"();
-
-
-create or replace function "folder_resource_delete_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_old_rows") then
-    return null;
-  end if;
-  
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-  delete from "assignment_edge" as "the_assignment"
-  using "p9s_old_rows" as "the_row"
-  where "the_assignment"."resource_id" = "the_row"."resource_id";
-  delete from "resource_edge" as "the_edge"
-  using (
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "the_row"."resource_id"
-    union
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "the_row"."resource_id"
-  ) as "the_removed"
-  where "the_edge"."parent_id" = "the_removed"."parent_id" and "the_edge"."child_id" = "the_removed"."child_id";
-  delete from "resource_edge_cache" as "the_self"
-  using "p9s_old_rows" as "the_row"
-  where "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id";
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "folder_resource_delete_trigger_function" () from public;
-
-
+for each statement execute function "folder_resource_trigger_function"();
 
 drop trigger if exists "10_folder_resource_delete_trigger" on "public"."folder";
 create trigger "10_folder_resource_delete_trigger"
 after delete on "public"."folder"
 referencing old table as "p9s_old_rows"
-for each statement execute function "folder_resource_delete_trigger_function"();
+for each statement execute function "folder_resource_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."folder";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."folder" for each statement execute function "truncate_guard_trigger_function"();
 
 
 -- 'image' rows are 'resource' nodes
-
-create or replace function "image_resource_insert_trigger_function"()
+create or replace function "image_resource_trigger_function"()
 returns trigger as $$
 begin
-
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id") then
-    raise exception 'p9s: the % id % is already used by another row', 'resource',
-      (select "the_row"."resource_id" from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id" limit 1)
-      using errcode = 'unique_violation';
-  end if;
-  -- A new row cannot be referenced by others yet, so its self row needs no lock
-  insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-  select "the_row"."resource_id", "the_row"."resource_id", ~ b'0'::bit(8) from "p9s_new_rows" as "the_row";
-  
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null) then
-    
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
+  if tg_op = 'INSERT' then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'image', 'folder_id', 'folder'
       using errcode = 'foreign_key_violation';
   end if;
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
-    from "p9s_new_rows" as "the_row"
-    where "the_row"."folder_id" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'image' using errcode = 'integrity_constraint_violation';
+    end if;
+    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'image', 'folder_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
   end if;
   return null;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
 
-
-revoke execute on function "image_resource_insert_trigger_function" () from public;
-
+revoke execute on function "image_resource_trigger_function" () from public;
 
 
 drop trigger if exists "10_image_resource_insert_trigger" on "public"."image";
 create trigger "10_image_resource_insert_trigger"
 after insert on "public"."image"
 referencing new table as "p9s_new_rows"
-for each statement execute function "image_resource_insert_trigger_function"();
-
-
-create or replace function "image_resource_update_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select "the_row"."resource_id" from "p9s_old_rows" as "the_row" except select "the_row"."resource_id" from "p9s_new_rows" as "the_row") then
-    raise exception 'p9s: the % id of a % row cannot change', 'resource', 'image'
-      using errcode = 'integrity_constraint_violation';
-  end if;
-  
-  if exists (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") then
-    
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'image', 'folder_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    update "resource_edge" as "the_edge" set "parent_id" = "the_change"."parent"
-    from "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_change"."parent" is not null and "the_edge"."parent_id" <> "the_change"."parent"
-    and not exists (select from "resource_edge" as "the_other" where "the_other"."parent_id" = "the_change"."parent" and "the_other"."child_id" = "the_change"."id");
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    delete from "resource_edge" as "the_edge"
-    using "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_edge"."parent_id" is distinct from "the_change"."parent";
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select "the_change"."parent", "the_change"."id", ~ b'0'::bit(8), true
-    from "the_change"
-    where "the_change"."parent" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "image_resource_update_trigger_function" () from public;
-
-
+for each statement execute function "image_resource_trigger_function"();
 
 drop trigger if exists "10_image_resource_update_trigger" on "public"."image";
 create trigger "10_image_resource_update_trigger"
 after update on "public"."image"
 referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "image_resource_update_trigger_function"();
-
-
-create or replace function "image_resource_delete_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_old_rows") then
-    return null;
-  end if;
-  
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-  delete from "assignment_edge" as "the_assignment"
-  using "p9s_old_rows" as "the_row"
-  where "the_assignment"."resource_id" = "the_row"."resource_id";
-  delete from "resource_edge" as "the_edge"
-  using (
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "the_row"."resource_id"
-    union
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "the_row"."resource_id"
-  ) as "the_removed"
-  where "the_edge"."parent_id" = "the_removed"."parent_id" and "the_edge"."child_id" = "the_removed"."child_id";
-  delete from "resource_edge_cache" as "the_self"
-  using "p9s_old_rows" as "the_row"
-  where "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id";
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "image_resource_delete_trigger_function" () from public;
-
-
+for each statement execute function "image_resource_trigger_function"();
 
 drop trigger if exists "10_image_resource_delete_trigger" on "public"."image";
 create trigger "10_image_resource_delete_trigger"
 after delete on "public"."image"
 referencing old table as "p9s_old_rows"
-for each statement execute function "image_resource_delete_trigger_function"();
+for each statement execute function "image_resource_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."image";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."image" for each statement execute function "truncate_guard_trigger_function"();
 
 
 -- 'text_content' rows are 'resource' nodes
-
-create or replace function "text_content_resource_insert_trigger_function"()
+create or replace function "text_content_resource_trigger_function"()
 returns trigger as $$
 begin
-
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id") then
-    raise exception 'p9s: the % id % is already used by another row', 'resource',
-      (select "the_row"."resource_id" from "p9s_new_rows" as "the_row"
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id" limit 1)
-      using errcode = 'unique_violation';
-  end if;
-  -- A new row cannot be referenced by others yet, so its self row needs no lock
-  insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
-  select "the_row"."resource_id", "the_row"."resource_id", ~ b'0'::bit(8) from "p9s_new_rows" as "the_row";
-  
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null) then
-    
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
+  if tg_op = 'INSERT' then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'text_content', 'folder_id', 'folder'
       using errcode = 'foreign_key_violation';
   end if;
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
-    from "p9s_new_rows" as "the_row"
-    where "the_row"."folder_id" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'text_content' using errcode = 'integrity_constraint_violation';
+    end if;
+    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'text_content', 'folder_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
   end if;
   return null;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
 
-
-revoke execute on function "text_content_resource_insert_trigger_function" () from public;
-
+revoke execute on function "text_content_resource_trigger_function" () from public;
 
 
 drop trigger if exists "10_text_content_resource_insert_trigger" on "public"."text_content";
 create trigger "10_text_content_resource_insert_trigger"
 after insert on "public"."text_content"
 referencing new table as "p9s_new_rows"
-for each statement execute function "text_content_resource_insert_trigger_function"();
-
-
-create or replace function "text_content_resource_update_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select "the_row"."resource_id" from "p9s_old_rows" as "the_row" except select "the_row"."resource_id" from "p9s_new_rows" as "the_row") then
-    raise exception 'p9s: the % id of a % row cannot change', 'resource', 'text_content'
-      using errcode = 'integrity_constraint_violation';
-  end if;
-  
-  if exists (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") then
-    
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'text_content', 'folder_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    update "resource_edge" as "the_edge" set "parent_id" = "the_change"."parent"
-    from "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_change"."parent" is not null and "the_edge"."parent_id" <> "the_change"."parent"
-    and not exists (select from "resource_edge" as "the_other" where "the_other"."parent_id" = "the_change"."parent" and "the_other"."child_id" = "the_change"."id");
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    delete from "resource_edge" as "the_edge"
-    using "the_change"
-    where "the_edge"."child_id" = "the_change"."id" and "the_edge"."home"
-    and "the_edge"."parent_id" is distinct from "the_change"."parent";
-
-    with "the_change" as (
-    select "the_row"."resource_id" as "id", (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row"."resource_id" = "the_row"."resource_id"
-    where "the_row"."folder_id" is distinct from "the_old_row"."folder_id")
-    insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-    select "the_change"."parent", "the_change"."id", ~ b'0'::bit(8), true
-    from "the_change"
-    where "the_change"."parent" is not null
-    on conflict on constraint "resource_edge_pkey" do nothing;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "text_content_resource_update_trigger_function" () from public;
-
-
+for each statement execute function "text_content_resource_trigger_function"();
 
 drop trigger if exists "10_text_content_resource_update_trigger" on "public"."text_content";
 create trigger "10_text_content_resource_update_trigger"
 after update on "public"."text_content"
 referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "text_content_resource_update_trigger_function"();
-
-
-create or replace function "text_content_resource_delete_trigger_function"()
-returns trigger as $$
-begin
-
-  if not exists (select from "p9s_old_rows") then
-    return null;
-  end if;
-  
-  if current_setting('transaction_isolation') <> 'read committed' then
-    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
-  end if;
-  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-  delete from "assignment_edge" as "the_assignment"
-  using "p9s_old_rows" as "the_row"
-  where "the_assignment"."resource_id" = "the_row"."resource_id";
-  delete from "resource_edge" as "the_edge"
-  using (
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "the_row"."resource_id"
-    union
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "the_row"."resource_id"
-  ) as "the_removed"
-  where "the_edge"."parent_id" = "the_removed"."parent_id" and "the_edge"."child_id" = "the_removed"."child_id";
-  delete from "resource_edge_cache" as "the_self"
-  using "p9s_old_rows" as "the_row"
-  where "the_self"."parent_id" = "the_row"."resource_id" and "the_self"."child_id" = "the_row"."resource_id";
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
-
-
-revoke execute on function "text_content_resource_delete_trigger_function" () from public;
-
-
+for each statement execute function "text_content_resource_trigger_function"();
 
 drop trigger if exists "10_text_content_resource_delete_trigger" on "public"."text_content";
 create trigger "10_text_content_resource_delete_trigger"
 after delete on "public"."text_content"
 referencing old table as "p9s_old_rows"
-for each statement execute function "text_content_resource_delete_trigger_function"();
+for each statement execute function "text_content_resource_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."text_content";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."text_content" for each statement execute function "truncate_guard_trigger_function"();
@@ -2003,115 +1732,138 @@ create trigger "05_role_edge_guard_delete_trigger" before delete on "role_edge" 
 -- 'role' rows of bound tables
 -----------------------------------------------------------------------------------------------------------------------
 
--- 'user' rows are 'role' nodes
 
-create or replace function "user_role_insert_trigger_function"()
-returns trigger as $$
+create or replace function "role_node_insert" ("the_ids" uuid[], "the_parents" uuid[])
+returns void as $$
 begin
 
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select from "p9s_new_rows" as "the_row"
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."role_id" and "the_self"."child_id" = "the_row"."role_id") then
+  if exists (select from unnest("the_ids") as "the_row" ("id")
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'role',
-      (select "the_row"."role_id" from "p9s_new_rows" as "the_row"
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."role_id" and "the_self"."child_id" = "the_row"."role_id" limit 1)
+      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
   insert into "role_edge_cache" ("parent_id", "child_id", "permission")
-  select "the_row"."role_id", "the_row"."role_id", ~ b'0'::bit(8) from "p9s_new_rows" as "the_row";
-  
-  return null;
+  select "the_row"."id", "the_row"."id", ~ b'0'::bit(8) from unnest("the_ids") as "the_row" ("id");
+  if exists (select from unnest("the_parents") as "the_parent" ("id") where "the_parent"."id" is not null) then
+    
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+  end if;
+  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+    insert into "role_edge" ("parent_id", "child_id", "permission", "home")
+    select "the_row"."parent", "the_row"."id", ~ b'0'::bit(8), true
+    from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+    where "the_row"."parent" is not null
+    on conflict on constraint "role_edge_pkey" do nothing;
+  end if;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "user_role_insert_trigger_function" () from public;
+revoke execute on function "role_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+-- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
+-- gives way to that edge and the edge keeps its bits.
 
-drop trigger if exists "10_user_role_insert_trigger" on "public"."user";
-create trigger "10_user_role_insert_trigger"
-after insert on "public"."user"
-referencing new table as "p9s_new_rows"
-for each statement execute function "user_role_insert_trigger_function"();
-
-
-create or replace function "user_role_update_trigger_function"()
-returns trigger as $$
+create or replace function "role_node_update" ("the_ids" uuid[], "the_parents" uuid[])
+returns void as $$
 begin
 
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select "the_row"."role_id" from "p9s_old_rows" as "the_row" except select "the_row"."role_id" from "p9s_new_rows" as "the_row") then
-    raise exception 'p9s: the % id of a % row cannot change', 'role', 'user'
-      using errcode = 'integrity_constraint_violation';
-  end if;
   
-  return null;
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
+  end if;
+  perform pg_advisory_xact_lock(hashtext('p9s:public:'));
+  update "role_edge" as "the_edge" set "parent_id" = "the_row"."parent"
+  from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_edge"."child_id" = "the_row"."id" and "the_edge"."home"
+  and "the_row"."parent" is not null and "the_edge"."parent_id" <> "the_row"."parent"
+  and not exists (select from "role_edge" as "the_other" where "the_other"."parent_id" = "the_row"."parent" and "the_other"."child_id" = "the_row"."id");
+
+  delete from "role_edge" as "the_edge"
+  using unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_edge"."child_id" = "the_row"."id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from "the_row"."parent";
+
+  insert into "role_edge" ("parent_id", "child_id", "permission", "home")
+  select "the_row"."parent", "the_row"."id", ~ b'0'::bit(8), true
+  from unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")
+  where "the_row"."parent" is not null
+  on conflict on constraint "role_edge_pkey" do nothing;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "user_role_update_trigger_function" () from public;
+revoke execute on function "role_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+-- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
 
-drop trigger if exists "10_user_role_update_trigger" on "public"."user";
-create trigger "10_user_role_update_trigger"
-after update on "public"."user"
-referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "user_role_update_trigger_function"();
-
-
-create or replace function "user_role_delete_trigger_function"()
-returns trigger as $$
+create or replace function "role_node_delete" ("the_ids" uuid[])
+returns void as $$
 begin
 
-  if not exists (select from "p9s_old_rows") then
-    return null;
-  end if;
   
   if current_setting('transaction_isolation') <> 'read committed' then
     raise exception 'p9s: permission graph writes must run in READ COMMITTED isolation, not %', current_setting('transaction_isolation');
   end if;
   perform pg_advisory_xact_lock(hashtext('p9s:public:'));
   delete from "assignment_edge" as "the_assignment"
-  using "p9s_old_rows" as "the_row"
-  where "the_assignment"."role_id" = "the_row"."role_id";
+  where "the_assignment"."role_id" = any ("the_ids");
   delete from "role_edge" as "the_edge"
-  using (
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "the_row"."role_id"
-    union
-    select "the_edge"."parent_id", "the_edge"."child_id" from "p9s_old_rows" as "the_row" join "role_edge" as "the_edge" on "the_edge"."child_id" = "the_row"."role_id"
-  ) as "the_removed"
-  where "the_edge"."parent_id" = "the_removed"."parent_id" and "the_edge"."child_id" = "the_removed"."child_id";
+  where "the_edge"."parent_id" = any ("the_ids") or "the_edge"."child_id" = any ("the_ids");
   delete from "role_edge_cache" as "the_self"
-  using "p9s_old_rows" as "the_row"
-  where "the_self"."parent_id" = "the_row"."role_id" and "the_self"."child_id" = "the_row"."role_id";
+  using unnest("the_ids") as "the_row" ("id")
+  where "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id";
+end;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
+
+
+revoke execute on function "role_node_delete" ("the_ids" uuid[]) from public;
+
+
+
+-- 'user' rows are 'role' nodes
+create or replace function "user_role_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+    perform "role_node_insert"(array_agg("the_row"."role_id"), null) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "role_id" from "p9s_old_rows" except select "role_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'role', 'user' using errcode = 'integrity_constraint_violation';
+    end if;
+  else
+    perform "role_node_delete"(array_agg("the_row"."role_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
   return null;
 end;
-$$ language plpgsql security definer set search_path = "public", pg_temp
-set enable_hashjoin = off
-set enable_mergejoin = off;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
+
+revoke execute on function "user_role_trigger_function" () from public;
 
 
-revoke execute on function "user_role_delete_trigger_function" () from public;
+drop trigger if exists "10_user_role_insert_trigger" on "public"."user";
+create trigger "10_user_role_insert_trigger"
+after insert on "public"."user"
+referencing new table as "p9s_new_rows"
+for each statement execute function "user_role_trigger_function"();
 
-
+drop trigger if exists "10_user_role_update_trigger" on "public"."user";
+create trigger "10_user_role_update_trigger"
+after update on "public"."user"
+referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+for each statement execute function "user_role_trigger_function"();
 
 drop trigger if exists "10_user_role_delete_trigger" on "public"."user";
 create trigger "10_user_role_delete_trigger"
 after delete on "public"."user"
 referencing old table as "p9s_old_rows"
-for each statement execute function "user_role_delete_trigger_function"();
+for each statement execute function "user_role_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."user";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."user" for each statement execute function "truncate_guard_trigger_function"();

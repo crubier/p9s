@@ -160,7 +160,8 @@ interface Binding {
   table: SQL;
   tableName: string;
   id: SQL;
-  triggers: Record<TriggerEvent, { functionName: SQL, triggerName: SQL }>;
+  triggerFunction: SQL;
+  triggers: Record<TriggerEvent, SQL>;
   parent?: {
     column: SQL;
     // Present when the parent column holds a key of the parent table rather than its id
@@ -181,17 +182,10 @@ const getBindings = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any
       table: sql`${tableNaming.schema}.${tableNaming.name}`,
       tableName: table.name,
       id,
-      triggers: {
-        insert: kind === "resource"
-          ? { functionName: tableNaming.resourceInsertTriggerFunction, triggerName: tableNaming.resourceInsertTrigger }
-          : { functionName: tableNaming.roleInsertTriggerFunction, triggerName: tableNaming.roleInsertTrigger },
-        update: kind === "resource"
-          ? { functionName: tableNaming.resourceUpdateTriggerFunction, triggerName: tableNaming.resourceUpdateTrigger }
-          : { functionName: tableNaming.roleUpdateTriggerFunction, triggerName: tableNaming.roleUpdateTrigger },
-        delete: kind === "resource"
-          ? { functionName: tableNaming.resourceDeleteTriggerFunction, triggerName: tableNaming.resourceDeleteTrigger }
-          : { functionName: tableNaming.roleDeleteTriggerFunction, triggerName: tableNaming.roleDeleteTrigger },
-      },
+      triggerFunction: kind === "resource" ? tableNaming.resourceTriggerFunction : tableNaming.roleTriggerFunction,
+      triggers: kind === "resource"
+        ? { insert: tableNaming.resourceInsertTrigger, update: tableNaming.resourceUpdateTrigger, delete: tableNaming.resourceDeleteTrigger }
+        : { insert: tableNaming.roleInsertTrigger, update: tableNaming.roleUpdateTrigger, delete: tableNaming.roleDeleteTrigger },
     };
     if (parentConfig) {
       const parentTable = parentConfig.table === undefined ? undefined : config.tables.find(other => other.name === parentConfig.table);
@@ -753,8 +747,6 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
     ${selfRow("the_parent_self", sql`"the_edge".${parentId}`)}
     ${selfRow("the_child_self", sql`"the_edge".${childId}`)}
     where "the_parent_self".${parentId} is null or "the_child_self".${parentId} is null`;
-  const usedIds = (id: SQL) => sql`from "p9s_new_rows" as "the_row"
-    join ${edgeCache} as "the_self" on "the_self".${parentId} = "the_row".${id} and "the_self".${childId} = "the_row".${id}`;
   const validateEdges = sql`
   if exists (select ${invalidEdges}) then
     raise exception 'p9s: the % edge % does not connect two rows of bound tables', ${textLiteral(kind)},
@@ -767,102 +759,106 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
       sql`${event === "delete" ? sql`` : validateEdges}
 ${refreshAffected(changed[event])}`, indexLookupsOnly);
 
-  // The bound row is the node: its triggers maintain its self row and its home edge
-  const boundTriggers = (binding: Binding) => {
-    const { table, id, triggers, parent } = binding;
-    const row = sql`"the_row"`;
-    const changedParents = parent && sql`
-    select "the_row".${id} as "id", ${parentOf(binding, row)} as "parent"
-    from "p9s_new_rows" as "the_row"
-    join "p9s_old_rows" as "the_old_row" on "the_old_row".${id} = "the_row".${id}
-    where "the_row".${parent.column} is distinct from "the_old_row".${parent.column}`;
+  // What bound rows do to the graph, shared by the tables of this tree. Each takes the ids of the rows a statement
+  // changed, and for inserts and parent changes, the parent id of each row (null for none). Only the bound-table
+  // triggers call them, so they run as the owner with its search path. With array arguments, plpgsql would plan each
+  // statement again on every call; every lookup is by key, so the generic plan is as good.
+  const nodeFunction = (functionName: SQL, args: SQL, body: SQL) => sql`
+create or replace function ${functionName} (${args})
+returns void as $$
+begin
+${body}
+end;
+$$ language plpgsql set plan_cache_mode = force_generic_plan;
 
-    const insertBody = sql`
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select ${usedIds(id)}) then
+${grantExecute(sql`${functionName} (${args})`, [])}
+`;
+  const idsArgument = sql`"the_ids" ${idType}[]`;
+  const idsAndParentsArguments = sql`"the_ids" ${idType}[], "the_parents" ${idType}[]`;
+  const rows = sql`unnest("the_ids", coalesce("the_parents", '{}')) as "the_row" ("id", "parent")`;
+  const usedIds = sql`from unnest("the_ids") as "the_row" ("id")
+    join ${edgeCache} as "the_self" on "the_self".${parentId} = "the_row"."id" and "the_self".${childId} = "the_row"."id"`;
+
+  const nodeFunctions = sql`
+${nodeFunction(naming[kind].nodeInsertFunction, idsAndParentsArguments, sql`
+  if exists (select ${usedIds}) then
     raise exception 'p9s: the % id % is already used by another row', ${textLiteral(kind)},
-      (select "the_row".${id} ${usedIds(id)} limit 1)
+      (select "the_row"."id" ${usedIds} limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
-  select "the_row".${id}, "the_row".${id}, ${allBits} from "p9s_new_rows" as "the_row";
-  ${parent ? sql`
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row".${parent.column} is not null) then
+  select "the_row"."id", "the_row"."id", ${allBits} from unnest("the_ids") as "the_row" ("id");
+  if exists (select from unnest("the_parents") as "the_parent" ("id") where "the_parent"."id" is not null) then
     ${lockGraph(config)}
-    ${checkParentsFound(binding, sql`"p9s_new_rows"`)}
     insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
-    select ${parentOf(binding, row)}, "the_row".${id}, ${allBits}, true
-    from "p9s_new_rows" as "the_row"
-    where "the_row".${parent.column} is not null
+    select "the_row"."parent", "the_row"."id", ${allBits}, true
+    from ${rows}
+    where "the_row"."parent" is not null
     on conflict on constraint ${edgePkey} do nothing;
-  end if;` : sql``}`;
+  end if;`)}
+-- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
+-- gives way to that edge and the edge keeps its bits.
+${nodeFunction(naming[kind].nodeUpdateFunction, idsAndParentsArguments, sql`
+  ${lockGraph(config)}
+  update ${edge} as "the_edge" set ${parentId} = "the_row"."parent"
+  from ${rows}
+  where "the_edge".${childId} = "the_row"."id" and "the_edge".${home}
+  and "the_row"."parent" is not null and "the_edge".${parentId} <> "the_row"."parent"
+  and not exists (select from ${edge} as "the_other" where "the_other".${parentId} = "the_row"."parent" and "the_other".${childId} = "the_row"."id");
 
-    // The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise
-    // it gives way to that edge and the edge keeps its bits.
-    const updateBody = sql`
-  if not exists (select from "p9s_new_rows") then
-    return null;
-  end if;
-  if exists (select "the_row".${id} from "p9s_old_rows" as "the_row" except select "the_row".${id} from "p9s_new_rows" as "the_row") then
-    raise exception 'p9s: the % id of a % row cannot change', ${textLiteral(kind)}, ${textLiteral(binding.tableName)}
-      using errcode = 'integrity_constraint_violation';
-  end if;
-  ${changedParents ? sql`
-  if exists (${changedParents}) then
-    ${lockGraph(config)}
-    ${checkParentsFound(binding, sql`"p9s_new_rows"`)}
-    with "the_change" as (${changedParents})
-    update ${edge} as "the_edge" set ${parentId} = "the_change"."parent"
-    from "the_change"
-    where "the_edge".${childId} = "the_change"."id" and "the_edge".${home}
-    and "the_change"."parent" is not null and "the_edge".${parentId} <> "the_change"."parent"
-    and not exists (select from ${edge} as "the_other" where "the_other".${parentId} = "the_change"."parent" and "the_other".${childId} = "the_change"."id");
+  delete from ${edge} as "the_edge"
+  using ${rows}
+  where "the_edge".${childId} = "the_row"."id" and "the_edge".${home}
+  and "the_edge".${parentId} is distinct from "the_row"."parent";
 
-    with "the_change" as (${changedParents})
-    delete from ${edge} as "the_edge"
-    using "the_change"
-    where "the_edge".${childId} = "the_change"."id" and "the_edge".${home}
-    and "the_edge".${parentId} is distinct from "the_change"."parent";
-
-    with "the_change" as (${changedParents})
-    insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
-    select "the_change"."parent", "the_change"."id", ${allBits}, true
-    from "the_change"
-    where "the_change"."parent" is not null
-    on conflict on constraint ${edgePkey} do nothing;
-  end if;` : sql``}`;
-
-    // The lock comes first: an edge to this row committed while it is deleted must be seen by the deletes below
-    const deleteBody = sql`
-  if not exists (select from "p9s_old_rows") then
-    return null;
-  end if;
+  insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
+  select "the_row"."parent", "the_row"."id", ${allBits}, true
+  from ${rows}
+  where "the_row"."parent" is not null
+  on conflict on constraint ${edgePkey} do nothing;`)}
+-- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
+${nodeFunction(naming[kind].nodeDeleteFunction, idsArgument, sql`
   ${lockGraph(config)}
   delete from ${assignment.edge} as "the_assignment"
-  using "p9s_old_rows" as "the_row"
-  where "the_assignment".${assignmentId} = "the_row".${id};
+  where "the_assignment".${assignmentId} = any ("the_ids");
   delete from ${edge} as "the_edge"
-  using (
-    select "the_edge".${parentId}, "the_edge".${childId} from "p9s_old_rows" as "the_row" join ${edge} as "the_edge" on "the_edge".${parentId} = "the_row".${id}
-    union
-    select "the_edge".${parentId}, "the_edge".${childId} from "p9s_old_rows" as "the_row" join ${edge} as "the_edge" on "the_edge".${childId} = "the_row".${id}
-  ) as "the_removed"
-  where "the_edge".${parentId} = "the_removed".${parentId} and "the_edge".${childId} = "the_removed".${childId};
+  where "the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids");
   delete from ${edgeCache} as "the_self"
-  using "p9s_old_rows" as "the_row"
-  where "the_self".${parentId} = "the_row".${id} and "the_self".${childId} = "the_row".${id};`;
+  using unnest("the_ids") as "the_row" ("id")
+  where "the_self".${parentId} = "the_row"."id" and "the_self".${childId} = "the_row"."id";`)}`;
 
+  // The bound row is the node: its triggers hand the ids and parents of the changed rows to the node functions. One
+  // function serves the three triggers, plpgsql plans its statements separately for each. `having` skips statements
+  // that changed no row.
+  const boundTriggers = (binding: Binding) => {
+    const { table, id, triggerFunction: functionName, triggers, parent } = binding;
+    const parentIds = parent ? sql`array_agg(${parentOf(binding, sql`"the_row"`)})` : sql`null`;
+    const moved = parent && sql`from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using (${id})
+      where "the_row".${parent.column} is distinct from "the_old_row".${parent.column}`;
     return sql`
 -- ${literal(binding.tableName)} rows are ${literal(kind)} nodes
-${triggerFunction(naming, triggers.insert.functionName, insertBody, indexLookupsOnly)}
-${attachStatementTrigger(triggers.insert.functionName, triggers.insert.triggerName, table, "insert")}
-${triggerFunction(naming, triggers.update.functionName, updateBody, indexLookupsOnly)}
-${attachStatementTrigger(triggers.update.functionName, triggers.update.triggerName, table, "update")}
-${triggerFunction(naming, triggers.delete.functionName, deleteBody, indexLookupsOnly)}
-${attachStatementTrigger(triggers.delete.functionName, triggers.delete.triggerName, table, "delete")}
+create or replace function ${functionName}()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then${checkParentsFound(binding, sql`"p9s_new_rows"`)}
+    perform ${naming[kind].nodeInsertFunction}(array_agg("the_row".${id}), ${parentIds}) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select ${id} from "p9s_old_rows" except select ${id} from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', ${textLiteral(kind)}, ${textLiteral(binding.tableName)} using errcode = 'integrity_constraint_violation';
+    end if;${moved ? sql`
+    if exists (select ${moved}) then${checkParentsFound(binding, sql`"p9s_new_rows"`)}
+      perform ${naming[kind].nodeUpdateFunction}(array_agg("the_row".${id}), ${parentIds})
+      ${moved};
+    end if;` : sql``}
+  else
+    perform ${naming[kind].nodeDeleteFunction}(array_agg("the_row".${id})) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
+  return null;
+end;
+$$ language plpgsql ${definer(naming)};
+${grantExecute(sql`${functionName} ()`, [])}
+${join((["insert", "update", "delete"] as const).map(event => attachStatementTrigger(functionName, triggers[event], table, event)), ``)}
 drop trigger if exists ${truncateGuardTrigger} on ${table};
 create trigger ${truncateGuardTrigger} before truncate on ${table} for each statement execute function ${naming.truncateGuardFunction}();
 `;
@@ -872,7 +868,7 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
   // triggers go with the resource tree.
   const triggersByTable: Array<[SQL, SQL[]]> = [
     [edge, [edgeInsertTrigger, edgeUpdateTrigger, edgeDeleteTrigger, edgeGuardInsertTrigger, edgeGuardUpdateTrigger, edgeGuardDeleteTrigger, truncateGuardTrigger]],
-    ...bindings.map(({ table, triggers }): [SQL, SQL[]] => [table, [triggers.insert.triggerName, triggers.update.triggerName, triggers.delete.triggerName, truncateGuardTrigger]]),
+    ...bindings.map(({ table, triggers }): [SQL, SQL[]] => [table, [triggers.insert, triggers.update, triggers.delete, truncateGuardTrigger]]),
     ...(kind === "resource" ? [[assignment.edge, [assignment.edgeValidateInsertTrigger, assignment.edgeValidateUpdateTrigger, truncateGuardTrigger]] as [SQL, SQL[]]] : []),
   ];
   const toggleTriggers = (action: SQL) => join(triggersByTable.flatMap(([table, triggers]) =>
@@ -986,6 +982,7 @@ create trigger ${edgeGuardDeleteTrigger} before delete on ${edge} for each row w
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(kind)} rows of bound tables
 -----------------------------------------------------------------------------------------------------------------------
+${nodeFunctions}
 ${join(bindings.map(boundTriggers), `\n`)}
 
 -----------------------------------------------------------------------------------------------------------------------

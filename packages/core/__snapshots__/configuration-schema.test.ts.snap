@@ -363,16 +363,25 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "node": {
       "type": "string",
     },
+    "nodeDeleteFunction": {
+      "type": "string",
+    },
     "nodeDeleteTrigger": {
       "type": "string",
     },
     "nodeDeleteTriggerFunction": {
       "type": "string",
     },
+    "nodeInsertFunction": {
+      "type": "string",
+    },
     "nodeInsertTrigger": {
       "type": "string",
     },
     "nodeInsertTriggerFunction": {
+      "type": "string",
+    },
+    "nodeUpdateFunction": {
       "type": "string",
     },
     "nodeUpdateTrigger": {
@@ -419,6 +428,9 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "edgeGuardUpdateTrigger",
     "edgeGuardDeleteTrigger",
     "parentValidateFunction",
+    "nodeInsertFunction",
+    "nodeUpdateFunction",
+    "nodeDeleteFunction",
     "parentFkey",
     "childFkey",
     "edgeParentIdIndex",
@@ -871,16 +883,25 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "node": {
           "type": "string",
         },
+        "nodeDeleteFunction": {
+          "type": "string",
+        },
         "nodeDeleteTrigger": {
           "type": "string",
         },
         "nodeDeleteTriggerFunction": {
           "type": "string",
         },
+        "nodeInsertFunction": {
+          "type": "string",
+        },
         "nodeInsertTrigger": {
           "type": "string",
         },
         "nodeInsertTriggerFunction": {
+          "type": "string",
+        },
+        "nodeUpdateFunction": {
           "type": "string",
         },
         "nodeUpdateTrigger": {
@@ -927,6 +948,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgeGuardUpdateTrigger",
         "edgeGuardDeleteTrigger",
         "parentValidateFunction",
+        "nodeInsertFunction",
+        "nodeUpdateFunction",
+        "nodeDeleteFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -1059,16 +1083,25 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "node": {
           "type": "string",
         },
+        "nodeDeleteFunction": {
+          "type": "string",
+        },
         "nodeDeleteTrigger": {
           "type": "string",
         },
         "nodeDeleteTriggerFunction": {
           "type": "string",
         },
+        "nodeInsertFunction": {
+          "type": "string",
+        },
         "nodeInsertTrigger": {
           "type": "string",
         },
         "nodeInsertTriggerFunction": {
+          "type": "string",
+        },
+        "nodeUpdateFunction": {
           "type": "string",
         },
         "nodeUpdateTrigger": {
@@ -1115,6 +1148,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgeGuardUpdateTrigger",
         "edgeGuardDeleteTrigger",
         "parentValidateFunction",
+        "nodeInsertFunction",
+        "nodeUpdateFunction",
+        "nodeDeleteFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -1221,9 +1257,6 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "resourceDeleteTrigger": {
       "type": "string",
     },
-    "resourceDeleteTriggerFunction": {
-      "type": "string",
-    },
     "resourceFkey": {
       "type": "string",
     },
@@ -1233,22 +1266,16 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "resourceInsertTrigger": {
       "type": "string",
     },
-    "resourceInsertTriggerFunction": {
+    "resourceParentFunction": {
       "type": "string",
     },
-    "resourceParentFunction": {
+    "resourceTriggerFunction": {
       "type": "string",
     },
     "resourceUpdateTrigger": {
       "type": "string",
     },
-    "resourceUpdateTriggerFunction": {
-      "type": "string",
-    },
     "roleDeleteTrigger": {
-      "type": "string",
-    },
-    "roleDeleteTriggerFunction": {
       "type": "string",
     },
     "roleFkey": {
@@ -1260,16 +1287,13 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "roleInsertTrigger": {
       "type": "string",
     },
-    "roleInsertTriggerFunction": {
-      "type": "string",
-    },
     "roleParentFunction": {
       "type": "string",
     },
-    "roleUpdateTrigger": {
+    "roleTriggerFunction": {
       "type": "string",
     },
-    "roleUpdateTriggerFunction": {
+    "roleUpdateTrigger": {
       "type": "string",
     },
     "schema": {
@@ -1283,17 +1307,13 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "resourceFkey",
     "roleId",
     "roleFkey",
-    "resourceInsertTriggerFunction",
+    "resourceTriggerFunction",
     "resourceInsertTrigger",
-    "resourceUpdateTriggerFunction",
     "resourceUpdateTrigger",
-    "resourceDeleteTriggerFunction",
     "resourceDeleteTrigger",
-    "roleInsertTriggerFunction",
+    "roleTriggerFunction",
     "roleInsertTrigger",
-    "roleUpdateTriggerFunction",
     "roleUpdateTrigger",
-    "roleDeleteTriggerFunction",
     "roleDeleteTrigger",
     "resourceParentFunction",
     "roleParentFunction",
@@ -1357,9 +1377,6 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "resourceDeleteTrigger": {
             "type": "string",
           },
-          "resourceDeleteTriggerFunction": {
-            "type": "string",
-          },
           "resourceFkey": {
             "type": "string",
           },
@@ -1369,22 +1386,16 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "resourceInsertTrigger": {
             "type": "string",
           },
-          "resourceInsertTriggerFunction": {
+          "resourceParentFunction": {
             "type": "string",
           },
-          "resourceParentFunction": {
+          "resourceTriggerFunction": {
             "type": "string",
           },
           "resourceUpdateTrigger": {
             "type": "string",
           },
-          "resourceUpdateTriggerFunction": {
-            "type": "string",
-          },
           "roleDeleteTrigger": {
-            "type": "string",
-          },
-          "roleDeleteTriggerFunction": {
             "type": "string",
           },
           "roleFkey": {
@@ -1396,16 +1407,13 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "roleInsertTrigger": {
             "type": "string",
           },
-          "roleInsertTriggerFunction": {
-            "type": "string",
-          },
           "roleParentFunction": {
             "type": "string",
           },
-          "roleUpdateTrigger": {
+          "roleTriggerFunction": {
             "type": "string",
           },
-          "roleUpdateTriggerFunction": {
+          "roleUpdateTrigger": {
             "type": "string",
           },
           "schema": {
@@ -1419,17 +1427,13 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "resourceFkey",
           "roleId",
           "roleFkey",
-          "resourceInsertTriggerFunction",
+          "resourceTriggerFunction",
           "resourceInsertTrigger",
-          "resourceUpdateTriggerFunction",
           "resourceUpdateTrigger",
-          "resourceDeleteTriggerFunction",
           "resourceDeleteTrigger",
-          "roleInsertTriggerFunction",
+          "roleTriggerFunction",
           "roleInsertTrigger",
-          "roleUpdateTriggerFunction",
           "roleUpdateTrigger",
-          "roleDeleteTriggerFunction",
           "roleDeleteTrigger",
           "resourceParentFunction",
           "roleParentFunction",
@@ -1779,16 +1783,25 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "node": {
           "type": "string",
         },
+        "nodeDeleteFunction": {
+          "type": "string",
+        },
         "nodeDeleteTrigger": {
           "type": "string",
         },
         "nodeDeleteTriggerFunction": {
           "type": "string",
         },
+        "nodeInsertFunction": {
+          "type": "string",
+        },
         "nodeInsertTrigger": {
           "type": "string",
         },
         "nodeInsertTriggerFunction": {
+          "type": "string",
+        },
+        "nodeUpdateFunction": {
           "type": "string",
         },
         "nodeUpdateTrigger": {
@@ -1835,6 +1848,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgeGuardUpdateTrigger",
         "edgeGuardDeleteTrigger",
         "parentValidateFunction",
+        "nodeInsertFunction",
+        "nodeUpdateFunction",
+        "nodeDeleteFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -1970,16 +1986,25 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "node": {
           "type": "string",
         },
+        "nodeDeleteFunction": {
+          "type": "string",
+        },
         "nodeDeleteTrigger": {
           "type": "string",
         },
         "nodeDeleteTriggerFunction": {
           "type": "string",
         },
+        "nodeInsertFunction": {
+          "type": "string",
+        },
         "nodeInsertTrigger": {
           "type": "string",
         },
         "nodeInsertTriggerFunction": {
+          "type": "string",
+        },
+        "nodeUpdateFunction": {
           "type": "string",
         },
         "nodeUpdateTrigger": {
@@ -2026,6 +2051,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgeGuardUpdateTrigger",
         "edgeGuardDeleteTrigger",
         "parentValidateFunction",
+        "nodeInsertFunction",
+        "nodeUpdateFunction",
+        "nodeDeleteFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -2108,9 +2136,6 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "resourceDeleteTrigger": {
             "type": "string",
           },
-          "resourceDeleteTriggerFunction": {
-            "type": "string",
-          },
           "resourceFkey": {
             "type": "string",
           },
@@ -2120,22 +2145,16 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "resourceInsertTrigger": {
             "type": "string",
           },
-          "resourceInsertTriggerFunction": {
+          "resourceParentFunction": {
             "type": "string",
           },
-          "resourceParentFunction": {
+          "resourceTriggerFunction": {
             "type": "string",
           },
           "resourceUpdateTrigger": {
             "type": "string",
           },
-          "resourceUpdateTriggerFunction": {
-            "type": "string",
-          },
           "roleDeleteTrigger": {
-            "type": "string",
-          },
-          "roleDeleteTriggerFunction": {
             "type": "string",
           },
           "roleFkey": {
@@ -2147,16 +2166,13 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "roleInsertTrigger": {
             "type": "string",
           },
-          "roleInsertTriggerFunction": {
-            "type": "string",
-          },
           "roleParentFunction": {
             "type": "string",
           },
-          "roleUpdateTrigger": {
+          "roleTriggerFunction": {
             "type": "string",
           },
-          "roleUpdateTriggerFunction": {
+          "roleUpdateTrigger": {
             "type": "string",
           },
           "schema": {
@@ -2170,17 +2186,13 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "resourceFkey",
           "roleId",
           "roleFkey",
-          "resourceInsertTriggerFunction",
+          "resourceTriggerFunction",
           "resourceInsertTrigger",
-          "resourceUpdateTriggerFunction",
           "resourceUpdateTrigger",
-          "resourceDeleteTriggerFunction",
           "resourceDeleteTrigger",
-          "roleInsertTriggerFunction",
+          "roleTriggerFunction",
           "roleInsertTrigger",
-          "roleUpdateTriggerFunction",
           "roleUpdateTrigger",
-          "roleDeleteTriggerFunction",
           "roleDeleteTrigger",
           "resourceParentFunction",
           "roleParentFunction",
@@ -2759,16 +2771,25 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "node": {
               "type": "string",
             },
+            "nodeDeleteFunction": {
+              "type": "string",
+            },
             "nodeDeleteTrigger": {
               "type": "string",
             },
             "nodeDeleteTriggerFunction": {
               "type": "string",
             },
+            "nodeInsertFunction": {
+              "type": "string",
+            },
             "nodeInsertTrigger": {
               "type": "string",
             },
             "nodeInsertTriggerFunction": {
+              "type": "string",
+            },
+            "nodeUpdateFunction": {
               "type": "string",
             },
             "nodeUpdateTrigger": {
@@ -2815,6 +2836,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgeGuardUpdateTrigger",
             "edgeGuardDeleteTrigger",
             "parentValidateFunction",
+            "nodeInsertFunction",
+            "nodeUpdateFunction",
+            "nodeDeleteFunction",
             "parentFkey",
             "childFkey",
             "edgeParentIdIndex",
@@ -2950,16 +2974,25 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "node": {
               "type": "string",
             },
+            "nodeDeleteFunction": {
+              "type": "string",
+            },
             "nodeDeleteTrigger": {
               "type": "string",
             },
             "nodeDeleteTriggerFunction": {
               "type": "string",
             },
+            "nodeInsertFunction": {
+              "type": "string",
+            },
             "nodeInsertTrigger": {
               "type": "string",
             },
             "nodeInsertTriggerFunction": {
+              "type": "string",
+            },
+            "nodeUpdateFunction": {
               "type": "string",
             },
             "nodeUpdateTrigger": {
@@ -3006,6 +3039,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgeGuardUpdateTrigger",
             "edgeGuardDeleteTrigger",
             "parentValidateFunction",
+            "nodeInsertFunction",
+            "nodeUpdateFunction",
+            "nodeDeleteFunction",
             "parentFkey",
             "childFkey",
             "edgeParentIdIndex",
@@ -3088,9 +3124,6 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "resourceDeleteTrigger": {
                 "type": "string",
               },
-              "resourceDeleteTriggerFunction": {
-                "type": "string",
-              },
               "resourceFkey": {
                 "type": "string",
               },
@@ -3100,22 +3133,16 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "resourceInsertTrigger": {
                 "type": "string",
               },
-              "resourceInsertTriggerFunction": {
+              "resourceParentFunction": {
                 "type": "string",
               },
-              "resourceParentFunction": {
+              "resourceTriggerFunction": {
                 "type": "string",
               },
               "resourceUpdateTrigger": {
                 "type": "string",
               },
-              "resourceUpdateTriggerFunction": {
-                "type": "string",
-              },
               "roleDeleteTrigger": {
-                "type": "string",
-              },
-              "roleDeleteTriggerFunction": {
                 "type": "string",
               },
               "roleFkey": {
@@ -3127,16 +3154,13 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "roleInsertTrigger": {
                 "type": "string",
               },
-              "roleInsertTriggerFunction": {
-                "type": "string",
-              },
               "roleParentFunction": {
                 "type": "string",
               },
-              "roleUpdateTrigger": {
+              "roleTriggerFunction": {
                 "type": "string",
               },
-              "roleUpdateTriggerFunction": {
+              "roleUpdateTrigger": {
                 "type": "string",
               },
               "schema": {
@@ -3150,17 +3174,13 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "resourceFkey",
               "roleId",
               "roleFkey",
-              "resourceInsertTriggerFunction",
+              "resourceTriggerFunction",
               "resourceInsertTrigger",
-              "resourceUpdateTriggerFunction",
               "resourceUpdateTrigger",
-              "resourceDeleteTriggerFunction",
               "resourceDeleteTrigger",
-              "roleInsertTriggerFunction",
+              "roleTriggerFunction",
               "roleInsertTrigger",
-              "roleUpdateTriggerFunction",
               "roleUpdateTrigger",
-              "roleDeleteTriggerFunction",
               "roleDeleteTrigger",
               "resourceParentFunction",
               "roleParentFunction",
@@ -3674,16 +3694,25 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "node": {
                   "type": "string",
                 },
+                "nodeDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeDeleteTrigger": {
                   "type": "string",
                 },
                 "nodeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "nodeInsertFunction": {
+                  "type": "string",
+                },
                 "nodeInsertTrigger": {
                   "type": "string",
                 },
                 "nodeInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "nodeUpdateFunction": {
                   "type": "string",
                 },
                 "nodeUpdateTrigger": {
@@ -3730,6 +3759,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgeGuardUpdateTrigger",
                 "edgeGuardDeleteTrigger",
                 "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -3865,16 +3897,25 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "node": {
                   "type": "string",
                 },
+                "nodeDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeDeleteTrigger": {
                   "type": "string",
                 },
                 "nodeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "nodeInsertFunction": {
+                  "type": "string",
+                },
                 "nodeInsertTrigger": {
                   "type": "string",
                 },
                 "nodeInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "nodeUpdateFunction": {
                   "type": "string",
                 },
                 "nodeUpdateTrigger": {
@@ -3921,6 +3962,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgeGuardUpdateTrigger",
                 "edgeGuardDeleteTrigger",
                 "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -4003,9 +4047,6 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "resourceDeleteTrigger": {
                     "type": "string",
                   },
-                  "resourceDeleteTriggerFunction": {
-                    "type": "string",
-                  },
                   "resourceFkey": {
                     "type": "string",
                   },
@@ -4015,22 +4056,16 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "resourceInsertTrigger": {
                     "type": "string",
                   },
-                  "resourceInsertTriggerFunction": {
+                  "resourceParentFunction": {
                     "type": "string",
                   },
-                  "resourceParentFunction": {
+                  "resourceTriggerFunction": {
                     "type": "string",
                   },
                   "resourceUpdateTrigger": {
                     "type": "string",
                   },
-                  "resourceUpdateTriggerFunction": {
-                    "type": "string",
-                  },
                   "roleDeleteTrigger": {
-                    "type": "string",
-                  },
-                  "roleDeleteTriggerFunction": {
                     "type": "string",
                   },
                   "roleFkey": {
@@ -4042,16 +4077,13 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "roleInsertTrigger": {
                     "type": "string",
                   },
-                  "roleInsertTriggerFunction": {
-                    "type": "string",
-                  },
                   "roleParentFunction": {
                     "type": "string",
                   },
-                  "roleUpdateTrigger": {
+                  "roleTriggerFunction": {
                     "type": "string",
                   },
-                  "roleUpdateTriggerFunction": {
+                  "roleUpdateTrigger": {
                     "type": "string",
                   },
                   "schema": {
@@ -4065,17 +4097,13 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "resourceFkey",
                   "roleId",
                   "roleFkey",
-                  "resourceInsertTriggerFunction",
+                  "resourceTriggerFunction",
                   "resourceInsertTrigger",
-                  "resourceUpdateTriggerFunction",
                   "resourceUpdateTrigger",
-                  "resourceDeleteTriggerFunction",
                   "resourceDeleteTrigger",
-                  "roleInsertTriggerFunction",
+                  "roleTriggerFunction",
                   "roleInsertTrigger",
-                  "roleUpdateTriggerFunction",
                   "roleUpdateTrigger",
-                  "roleDeleteTriggerFunction",
                   "roleDeleteTrigger",
                   "resourceParentFunction",
                   "roleParentFunction",
@@ -4694,16 +4722,25 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "node": {
                   "type": "string",
                 },
+                "nodeDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeDeleteTrigger": {
                   "type": "string",
                 },
                 "nodeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "nodeInsertFunction": {
+                  "type": "string",
+                },
                 "nodeInsertTrigger": {
                   "type": "string",
                 },
                 "nodeInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "nodeUpdateFunction": {
                   "type": "string",
                 },
                 "nodeUpdateTrigger": {
@@ -4750,6 +4787,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgeGuardUpdateTrigger",
                 "edgeGuardDeleteTrigger",
                 "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -4885,16 +4925,25 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "node": {
                   "type": "string",
                 },
+                "nodeDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeDeleteTrigger": {
                   "type": "string",
                 },
                 "nodeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "nodeInsertFunction": {
+                  "type": "string",
+                },
                 "nodeInsertTrigger": {
                   "type": "string",
                 },
                 "nodeInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "nodeUpdateFunction": {
                   "type": "string",
                 },
                 "nodeUpdateTrigger": {
@@ -4941,6 +4990,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgeGuardUpdateTrigger",
                 "edgeGuardDeleteTrigger",
                 "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -5023,9 +5075,6 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "resourceDeleteTrigger": {
                     "type": "string",
                   },
-                  "resourceDeleteTriggerFunction": {
-                    "type": "string",
-                  },
                   "resourceFkey": {
                     "type": "string",
                   },
@@ -5035,22 +5084,16 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "resourceInsertTrigger": {
                     "type": "string",
                   },
-                  "resourceInsertTriggerFunction": {
+                  "resourceParentFunction": {
                     "type": "string",
                   },
-                  "resourceParentFunction": {
+                  "resourceTriggerFunction": {
                     "type": "string",
                   },
                   "resourceUpdateTrigger": {
                     "type": "string",
                   },
-                  "resourceUpdateTriggerFunction": {
-                    "type": "string",
-                  },
                   "roleDeleteTrigger": {
-                    "type": "string",
-                  },
-                  "roleDeleteTriggerFunction": {
                     "type": "string",
                   },
                   "roleFkey": {
@@ -5062,16 +5105,13 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "roleInsertTrigger": {
                     "type": "string",
                   },
-                  "roleInsertTriggerFunction": {
-                    "type": "string",
-                  },
                   "roleParentFunction": {
                     "type": "string",
                   },
-                  "roleUpdateTrigger": {
+                  "roleTriggerFunction": {
                     "type": "string",
                   },
-                  "roleUpdateTriggerFunction": {
+                  "roleUpdateTrigger": {
                     "type": "string",
                   },
                   "schema": {
@@ -5085,17 +5125,13 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "resourceFkey",
                   "roleId",
                   "roleFkey",
-                  "resourceInsertTriggerFunction",
+                  "resourceTriggerFunction",
                   "resourceInsertTrigger",
-                  "resourceUpdateTriggerFunction",
                   "resourceUpdateTrigger",
-                  "resourceDeleteTriggerFunction",
                   "resourceDeleteTrigger",
-                  "roleInsertTriggerFunction",
+                  "roleTriggerFunction",
                   "roleInsertTrigger",
-                  "roleUpdateTriggerFunction",
                   "roleUpdateTrigger",
-                  "roleDeleteTriggerFunction",
                   "roleDeleteTrigger",
                   "resourceParentFunction",
                   "roleParentFunction",

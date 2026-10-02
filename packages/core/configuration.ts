@@ -146,6 +146,9 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     edgeGuardUpdateTrigger: `05_${prefix}${name}_${edge}_${guard}_${update}_${trigger}`,
     edgeGuardDeleteTrigger: `05_${prefix}${name}_${edge}_${guard}_${deletez}_${trigger}`,
     parentValidateFunction: `${prefix}${name}_${parent}_${validate}`,
+    nodeInsertFunction: `${prefix}${name}_${node}_${insert}`,
+    nodeUpdateFunction: `${prefix}${name}_${node}_${update}`,
+    nodeDeleteFunction: `${prefix}${name}_${node}_${deletez}`,
     parentFkey: `${prefix}${name}_${edge}_${parent}_${fkey}`,
     childFkey: `${prefix}${name}_${edge}_${child}_${fkey}`,
     edgeParentIdIndex: `${prefix}${name}_${edge}_${parent}_${id}_${index}`,
@@ -268,14 +271,14 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
     parent,
   } = generalNamingConfig;
 
-  const triggerNames = (kind: string, table: string) => Object.fromEntries((["insert", "update", "delete"] as const).flatMap(event => {
-    const word = { insert, update, delete: deletez }[event];
-    const key = `${kind}${event[0]!.toUpperCase()}${event.slice(1)}Trigger`;
-    return [
-      [`${key}Function`, `${prefix}${table}_${kind}_${word}_${trigger}_${functionz}`],
-      [key, `10_${prefix}${table}_${kind}_${word}_${trigger}`],
-    ];
-  }));
+  // One trigger function per table and tree, attached by one trigger per event
+  const triggerNames = (kind: string, table: string) => Object.fromEntries([
+    [`${kind}TriggerFunction`, `${prefix}${table}_${kind}_${trigger}_${functionz}`],
+    ...(["insert", "update", "delete"] as const).map(event => {
+      const word = { insert, update, delete: deletez }[event];
+      return [`${kind}${event[0]!.toUpperCase()}${event.slice(1)}Trigger`, `10_${prefix}${table}_${kind}_${word}_${trigger}`];
+    }),
+  ]);
 
   return {
     tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, roleParent, ...customNames }) => {
