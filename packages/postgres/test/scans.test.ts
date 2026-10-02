@@ -11,6 +11,11 @@ const ROLES = 4681;
 const LEAF = RESOURCES;
 const OTHER_PARENT = 585 - 3;
 
+// A flat graph: a root holding three groups and all the posts. The statistics then say a lookup of edges by parent
+// returns the whole table, whatever the parent.
+const FLAT_POSTS = 20000;
+const MAX_ROWS_READ = 100;
+
 const graphTables = ["resource_group", "resource_edge", "resource_edge_cache", "role_group", "role_edge", "role_edge_cache", "assignment_edge", "assignment_edge_cache"];
 
 // A write near the leaves must only touch the rows it changes. A sequential scan of a graph or cache table makes it
@@ -21,9 +26,9 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
   afterEach(teardown);
 
   // Edges and assignments are written by the graph writer, rows of bound tables by their owner
-  const seqScans = async (statement: SQL, asWriter: boolean) => {
+  const tableStats = (column: SQL) => async (statement: SQL, asWriter: boolean) => {
     // pg_stat_xact_user_tables counts the scans of the current transaction, so this is exact and needs no flush
-    const count = sql`select relname::text as "table", seq_scan::int as "n" from pg_stat_xact_user_tables where relname in (${join(graphTables.map(table => literal(table)), ", ")})`;
+    const count = sql`select relname::text as "table", (${column})::int as "n" from pg_stat_xact_user_tables where relname in (${join(graphTables.map(table => literal(table)), ", ")})`;
     const results = await context.runTestQuery(sql`
       begin;
       ${asWriter ? sql`set local role ${identifier(context.database_writer_username)}` : sql`select 1`};
@@ -33,28 +38,37 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
       rollback;`);
     const counts = (rows: Array<{ table: string, n: number }>) => new Map(rows.map(({ table, n }) => [table, n]));
     const [before, after] = [counts(results[2]), counts(results.at(-2))];
-    return Object.fromEntries([...after].map(([table, n]) => [table, n - (before.get(table) ?? 0)]).filter(([, n]) => n !== 0));
+    return Object.fromEntries([...after].map(([table, n]) => [table, n - (before.get(table) ?? 0)] as const).filter(([, n]) => n !== 0));
+  };
+  const seqScans = tableStats(sql`seq_scan`);
+  const rowsRead = tableStats(sql`coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0)`);
+
+  const load = async (combineAssignmentsWith: typeof combineModes[number], rows: SQL) => {
+    await setupBlog(context, { combineAssignmentsWith });
+    await context.exec(sql`
+      select resource_trigger_disable();
+      select role_trigger_disable();
+      ${rows}
+      select resource_trigger_enable();
+      select role_trigger_enable();
+      analyze;
+    `);
+    if (combineAssignmentsWith !== "none") {
+      await context.exec(sql`select assignment_trigger_enable(); analyze;`);
+    }
   };
 
   const parentOf = (n: number) => Math.floor((n - 2) / FAN_OUT) + 1;
   const tree = (table: string, size: number) => sql`
     insert into ${identifier(table)} ("id", "parent_id")
     select s, case when s = 1 then null else (s - 2) / ${raw(String(FAN_OUT))} + 1 end from generate_series(1, ${raw(String(size))}) as s;`;
-  const loadGraph = async () => {
-    await context.exec(sql`
-      select resource_trigger_disable();
-      select role_trigger_disable();
-      ${tree("resource_group", RESOURCES)}
-      ${tree("role_group", ROLES)}
-      insert into "blog_post" ("group_id", "name") values (${raw(String(LEAF))}, 'post');
-      insert into "assignment_edge" ("resource_id", "role_id", "permission")
-      select (s * 37) % ${raw(String(RESOURCES))} + 1, s % ${raw(String(ROLES))} + 1, ${bits("1011")} from generate_series(1, 10000) as s
-      on conflict do nothing;
-      select resource_trigger_enable();
-      select role_trigger_enable();
-      analyze;
-    `);
-  };
+  const deepGraph = sql`
+    ${tree("resource_group", RESOURCES)}
+    ${tree("role_group", ROLES)}
+    insert into "blog_post" ("group_id", "name") values (${raw(String(LEAF))}, 'post');
+    insert into "assignment_edge" ("resource_id", "role_id", "permission")
+    select (s * 37) % ${raw(String(RESOURCES))} + 1, s % ${raw(String(ROLES))} + 1, ${bits("1011")} from generate_series(1, 10000) as s
+    on conflict do nothing;`;
 
   const leaf = raw(String(LEAF));
   const leafWrites: Array<[string, SQL, boolean]> = [
@@ -73,19 +87,43 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["move a leaf role", sql`update "role_group" set "parent_id" = ${raw(String(parentOf(ROLES) - 1))} where "id" = ${raw(String(ROLES))}`, false],
   ];
 
+  const flatGraph = sql`
+    insert into "resource_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1), (4, 1);
+    insert into "role_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1);
+    insert into "blog_post" ("group_id", "name") select 1, 'post' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
+    insert into "assignment_edge" ("resource_id", "role_id", "permission") values (1, 1, ${bits("1011")}), (2, 2, ${bits("1111")}), (3, 3, ${bits("0011")});`;
+  const aPostOf = (group: number) => sql`(select "id" from "blog_post" where "group_id" = ${raw(String(group))} limit 1)`;
+  const flatWrites = (postOfRoot: number): Array<[string, SQL, boolean]> => [
+    ["add a post to the root", sql`insert into "blog_post" ("group_id", "name") values (1, 'new')`, false],
+    ["add a post to a group", sql`insert into "blog_post" ("group_id", "name") values (4, 'new')`, false],
+    ["add a group", sql`insert into "resource_group" ("id", "parent_id") values (5, 1)`, false],
+    ["move a post to a group", sql`update "blog_post" set "group_id" = 4 where "id" = ${aPostOf(1)}`, false],
+    ["move a group", sql`update "resource_group" set "parent_id" = 2 where "id" = 4`, false],
+    ["delete a post", sql`delete from "blog_post" where "id" = ${aPostOf(1)}`, false],
+    ["link a post to a group", sql`insert into "resource_edge" values (4, ${raw(String(postOfRoot))}, ${bits("1111")})`, true],
+  ];
+
   for (const combineAssignmentsWith of combineModes) {
     test(`combineAssignmentsWith ${combineAssignmentsWith}`, async () => {
-      await setupBlog(context, { combineAssignmentsWith });
-      await loadGraph();
-      if (combineAssignmentsWith !== "none") {
-        await context.exec(sql`select assignment_trigger_enable(); analyze;`);
-      }
+      await load(combineAssignmentsWith, deepGraph);
       const scans: Record<string, Record<string, number>> = {};
       for (const [name, statement, asWriter] of leafWrites) {
         const tables = await seqScans(statement, asWriter);
         if (Object.keys(tables).length > 0) scans[name] = tables;
       }
       expect(scans).toEqual({});
+    }, { timeout: 60000 });
+
+    // Neither a sequential scan nor an index whose key matches most of the rows
+    test(`in a flat graph, combineAssignmentsWith ${combineAssignmentsWith}`, async () => {
+      await load(combineAssignmentsWith, flatGraph);
+      const [[{ id }]] = await context.exec(sql`select "child_id" as "id" from "resource_edge" where "parent_id" = 1 and "child_id" > 4 limit 1`);
+      const reads: Record<string, Record<string, number>> = {};
+      for (const [name, statement, asWriter] of flatWrites(id)) {
+        const tables = Object.fromEntries(Object.entries(await rowsRead(statement, asWriter)).filter(([, n]) => n > MAX_ROWS_READ));
+        if (Object.keys(tables).length > 0) reads[name] = tables;
+      }
+      expect(reads).toEqual({});
     }, { timeout: 60000 });
   }
 });

@@ -392,6 +392,11 @@ create table if not exists ${edge} (
 
 alter table ${edge} add column if not exists ${home} boolean not null default false;
 
+-- The triggers look up the children of nodes that mostly have none. Postgres estimates such a lookup as the edges per
+-- distinct parent, so when a few nodes hold most of the rows, it would scan the whole table for a node without
+-- children. Count every node instead: a node has about one child on average.
+alter table ${edge} alter column ${parentId} set (n_distinct = -1);
+
 create index if not exists ${edgeParentIdIndex} on ${edge} (${parentId});
 
 create index if not exists ${edgeChildIdIndex} on ${edge} (${childId});

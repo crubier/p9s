@@ -152,6 +152,11 @@ test('Default Migration', () => {
 
     alter table "resource_edge" add column if not exists "home" boolean not null default false;
 
+    -- The triggers look up the children of nodes that mostly have none. Postgres estimates such a lookup as the edges per
+    -- distinct parent, so when a few nodes hold most of the rows, it would scan the whole table for a node without
+    -- children. Count every node instead: a node has about one child on average.
+    alter table "resource_edge" alter column "parent_id" set (n_distinct = -1);
+
     create index if not exists "resource_edge_parent_id_index" on "resource_edge" ("parent_id");
 
     create index if not exists "resource_edge_child_id_index" on "resource_edge" ("child_id");
@@ -272,6 +277,11 @@ test('Default Migration', () => {
     );
 
     alter table "role_edge" add column if not exists "home" boolean not null default false;
+
+    -- The triggers look up the children of nodes that mostly have none. Postgres estimates such a lookup as the edges per
+    -- distinct parent, so when a few nodes hold most of the rows, it would scan the whole table for a node without
+    -- children. Count every node instead: a node has about one child on average.
+    alter table "role_edge" alter column "parent_id" set (n_distinct = -1);
 
     create index if not exists "role_edge_parent_id_index" on "role_edge" ("parent_id");
 
