@@ -30,7 +30,7 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
 
   test('inserting both halves of a path at once still caches the whole path', async () => {
     await setupBlog(context);
-    await context.exec(sql`insert into "resource_node" ("id") select generate_series(1, ${raw(String(ROUNDS * 3))})`);
+    await context.exec(sql`insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 3))})`);
     for (let i = 0; i < ROUNDS; i++) {
       const [x, y, z] = [3 * i + 1, 3 * i + 2, 3 * i + 3];
       await race(
@@ -44,7 +44,7 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
 
   test('deleting the top of a path while extending its bottom leaves no stale path', async () => {
     await setupBlog(context);
-    await context.exec(sql`insert into "resource_node" ("id") select generate_series(1, ${raw(String(ROUNDS * 3))})`);
+    await context.exec(sql`insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 3))})`);
     await context.exec(sql`insert into "resource_edge" select 3 * i + 1, 3 * i + 2, b'1111' from generate_series(0, ${raw(String(ROUNDS - 1))}) as i`);
     for (let i = 0; i < ROUNDS; i++) {
       const [x, y, z] = [3 * i + 1, 3 * i + 2, 3 * i + 3];
@@ -57,11 +57,27 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
     expect(await count(sql`select count(*)::int as "n" from "resource_edge_cache" where "child_id" = "parent_id" + 2`)).toBe(0);
   });
 
+  test('creating a row under a group while the group gains a parent caches the whole path', async () => {
+    await setupBlog(context);
+    await context.exec(sql`insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 2))})`);
+    for (let i = 0; i < ROUNDS; i++) {
+      const [x, y] = [2 * i + 1, 2 * i + 2];
+      await Promise.all([
+        writerTransaction(clients[0]!, `insert into "resource_edge" values (${x}, ${y}, b'1111')`),
+        clients[1]!.query(`begin; insert into "blog_post" ("group_id", "name") values (${y}, 'post'); select pg_sleep(0.02); commit;`),
+      ]);
+    }
+    expect(await cacheMismatches(context, "none")).toEqual(noMismatches);
+    expect(await count(sql`
+      select count(*)::int as "n" from "resource_edge_cache" join "blog_post" on "child_id" = "resource_id"
+      where "parent_id" = "group_id" - 1`)).toBe(ROUNDS);
+  });
+
   test('assigning a group while adding a member to it gives the member access', async () => {
     await setupBlog(context, { combineAssignmentsWith: "role" });
     await context.exec(sql`
-      insert into "resource_node" ("id") select generate_series(1, ${raw(String(ROUNDS))});
-      insert into "role_node" ("id") select generate_series(1, ${raw(String(ROUNDS * 2))});
+      insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS))});
+      insert into "role_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 2))});
     `);
     for (let i = 0; i < ROUNDS; i++) {
       const [resource, group, member] = [i + 1, 2 * i + 1, 2 * i + 2];

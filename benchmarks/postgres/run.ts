@@ -20,6 +20,9 @@ Usage: bun run.ts [options]
   --reps <n>              Timed repetitions per read and write scenario (default: 30)
   --warmup <n>            Untimed repetitions before each scenario (default: 3)
   --no-baseline           Skip the no-cache baseline reads
+  --concurrency <n>       Connections in the concurrent scenarios, 0 to skip them (default: 4, pg only)
+  --concurrency-seconds <s>
+                          Duration of each concurrent scenario (default: 3)
   --out <dir>             Where to write the JSON results (default: ./results)
 `;
 
@@ -33,6 +36,8 @@ const { values: args } = parseArgs({
     reps: { type: 'string', default: '30' },
     warmup: { type: 'string', default: '3' },
     'no-baseline': { type: 'boolean', default: false },
+    concurrency: { type: 'string', default: '4' },
+    'concurrency-seconds': { type: 'string', default: '3' },
     out: { type: 'string', default: path.join(import.meta.dir, 'results') },
     help: { type: 'boolean', default: false },
   },
@@ -50,6 +55,8 @@ const combines = list(args.combine!) as CombineMode[];
 const reps = Number(args.reps);
 const warmup = Number(args.warmup);
 const db = args.db as 'pg' | 'pglite';
+const concurrency = db === 'pg' ? Number(args.concurrency) : 0;
+const concurrencySeconds = Number(args['concurrency-seconds']);
 
 const composeDir = import.meta.dir;
 const composeUrl = 'postgresql://postgres:postgres@localhost:54321/postgres';
@@ -100,6 +107,8 @@ try {
             reps,
             warmup,
             baseline: !args['no-baseline'],
+            concurrency,
+            concurrencySeconds,
           });
           runs.push(result);
           console.log(`  loaded ${result.dataset.resourceNodes} resources, ${result.dataset.roleNodes} roles in ${result.load.insert.toFixed(1)}s`);
@@ -124,7 +133,7 @@ console.table(Object.fromEntries(runs.map(run => [label(run), {
   resources: run.dataset.resourceNodes,
   roles: run.dataset.roleNodes,
   assignments: run.dataset.assignmentPairs,
-  'nodes+edges': (run.load.resourceNode + run.load.resourceEdge + run.load.roleNode + run.load.roleEdge).toFixed(2),
+  'rows+edges': (run.load.resourceRows + run.load.resourceEdge + run.load.roleRows + run.load.roleEdge).toFixed(2),
   assignments_s: run.load.assignmentEdge.toFixed(2),
   'cache backfill': run.load.enableTriggers.toFixed(2),
 }])));
@@ -148,6 +157,17 @@ scenarioTable(run => run.reads.map(({ name, policy, stats }) => ({ key: `${polic
 console.log('\nIncremental writes with triggers on, p50 / p95 ms');
 scenarioTable(run => run.writes.map(({ name, stats }) => ({ key: name, p50: stats.p50, p95: stats.p95 })));
 
+if (runs.some(run => run.concurrency.length > 0)) {
+  console.log(`\nConcurrent transactions over ${concurrency} connections, per second / p50 / p99 ms`);
+  const rows: Record<string, Record<string, string>> = {};
+  for (const run of runs) {
+    for (const { name, throughput, errors, stats } of run.concurrency) {
+      (rows[name] ??= {})[label(run)] = `${throughput.toFixed(0)} / ${ms(stats.p50)} / ${ms(stats.p99)}${errors > 0 ? ` (${errors} errors)` : ''}`;
+    }
+  }
+  console.table(rows);
+}
+
 const git = await gitInfo();
 const output = {
   createdAt: new Date().toISOString(),
@@ -160,7 +180,7 @@ const output = {
     memoryGb: Math.round(os.totalmem() / 1024 ** 3),
     bun: Bun.version,
   },
-  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'] },
+  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'], concurrency, concurrencySeconds },
   runs,
 };
 

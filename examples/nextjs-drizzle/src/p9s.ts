@@ -14,13 +14,14 @@ export const p9sConfig = generateConfigurationFromDrizzleSchema(schema, {
     session: { isResource: false },
     account: { isResource: false, isRole: false },
     verification: { isResource: false },
-    // `folder.parent_id` is not mirrored into `resource_edge`: the app inserts or moves the edge when it moves a folder
-    folder: { resourceId: "resource_id", permission: { app_user: bits } },
-    image: { resourceId: "resource_id", permission: { app_user: bits } },
-    text_content: { resourceId: "resource_id", permission: { app_user: bits } },
+    // Each row inherits the permissions of its folder. p9s keeps the edge from the folder in sync with these columns,
+    // so creating or moving a row is a plain insert or update. A row without folder is only reachable through shares
+    folder: { resourceId: "resource_id", resourceParent: { column: "parent_id", table: "folder", key: "id" }, permission: { app_user: bits } },
+    image: { resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" }, permission: { app_user: bits } },
+    text_content: { resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" }, permission: { app_user: bits } },
   },
   engine: {
-    // Backend role allowed to share folders and move things around, app_user can only read the permission graph
+    // Backend role allowed to share folders, app_user can only read the permission graph
     graphWriters: ["app_backend"],
     authentication: { getCurrentUserId: "current_role_id" },
     id: { mode: "uuid" },

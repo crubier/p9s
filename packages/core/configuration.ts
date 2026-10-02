@@ -8,6 +8,7 @@ import type {
   TableConfig as TableConfigBase,
   EngineConfig as EngineConfigBase,
   MigrationConfig,
+  ParentConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
 } from "./configuration-schema";
@@ -21,6 +22,7 @@ export type {
   DerivedNamingConfig,
   DerivedResourceOrRoleNamingConfig,
   MigrationConfig,
+  ParentConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
 };
@@ -87,7 +89,12 @@ export const defaultBaseNamingConfig = {
   delete: "delete",
   recursive: "recursive",
   enable: "enable",
-  disable: "disable"
+  disable: "disable",
+  home: "home",
+  sequence: "seq",
+  guard: "guard",
+  validate: "validate",
+  truncate: "truncate",
 };
 
 export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resourceOrRole: "resource" | "role", config: CompleteConfig<User>) => {
@@ -114,7 +121,11 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     update,
     delete: deletez,
     enable,
-    disable
+    disable,
+    home,
+    sequence,
+    guard,
+    validate,
   } = config.engine.naming;
 
   const { name } = config.engine.naming[resourceOrRole] as { name: string };
@@ -122,12 +133,22 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
   return deepMerge({
     node: `${prefix}${name}_${node}`,
     id: `${id}`,
+    idSequence: `${prefix}${name}_${id}_${sequence}`,
     pkey: `${prefix}${name}_${pkey}`,
     edge: `${prefix}${name}_${edge}`,
     parentId: `${parent}_${id}`,
     childId: `${child}_${id}`,
     permission: `${permission}`,
+    home: `${home}`,
     edgePkey: `${prefix}${name}_${edge}_${pkey}`,
+    edgeGuardTriggerFunction: `${prefix}${name}_${edge}_${guard}_${trigger}_${functionz}`,
+    edgeGuardInsertTrigger: `05_${prefix}${name}_${edge}_${guard}_${insert}_${trigger}`,
+    edgeGuardUpdateTrigger: `05_${prefix}${name}_${edge}_${guard}_${update}_${trigger}`,
+    edgeGuardDeleteTrigger: `05_${prefix}${name}_${edge}_${guard}_${deletez}_${trigger}`,
+    parentValidateFunction: `${prefix}${name}_${parent}_${validate}`,
+    nodeInsertFunction: `${prefix}${name}_${node}_${insert}`,
+    nodeUpdateFunction: `${prefix}${name}_${node}_${update}`,
+    nodeDeleteFunction: `${prefix}${name}_${node}_${deletez}`,
     parentFkey: `${prefix}${name}_${edge}_${parent}_${fkey}`,
     childFkey: `${prefix}${name}_${edge}_${child}_${fkey}`,
     edgeParentIdIndex: `${prefix}${name}_${edge}_${parent}_${id}_${index}`,
@@ -171,7 +192,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     pkey,
     fkey,
     insert, update, delete: deletez, trigger, function: functionz, cache,
-    view, backfill, enable, disable, parent, child, id, compute
+    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard
   } = deepMerge(defaultBaseNamingConfig, config.engine.naming);
 
   const size = config.engine.permission.bitmap.size;
@@ -207,6 +228,9 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       edgeUpdateTrigger: `10_${prefix}${assignment.name}_${edge}_${update}_${trigger}`,
       edgeDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${deletez}_${trigger}_${functionz}`,
       edgeDeleteTrigger: `10_${prefix}${assignment.name}_${edge}_${deletez}_${trigger}`,
+      edgeValidateTriggerFunction: `${prefix}${assignment.name}_${edge}_${validate}_${trigger}_${functionz}`,
+      edgeValidateInsertTrigger: `05_${prefix}${assignment.name}_${edge}_${validate}_${insert}_${trigger}`,
+      edgeValidateUpdateTrigger: `05_${prefix}${assignment.name}_${edge}_${validate}_${update}_${trigger}`,
       combinedEdgeInsertTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${insert}_${trigger}_${functionz}`,
       combinedEdgeInsertTrigger: `20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${insert}_${trigger}`,
       combinedEdgeUpdateTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${update}_${trigger}_${functionz}`,
@@ -218,6 +242,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     },
     schema: `${config.engine.schema}`,
     orBitmap: `${prefix}or_bitmap_${size}`,
+    truncateGuardFunction: `${prefix}${truncate}_${guard}_${trigger}_${functionz}`,
+    truncateGuardTrigger: `05_${prefix}${truncate}_${guard}_${trigger}`,
   }
 }
 
@@ -240,10 +266,22 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
     insert,
     update,
     delete: deletez,
+    trigger,
+    function: functionz,
+    parent,
   } = generalNamingConfig;
 
+  // One trigger function per table and tree, attached by one trigger per event
+  const triggerNames = (kind: string, table: string) => Object.fromEntries([
+    [`${kind}TriggerFunction`, `${prefix}${table}_${kind}_${trigger}_${functionz}`],
+    ...(["insert", "update", "delete"] as const).map(event => {
+      const word = { insert, update, delete: deletez }[event];
+      return [`${kind}${event[0]!.toUpperCase()}${event.slice(1)}Trigger`, `10_${prefix}${table}_${kind}_${word}_${trigger}`];
+    }),
+  ]);
+
   return {
-    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, ...customNames }) => {
+    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, roleParent, ...customNames }) => {
 
       const result = {
         schema: `${tableSchema ?? schema}`,
@@ -252,6 +290,10 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
         resourceFkey: `${prefix}${resourceName}_${name}_${fkey}`,
         roleId: `${prefix}${roleName}_${roleId}`,
         roleFkey: `${prefix}${roleName}_${name}_${fkey}`,
+        ...triggerNames(resourceName, name),
+        ...triggerNames(roleName, name),
+        resourceParentFunction: `${prefix}${name}_${resourceName}_${parent}`,
+        roleParentFunction: `${prefix}${name}_${roleName}_${parent}`,
         permission: Object.fromEntries(Object.entries(permission ?? {}).map(([user, value]) => {
           return [user, {
             select: `${prefix}${name}_${user}_${select}_${policy}`,

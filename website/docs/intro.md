@@ -28,6 +28,8 @@ Roles represent entities that can access resources. They are also nodes in a tre
 
 Both trees are actually directed acyclic graphs (DAGs), since each node can have multiple parents (e.g., symlinks, shared folders). The system performs best when the DAG resembles a tree structure.
 
+The nodes are the rows of your own tables, there is no separate node table. When a table has a column naming each row's parent, such as `folder_id`, p9s keeps the edge from that parent in sync with it, so creating, moving or deleting a row is a plain `insert`, `update` or `delete`. Extra edges share a node under more parents.
+
 ### Assignments
 
 Assignments link resources to roles, representing access grants (e.g., sharing a folder with a group).

@@ -19,8 +19,9 @@ const migration = compile(createMigration({
 
 test('uuid mode installs uuid-ossp and uses uuid ids everywhere', () => {
   expect(migration).toContain(`create extension if not exists "uuid-ossp";`);
-  expect(migration).toContain(`"id" uuid unique not null default uuid_generate_v4()`);
+  expect(migration).toContain(`alter table "public"."blog_post" alter column "resource_id" set default uuid_generate_v4();`);
   expect(migration).toContain(`"parent_id" uuid not null`);
+  expect(migration).not.toContain(`create sequence`);
   expect(migration).toContain(`array[]::uuid[]`);
   expect(migration).toContain(`alter table "public"."blog_post" add column if not exists "resource_id" uuid unique;`);
   expect(migration).not.toMatch(/\binteger\b|\bserial\b/);

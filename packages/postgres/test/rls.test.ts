@@ -26,9 +26,10 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
       await driver.createNodes();
       const id = (n: number) => nodeId(idMode, n);
       const user = context.database_user_username;
+      // Each group holds one post, which gets its permissions through its home edge
       const restorePost = (resource: number) => context.exec(sql`
-        insert into "blog_post" ("resource_id", "name") values (${id(resource)}, 'post')
-        on conflict ("resource_id") do nothing`);
+        delete from "blog_post" where "group_id" = ${id(resource)};
+        insert into "blog_post" ("group_id", "name") values (${id(resource)}, 'post')`);
       for (let resource = 1; resource <= RESOURCES; resource++) await restorePost(resource);
 
       const random = createRandom(7 + combineModes.indexOf(combineAssignmentsWith));
@@ -45,15 +46,15 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
       const count = (value: boolean) => { outcomes[value ? "allowed" : "denied"]++; return value; };
 
       for (let round = 0; round < 3; round++) {
-        for (let i = 0; i < 40; i++) await randomOperation(driver, random, { allowNodeReset: false });
+        for (let i = 0; i < 60; i++) await randomOperation(driver, random, { allowNodeReset: false });
         const model = createPermissionModel(driver.graph);
         const allowed = (role: number, resource: number, operation: keyof typeof OPERATION_BITS) =>
           model.allowed(role, resource, OPERATION_BITS[operation]);
 
         // select: every role sees exactly the resources it may select
         for (let role = 1; role <= ROLES; role++) {
-          const rows = await as(context, user, sql`select "resource_id" from "blog_post"`, id(role));
-          const visible = rows.map(row => fromNodeId(row.resource_id)).sort((a, b) => a - b);
+          const rows = await as(context, user, sql`select "group_id" from "blog_post"`, id(role));
+          const visible = rows.map(row => fromNodeId(row.group_id)).sort((a, b) => a - b);
           const expected = Array.from({ length: RESOURCES }, (_, i) => i + 1).filter(resource => count(allowed(role, resource, "select")));
           expect({ role, visible }).toEqual({ role, visible: expected });
         }
@@ -61,24 +62,37 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
         // update and delete need the select bit too, since their where clause reads the row
         for (let i = 0; i < 20; i++) {
           const role = random.int(1, ROLES), resource = random.int(1, RESOURCES);
-          const updated = await attempt(sql`update "blog_post" set "name" = 'updated' where "resource_id" = ${id(resource)} returning "resource_id"`, role);
+          const updated = await attempt(sql`update "blog_post" set "name" = 'updated' where "group_id" = ${id(resource)} returning "id"`, role);
           expect({ role, resource, updated: updated.rows.length })
             .toEqual({ role, resource, updated: count(allowed(role, resource, "select") && allowed(role, resource, "update")) ? 1 : 0 });
 
-          const deleted = await attempt(sql`delete from "blog_post" where "resource_id" = ${id(resource)} returning "resource_id"`, role);
+          const deleted = await attempt(sql`delete from "blog_post" where "group_id" = ${id(resource)} returning "id"`, role);
           expect({ role, resource, deleted: deleted.rows.length })
             .toEqual({ role, resource, deleted: count(allowed(role, resource, "select") && allowed(role, resource, "delete")) ? 1 : 0 });
           await restorePost(resource);
         }
 
-        // insert is checked against the new row only
+        // insert is checked against the parent of the new row
         for (let i = 0; i < 20; i++) {
           const role = random.int(1, ROLES), resource = random.int(1, RESOURCES);
-          await context.exec(sql`delete from "blog_post" where "resource_id" = ${id(resource)}`);
-          const inserted = await attempt(sql`insert into "blog_post" ("resource_id", "name") values (${id(resource)}, 'inserted')`, role);
+          await context.exec(sql`delete from "blog_post" where "group_id" = ${id(resource)}`);
+          const inserted = await attempt(sql`insert into "blog_post" ("group_id", "name") values (${id(resource)}, 'inserted')`, role);
           expect({ role, resource, inserted: inserted.ok }).toEqual({ role, resource, inserted: count(allowed(role, resource, "insert")) });
           if (!inserted.ok) expect(inserted.error).toContain("row-level security");
           await restorePost(resource);
+        }
+
+        // moving a post is updating it, and inserting it under its new parent
+        for (let i = 0; i < 20; i++) {
+          const role = random.int(1, ROLES), from = random.int(1, RESOURCES), to = random.int(1, RESOURCES);
+          if (from === to) continue;
+          const moved = await attempt(sql`update "blog_post" set "group_id" = ${id(to)} where "group_id" = ${id(from)} returning "id"`, role);
+          const visible = allowed(role, from, "select") && allowed(role, from, "update");
+          const expected = count(visible && allowed(role, to, "insert"));
+          expect({ role, from, to, moved: moved.ok && moved.rows.length === 1 }).toEqual({ role, from, to, moved: expected });
+          if (visible && !expected) expect(moved.error).toContain("row-level security");
+          await restorePost(from);
+          await restorePost(to);
         }
       }
       expect(outcomes.allowed).toBeGreaterThan(50);

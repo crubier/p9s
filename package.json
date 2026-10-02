@@ -11,6 +11,7 @@
     "test": "bun test packages benchmarks",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "bench": "bun benchmarks/postgres/run.ts",
+    "bench:compare": "bun benchmarks/postgres/compare.ts",
     "docs": "bun run --cwd website start"
   },
   "devDependencies": {
