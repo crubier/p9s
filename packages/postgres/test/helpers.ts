@@ -25,6 +25,7 @@ export interface BlogOptions {
   idMode?: IdMode;
 }
 
+// Groups are the nodes the graph tests wire together. Posts live in a resource group, through their group_id column.
 export const blogMigrationConfig = (ctx: TestContext, { combineAssignmentsWith = "none", idMode = "integer" }: BlogOptions = {}) => ({
   engine: {
     permission: { bitmap: { size: BITMAP_SIZE }, maxDepth: { resource: 32, role: 32 } },
@@ -35,28 +36,58 @@ export const blogMigrationConfig = (ctx: TestContext, { combineAssignmentsWith =
     graphWriters: [ctx.database_writer_username],
   },
   tables: [{
+    name: "resource_group",
+    isResource: true,
+    resourceId: "id",
+    resourceParent: { column: "parent_id" },
+  }, {
+    name: "role_group",
+    isRole: true,
+    roleId: "id",
+    roleParent: { column: "parent_id" },
+  }, {
     name: "blog_post",
     isResource: true,
     resourceId: "resource_id",
+    resourceParent: { column: "group_id" },
     permission: { [ctx.database_user_username]: { ...OPERATION_BITS } },
   }],
 });
 
-// A business table with RLS, the current role id function, and the p9s migration on top
-export const setupBlog = async (ctx: TestContext, options: BlogOptions = {}) => {
-  const idType = options.idMode === "uuid" ? sql`uuid` : sql`integer`;
+// Explicit group ids in tests stay below the ids p9s gives to new rows
+export const FIRST_GENERATED_ID = 1000000;
+
+export const setupBlogTables = async (ctx: TestContext, { idMode = "integer" }: BlogOptions = {}) => {
+  const idType = idMode === "uuid" ? sql`uuid` : sql`integer`;
   const user = identifier(ctx.database_user_username);
   await ctx.exec(sql`
     create extension if not exists "uuid-ossp";
-    create table "blog_post" ("id" serial primary key, "name" text not null default '');
+    create table "resource_group" ("id" ${idType} primary key, "parent_id" ${idType} references "resource_group" ("id") on delete set null);
+    create table "role_group" ("id" ${idType} primary key, "parent_id" ${idType} references "role_group" ("id") on delete set null);
+    create table "blog_post" ("id" serial primary key, "name" text not null default '', "group_id" ${idType} references "resource_group" ("id") on delete cascade);
+    create index on "resource_group" ("parent_id");
+    create index on "role_group" ("parent_id");
+    create index on "blog_post" ("group_id");
     grant select, insert, update, delete on table "blog_post" to ${user};
     grant usage on sequence "blog_post_id_seq" to ${user};
     create function "current_role_id"() returns ${idType} as $$
       select nullif(current_setting('jwt.claims.role_id', true), '')::${idType}
     $$ language sql stable;
   `);
-  await ctx.exec(createMigration(blogMigrationConfig(ctx, options)));
 };
+
+// Business tables with RLS, the current role id function, and the p9s migration on top
+export const setupBlog = async (ctx: TestContext, options: BlogOptions = {}) => {
+  await setupBlogTables(ctx, options);
+  await ctx.exec(createMigration(blogMigrationConfig(ctx, options)));
+  if (options.idMode !== "uuid") {
+    await ctx.exec(sql`
+      select setval('resource_id_seq', ${raw(String(FIRST_GENERATED_ID))});
+      select setval('role_id_seq', ${raw(String(FIRST_GENERATED_ID))});`);
+  }
+};
+
+export const groupTable = (kind: Kind) => identifier(`${kind}_group`);
 
 export const nodeId = (idMode: IdMode, n: number): SQL =>
   idMode === "uuid" ? raw(`'${generateUuidFromInteger(n)}'::uuid`) : raw(String(n));
@@ -87,38 +118,44 @@ export const createRandom = (seed: number) => {
 export type Random = ReturnType<typeof createRandom>;
 
 
-export interface Edge { parent: number; child: number; bits: string }
+// Home edges are the ones p9s keeps in sync with the parent column of their child
+export interface Edge { parent: number; child: number; bits: string; home?: boolean }
 export interface Assignment { resource: number; role: number; bits: string }
 
 export interface Graph {
   size: { resource: number; role: number };
   edges: { resource: Map<string, Edge>; role: Map<string, Edge> };
+  parents: { resource: Map<number, number>; role: Map<number, number> };
   assignments: Map<string, Assignment>;
 }
 
 export const emptyGraph = (resources: number, roles: number): Graph => ({
   size: { resource: resources, role: roles },
   edges: { resource: new Map(), role: new Map() },
+  parents: { resource: new Map(), role: new Map() },
   assignments: new Map(),
 });
 
 const edgeKey = (parent: number, child: number) => `${parent}:${child}`;
+const ONES = "1".repeat(BITMAP_SIZE);
 
-// Applies every graph change to both the database (as the graph writer role) and an in-memory mirror
+// Applies every graph change to both the database and an in-memory mirror. Edges and assignments are written by the
+// graph writer role, groups by their owner.
 export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph) => {
   const id = (n: number) => nodeId(idMode, n);
   const writer = (statement: SQL) => as(ctx, ctx.database_writer_username, statement);
 
   const edgeTable = (kind: Kind) => identifier(`${kind}_edge`);
-  const nodeTable = (kind: Kind) => identifier(`${kind}_node`);
+  const edgeWhere = (edge: Edge) => sql`"parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`;
+  // Any client change to a home edge makes it a regular edge
+  const claimed = (edge: Edge): Edge => ({ ...edge, home: false });
 
   return {
     graph,
     createNodes: async () => {
       for (const kind of ["resource", "role"] as const) {
-        for (let n = 1; n <= graph.size[kind]; n++) {
-          await writer(sql`insert into ${nodeTable(kind)} ("id") values (${id(n)})`);
-        }
+        const ids = join(Array.from({ length: graph.size[kind] }, (_, i) => sql`(${id(i + 1)})`), ", ");
+        await ctx.exec(sql`insert into ${groupTable(kind)} ("id") values ${ids}`);
       }
     },
     insertEdge: async (kind: Kind, parent: number, child: number, value: string) => {
@@ -126,13 +163,19 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
       await writer(sql`insert into ${edgeTable(kind)} ("parent_id", "child_id", "permission") values (${id(parent)}, ${id(child)}, ${bits(value)})`);
       graph.edges[kind].set(edgeKey(parent, child), { parent, child, bits: value });
     },
+    // A home edge has to be claimed before it can be deleted
     deleteEdge: async (kind: Kind, edge: Edge) => {
-      await writer(sql`delete from ${edgeTable(kind)} where "parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`);
+      await writer(sql`${edge.home ? sql`update ${edgeTable(kind)} set "home" = false where ${edgeWhere(edge)};` : sql``}
+        delete from ${edgeTable(kind)} where ${edgeWhere(edge)}`);
       graph.edges[kind].delete(edgeKey(edge.parent, edge.child));
     },
+    claimEdge: async (kind: Kind, edge: Edge) => {
+      await writer(sql`update ${edgeTable(kind)} set "home" = false where ${edgeWhere(edge)}`);
+      graph.edges[kind].set(edgeKey(edge.parent, edge.child), claimed(edge));
+    },
     updateEdgeBits: async (kind: Kind, edge: Edge, value: string) => {
-      await writer(sql`update ${edgeTable(kind)} set "permission" = ${bits(value)} where "parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`);
-      graph.edges[kind].set(edgeKey(edge.parent, edge.child), { ...edge, bits: value });
+      await writer(sql`update ${edgeTable(kind)} set "permission" = ${bits(value)} where ${edgeWhere(edge)}`);
+      graph.edges[kind].set(edgeKey(edge.parent, edge.child), { ...claimed(edge), bits: value });
     },
     // Batches change several edges in a single statement, so the triggers see them all at once
     insertEdges: async (kind: Kind, edges: Edge[]) => {
@@ -145,7 +188,9 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
     },
     deleteEdges: async (kind: Kind, edges: Edge[]) => {
       const keys = join(edges.map(edge => sql`(${id(edge.parent)}, ${id(edge.child)})`), ", ");
-      await writer(sql`delete from ${edgeTable(kind)} where ("parent_id", "child_id") in (${keys})`);
+      await writer(sql`
+        update ${edgeTable(kind)} set "home" = false where "home" and ("parent_id", "child_id") in (${keys});
+        delete from ${edgeTable(kind)} where ("parent_id", "child_id") in (${keys})`);
       for (const edge of edges) graph.edges[kind].delete(edgeKey(edge.parent, edge.child));
     },
     updateEdgesBits: async (kind: Kind, edges: Edge[]) => {
@@ -154,13 +199,19 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
         update ${edgeTable(kind)} as "the_edge" set "permission" = "the_value"."permission"
         from (values ${rows}) as "the_value" ("parent_id", "child_id", "permission")
         where "the_edge"."parent_id" = "the_value"."parent_id" and "the_edge"."child_id" = "the_value"."child_id"`);
-      for (const edge of edges) graph.edges[kind].set(edgeKey(edge.parent, edge.child), edge);
+      for (const edge of edges) graph.edges[kind].set(edgeKey(edge.parent, edge.child), claimed(edge));
     },
     moveEdge: async (kind: Kind, edge: Edge, parent: number) => {
       if (graph.edges[kind].has(edgeKey(parent, edge.child))) return;
-      await writer(sql`update ${edgeTable(kind)} set "parent_id" = ${id(parent)} where "parent_id" = ${id(edge.parent)} and "child_id" = ${id(edge.child)}`);
+      await writer(sql`update ${edgeTable(kind)} set "parent_id" = ${id(parent)} where ${edgeWhere(edge)}`);
       graph.edges[kind].delete(edgeKey(edge.parent, edge.child));
-      graph.edges[kind].set(edgeKey(parent, edge.child), { ...edge, parent });
+      graph.edges[kind].set(edgeKey(parent, edge.child), { ...claimed(edge), parent });
+    },
+    // The home edge follows the column. An existing edge from the new parent is kept as it is instead.
+    setParent: async (kind: Kind, child: number, parent: number | undefined) => {
+      if (graph.parents[kind].get(child) === parent) return;
+      await ctx.exec(sql`update ${groupTable(kind)} set "parent_id" = ${parent === undefined ? sql`null` : id(parent)} where "id" = ${id(child)}`);
+      setParentInMirror(graph, kind, child, parent);
     },
     insertAssignment: async (resource: number, role: number, value: string) => {
       if (graph.assignments.has(edgeKey(resource, role))) return;
@@ -175,12 +226,15 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
       await writer(sql`update "assignment_edge" set "permission" = ${bits(value)} where "resource_id" = ${id(assignment.resource)} and "role_id" = ${id(assignment.role)}`);
       graph.assignments.set(edgeKey(assignment.resource, assignment.role), { ...assignment, bits: value });
     },
-    // Deleting a node cascades to its edges and assignments, it is then recreated empty
+    // Deleting a group removes its edges and assignments, and orphans its children. It is then recreated empty.
     resetNode: async (kind: Kind, n: number) => {
-      await writer(sql`delete from ${nodeTable(kind)} where "id" = ${id(n)}`);
-      await writer(sql`insert into ${nodeTable(kind)} ("id") values (${id(n)})`);
+      await ctx.exec(sql`delete from ${groupTable(kind)} where "id" = ${id(n)}`);
+      await ctx.exec(sql`insert into ${groupTable(kind)} ("id") values (${id(n)})`);
       for (const [key, edge] of graph.edges[kind]) {
         if (edge.parent === n || edge.child === n) graph.edges[kind].delete(key);
+      }
+      for (const [child, parent] of graph.parents[kind]) {
+        if (child === n || parent === n) graph.parents[kind].delete(child);
       }
       for (const [key, assignment] of graph.assignments) {
         if (assignment[kind] === n) graph.assignments.delete(key);
@@ -189,6 +243,18 @@ export const createGraphDriver = (ctx: TestContext, idMode: IdMode, graph: Graph
   };
 };
 export type GraphDriver = ReturnType<typeof createGraphDriver>;
+
+const setParentInMirror = (graph: Graph, kind: Kind, child: number, parent: number | undefined) => {
+  const edges = graph.edges[kind];
+  for (const [key, edge] of edges) {
+    if (edge.child === child && edge.home && edge.parent !== parent) edges.delete(key);
+  }
+  if (parent !== undefined && !edges.has(edgeKey(parent, child))) {
+    edges.set(edgeKey(parent, child), { parent, child, bits: ONES, home: true });
+  }
+  if (parent === undefined) graph.parents[kind].delete(child);
+  else graph.parents[kind].set(child, parent);
+};
 
 // Edges always point from a lower to a higher id, which keeps the graph acyclic
 export const randomOperation = async (driver: GraphDriver, random: Random, { allowNodeReset = true } = {}): Promise<string> => {
@@ -199,7 +265,7 @@ export const randomOperation = async (driver: GraphDriver, random: Random, { all
   const assignments = [...graph.assignments.values()];
   const roll = random.next();
 
-  if (roll < 0.4 || edges.length === 0) {
+  if (roll < 0.32 || edges.length === 0) {
     const a = random.int(1, size), b = random.int(1, size);
     if (a === b) return "noop";
     const [parent, child] = a < b ? [a, b] : [b, a];
@@ -207,23 +273,35 @@ export const randomOperation = async (driver: GraphDriver, random: Random, { all
     await driver.insertEdge(kind, parent, child, value);
     return `insert ${kind} edge ${parent}->${child} ${value}`;
   }
+  if (roll < 0.4) {
+    const child = random.int(2, size);
+    const parent = random.next() < 0.2 ? undefined : random.int(1, child - 1);
+    await driver.setParent(kind, child, parent);
+    return `set ${kind} ${child} parent to ${parent ?? "null"}`;
+  }
   if (roll < 0.47) {
     const edge = random.pick(edges)!;
     await driver.deleteEdge(kind, edge);
     return `delete ${kind} edge ${edge.parent}->${edge.child}`;
   }
-  if (roll < 0.55) {
+  if (roll < 0.53) {
     const edge = random.pick(edges)!;
     const value = random.bits();
     await driver.updateEdgeBits(kind, edge, value);
     return `update ${kind} edge ${edge.parent}->${edge.child} ${value}`;
   }
-  if (roll < 0.63) {
+  if (roll < 0.6) {
     const edge = random.pick(edges)!;
     if (edge.child <= 1) return "noop";
     const parent = random.int(1, edge.child - 1);
     await driver.moveEdge(kind, edge, parent);
     return `move ${kind} edge ${edge.parent}->${edge.child} to parent ${parent}`;
+  }
+  if (roll < 0.63) {
+    const edge = random.pick(edges.filter(edge => edge.home));
+    if (!edge) return "noop";
+    await driver.claimEdge(kind, edge);
+    return `claim ${kind} edge ${edge.parent}->${edge.child}`;
   }
   if (roll < 0.8 || assignments.length === 0) {
     const resource = random.int(1, graph.size.resource), role = random.int(1, graph.size.role);
@@ -349,3 +427,16 @@ export const cacheMismatches = async (ctx: TestContext, combineAssignmentsWith: 
 };
 
 export const noMismatches = { resource: 0, role: 0, assignment: 0 };
+
+// Edges in the database that differ from the mirror, home flag included
+export const edgeMismatches = async (ctx: TestContext, graph: Graph) => {
+  const describe = (edge: Edge) => `${edge.parent}->${edge.child} ${edge.bits}${edge.home ? " home" : ""}`;
+  const result: Record<Kind, string[]> = { resource: [], role: [] };
+  for (const kind of ["resource", "role"] as const) {
+    const [rows] = await ctx.runTestQuery(sql`select "parent_id", "child_id", "permission", "home" from ${identifier(`${kind}_edge`)}`);
+    const actual = new Set<string>(rows.map((row: any) => describe({ parent: fromNodeId(row.parent_id), child: fromNodeId(row.child_id), bits: row.permission, home: row.home })));
+    const expected = new Set([...graph.edges[kind].values()].map(describe));
+    result[kind] = [...[...actual].filter(edge => !expected.has(edge)).map(edge => `unexpected ${edge}`), ...[...expected].filter(edge => !actual.has(edge)).map(edge => `missing ${edge}`)];
+  }
+  return result;
+};

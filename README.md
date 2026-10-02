@@ -8,8 +8,9 @@ Documentation: [p9s.dev](https://p9s.dev), sources in [`website/docs`](./website
 
 ## Concepts
 
-- **Resources** are business objects. They are nodes of a tree, or more precisely a DAG, since a node can have several parents (shared folders, symlinks).
-- **Roles** are the entities that access resources, also nodes of a DAG (users in teams in organizations).
+- **Resources** are business objects: every row of a resource table is a node. Nodes form a tree, or more precisely a DAG, since a node can have several parents (shared folders, symlinks).
+- **Roles** are the entities that access resources, also rows of tables forming a DAG (users in teams in organizations).
+- **Edges** link a parent node to a child node. A table can name the column holding each row's parent (`resourceParent`, `roleParent`), and p9s then keeps a *home edge* from that parent in sync with the column: creating, moving or deleting a row is a plain `insert`, `update` or `delete`. Graph writers add further edges to share a node under other parents.
 - **Assignments** link a role to a resource (share a folder with a team).
 - **Permission bitmaps**: every edge and assignment carries a bitmap with one bit per operation class. The permission along a path is the AND of its edges, and the permission between a role and a resource is the OR over all paths between them.
 - **Caches**: `resource_edge_cache` and `role_edge_cache` store the transitive closure of each tree with its permissions, and with `combineAssignmentsWith: "role"`, `assignment_edge_cache` also stores assignments combined with the role tree. Triggers keep them exact on every insert, update and delete.
@@ -32,9 +33,20 @@ const migration = createMigration({
   },
   tables: [
     {
+      name: "folder",
+      isResource: true,
+      resourceId: "resource_id",
+      // "parent_id" holds the "id" of the parent folder
+      resourceParent: { column: "parent_id", table: "folder", key: "id" },
+      permission: {
+        authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
+      },
+    },
+    {
       name: "document",
       isResource: true,
       resourceId: "resource_id",
+      resourceParent: { column: "folder_id", table: "folder", key: "id" },
       permission: {
         authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
       },
@@ -46,9 +58,11 @@ const migration = createMigration({
 await Bun.write("p9s-migration.sql", compile(migration).text);
 ```
 
-The migration can be re-run safely, it never drops your data. The `p9s` CLI (`packages/cli`) does the same from a config file, and `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
+The migration adds a `resource_id` column to `folder` and `document` and fills it, and every new row gets one by default. A user may insert a row only under a parent where they have the insert bit, and moving a row (changing `folder_id`) also needs the insert bit on the new parent. Index the parent columns, p9s looks rows up by them.
 
-Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles are read-only on the graph, graph writes must use `READ COMMITTED`, and `TRUNCATE` does not maintain the caches.
+The migration can be re-run safely, it never drops your data. Databases created by earlier versions, with `resource_node` and `role_node` tables, are upgraded in place, see the [upgrade guide](./website/docs/configuration/upgrading.md). The `p9s` CLI (`packages/cli`) does the same from a config file, and `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
+
+Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles are read-only on edges and assignments, writes that touch the graph must use `READ COMMITTED`, and `TRUNCATE` is rejected on p9s-managed tables.
 
 ## Development
 
@@ -66,8 +80,7 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
 ## Features & Roadmap
 
 - [x] Tables for base functionality
-  - [x] `resourceNode` represents a business domain object
-  - [x] `roleNode` represents a role
+  - [x] Rows of resource tables are the nodes of the resource graph, rows of role tables the nodes of the role graph
   - [x] `resourceEdge` represents a parent-child link between two business domain objects (e.g. a file in a folder)
   - [x] `roleEdge` represents a parent-child link between two roles (e.g. a user in a group)
   - [x] `assignmentEdge` represents a link between a business domain object and a role (e.g. a group is granted access to a folder)
@@ -91,7 +104,7 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
   - [x] `resourceEdgeCacheBackfill` function backfills the `resourceEdgeCache`
   - [x] `roleEdgeCacheBackfill` function backfills the `roleEdgeCache`
 - [x] Add Row Level Security RLS policies to resources
-  - [x] RLS policies are added to tables associated with a `resourceNode`
+  - [x] RLS policies are added to resource tables
 - [x] Functions to disable and re-enable triggers, for faster batch processing
   - [x] `disableTriggerFunction` disables triggers
   - [x] `enableTriggerFunction` enables triggers and backfills cache using `edgeCacheBackfill`
@@ -106,24 +119,26 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
   - [x] Offer a configuration option to make the `assignmentEdgeCache` table include `role` in the graph computation, such that the `assignmentEdgeCache` table is a transitive combination of the `roleEdge` + `assignment` tables. This is a tiny bit slower when writing new `roleEdge` or `assignment` (which is rare), but is much faster to resolve permissions at read time (which is very frequent), since it avoids a join during permission resolution.
   - [x] Similarly, offer a configuration option to make the `assignmentEdgeCache` table include `resource` in the graph computation. (This is only added for symmetry, but is not useful in practice, since in most cases you'll have many more `resources` than `roles`, so this optimization makes less sense than the reciprocal, and they are mutually exclusive)
 - [x] Security model
-  - [x] Application `users` get read-only access to nodes, edges, assignments and caches, only `graphWriters` can modify the graph
+  - [x] Application `users` get read-only access to edges, assignments and caches, only `graphWriters` can share or link nodes
   - [x] Caches are only written by `security definer` triggers with a pinned `search_path`
-- [x] Re-runnable, non-destructive migration, that backfills nodes for business rows that existed before a table was bound
+- [x] Re-runnable, non-destructive migration, that gives ids to business rows that existed before a table was bound
 - [x] Graph writes are serialized with a transaction-level advisory lock, so concurrent writes keep the caches exact
 - [x] Test suite: random graph edits checked against a from-scratch recomputation, RLS checked against a reference model, privileges, migration re-runs and concurrency on real Postgres
 - [x] Benchmarks of RLS reads against a no-cache baseline, incremental writes, cache size, with JSON output
 - [x] Batch edge changes: edge triggers run once per statement, so a multi-row insert, update or delete of edges is processed in one pass
 - [x] Faster subtree moves: an edge change only recomputes the cache rows between the nodes below it and the nodes above it, and only writes the rows whose value changed
-- [ ] Nodeless mode. We don't actually need the `resourceNode` and `roleNode` tables. They were only useful for a few things that can be avoided:
-  - [ ] Enforcing foreign key constraints can be achieved using correct triggers
-  - [ ] Generating integer sequences that are shared over multiple business domain tables can be achieved by sharing an integer sequence between multiple tables, or using UUIDs
-  - [ ] Creating a more complete datamodel to make tools like Postgraphile happy and ready to serve nodes in a GraphQL Scheme can be achieved differently with views.
+- [x] Nodeless mode: there are no `resourceNode` and `roleNode` tables, every row of a bound table is a node
+  - [x] Edges and assignments are checked by triggers instead of foreign keys, and removed with the rows they connect
+  - [x] In integer mode, the resource tables share one id sequence, and so do the role tables
+  - [x] Databases with node tables are upgraded in place
+  - [ ] Views of all nodes, to make tools like Postgraphile happy and ready to serve nodes in a GraphQL schema
 - [ ] Single parent optimization for leaves. If the business domain allows for some leaves of the trees (Resources and/or Roles) to only have one single parent, and if the number of that type of leaves is large, then it can be useful to enable single parent optimization for leaves. This can typically be the case in SaaS when modelling data that has access control aggregated at one level (e.g. a `Page` in Notion), but can contain many smaller sub-objects which share the same access control rules (e.g. a `Block` or a `Comment` on a `Page` in Notion). In this case, having the permission system only deal with the `Pages` (small cardinality), and have the permissions for `Block` or `Comment` inherit from the `Page` ones, then single parent optimization for leaves makes sense on the `Block` and `Comment` tables.
-  - [ ] Offer a configuration option to enable single parent optimization for `resourceNode`
-  - [ ] Similarly, offer a configuration option to enable single parent optimization for `roleNode` (This is only added for symmetry, but is not useful in practice, since in most cases, you'll want users to be able to belong to multiple groups)
-- [ ] Seamless CRUD operations, do not require separate creating a node + edge before creating an entity, leverage views and triggers to do it automatically
+  - [ ] Offer a configuration option to enable single parent optimization for resource tables
+  - [ ] Similarly, offer a configuration option to enable single parent optimization for role tables (This is only added for symmetry, but is not useful in practice, since in most cases, you'll want users to be able to belong to multiple groups)
+- [x] Seamless CRUD operations: with a parent column, creating, moving or deleting a row maintains its node and home edge, no separate graph write needed
 - [ ] Assignment-driven cache reduction
   - [ ] Do not store all combinatorical possibilities in cache tables, but only store edges starting from assignments.
   - [ ] Simplify `combineAssignmentsWith`. Currently, if set to e.g. `role`, it still maintains the `roleEdgeCache`, and the `roleAssignmentCache` tables. This is more compute-optimized, but less space-optimized. We could stop maintaining `roleEdgeCache` in that case and only focus on `roleAssignmentCache`. This would be a bit more complex, but could save space. If space is an issue, need to consider adding this.
 - [ ] Customizable prefix for triggers, to allow ordering p9s triggers with other existing triggers (Postgres runs triggers in alphanumerical order). Before that, triggers are prefixed with `10`, `20`, etc.
+- [ ] Support soft-delete for all kinds of nodes
 - [ ] Build an actual life-sized example SaaS app

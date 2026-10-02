@@ -36,6 +36,23 @@ describe("generateConfigurationFromDrizzleSchema", () => {
 `);
   });
 
+  test("passes parent columns through", () => {
+    const config = generateConfigurationFromDrizzleSchema(schema1, {
+      users: ["owner"],
+      tables: {
+        folder: { resourceParent: { column: "parent_id" } },
+        image: { resourceParent: { column: "folder_id", table: "folder", key: "id" } },
+        user: { roleParent: { column: "team_id" } },
+      },
+    });
+
+    expect(config.tables!.map(({ name, resourceParent, roleParent }: any) => ({ name, resourceParent, roleParent }))).toEqual([
+      { name: "folder", resourceParent: { column: "parent_id" }, roleParent: undefined },
+      { name: "image", resourceParent: { column: "folder_id", table: "folder", key: "id" }, roleParent: undefined },
+      { name: "user", resourceParent: undefined, roleParent: { column: "team_id" } },
+    ]);
+  });
+
   test("applies custom permissions from options", () => {
     const config = generateConfigurationFromDrizzleSchema(schema1, {
       users: ["owner", "viewer"],

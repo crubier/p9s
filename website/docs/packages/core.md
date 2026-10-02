@@ -103,7 +103,7 @@ Generates naming configuration for all database objects:
 import { getCompleteNamingConfig } from "p9s";
 
 const naming = getCompleteNamingConfig(config);
-// naming.resource.node -> 'p9s_resource_node'
+// naming.resource.edge -> 'p9s_resource_edge'
 // naming.tables.documents.permission.admin.select -> 'documents_admin_select_policy'
 ```
 

@@ -78,6 +78,8 @@ const config = generateConfigurationFromDrizzleSchema(schema, {
   users: ${JSON.stringify(users)} as const,
   engine: { graphWriters: ${JSON.stringify(graphWriters)} },
   tables: {
+    // A row gets its permissions from its parent row, named by a column of the table:
+    // folder: { resourceId: "resource_id", resourceParent: { column: "parent_id" } },
 ${config.tables?.map((t: any) => `    // ${t.name}: { isResource: ${t.isResource ?? false}, isRole: ${t.isRole ?? false} },`).join("\n")}
   },
 });

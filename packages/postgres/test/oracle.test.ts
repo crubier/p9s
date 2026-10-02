@@ -1,6 +1,6 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { setupTests } from '@p9s/postgres-testing';
-import { cacheMismatches, combineModes, createGraphDriver, createRandom, emptyGraph, idModes, noMismatches, randomBatchOperation, randomOperation, setupBlog } from './helpers';
+import { cacheMismatches, combineModes, createGraphDriver, createRandom, edgeMismatches, emptyGraph, idModes, noMismatches, randomBatchOperation, randomOperation, setupBlog } from './helpers';
 
 const OPERATIONS = 200;
 
@@ -22,8 +22,9 @@ for (const combineAssignmentsWith of combineModes) {
         for (let i = 0; i < OPERATIONS; i++) {
           history.push(await randomOperation(driver, random));
           const mismatches = await cacheMismatches(context, combineAssignmentsWith);
+          const edges = await edgeMismatches(context, driver.graph);
           // Reporting the history makes a failure reproducible by hand
-          expect({ mismatches, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, history: history.slice(-5) });
+          expect({ mismatches, edges, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, edges: { resource: [], role: [] }, history: history.slice(-5) });
         }
       }, { timeout: 120000 });
 
@@ -37,7 +38,8 @@ for (const combineAssignmentsWith of combineModes) {
         for (let i = 0; i < OPERATIONS / 2; i++) {
           history.push(await (random.next() < 0.5 ? randomBatchOperation(driver, random) : randomOperation(driver, random)));
           const mismatches = await cacheMismatches(context, combineAssignmentsWith);
-          expect({ mismatches, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, history: history.slice(-5) });
+          const edges = await edgeMismatches(context, driver.graph);
+          expect({ mismatches, edges, history: history.slice(-5) }).toEqual({ mismatches: noMismatches, edges: { resource: [], role: [] }, history: history.slice(-5) });
         }
       }, { timeout: 120000 });
     });

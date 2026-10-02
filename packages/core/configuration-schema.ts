@@ -48,18 +48,31 @@ export const baseNamingConfigSchema = z.object({
   recursive: z.string(),
   enable: z.string(),
   disable: z.string(),
+  home: z.string(),
+  sequence: z.string(),
+  guard: z.string(),
+  validate: z.string(),
+  truncate: z.string(),
 });
 
-// Derived resource or role naming config schema
+// Derived resource or role naming config schema. The node, pkey, fkey and node trigger names are only used to upgrade
+// a database created when p9s had node tables.
 export const derivedResourceOrRoleNamingConfigSchema = z.object({
   id: z.string(),
+  idSequence: z.string(),
   pkey: z.string(),
   node: z.string(),
   edge: z.string(),
   parentId: z.string(),
   childId: z.string(),
   permission: z.string(),
+  home: z.string(),
   edgePkey: z.string(),
+  edgeGuardTriggerFunction: z.string(),
+  edgeGuardInsertTrigger: z.string(),
+  edgeGuardUpdateTrigger: z.string(),
+  edgeGuardDeleteTrigger: z.string(),
+  parentValidateFunction: z.string(),
   parentFkey: z.string(),
   childFkey: z.string(),
   edgeParentIdIndex: z.string(),
@@ -117,6 +130,9 @@ export const assignmentNamingConfigSchema = z.object({
   edgeUpdateTrigger: z.string(),
   edgeDeleteTriggerFunction: z.string(),
   edgeDeleteTrigger: z.string(),
+  edgeValidateTriggerFunction: z.string(),
+  edgeValidateInsertTrigger: z.string(),
+  edgeValidateUpdateTrigger: z.string(),
   combinedEdgeInsertTriggerFunction: z.string(),
   combinedEdgeInsertTrigger: z.string(),
   combinedEdgeUpdateTriggerFunction: z.string(),
@@ -134,9 +150,11 @@ export const derivedNamingConfigSchema = z.object({
   assignment: assignmentNamingConfigSchema,
   schema: z.string(),
   orBitmap: z.string(),
+  truncateGuardFunction: z.string(),
+  truncateGuardTrigger: z.string(),
 });
 
-// Table naming config entry schema
+// Table naming config entry schema. The fkey names are only used to upgrade from node tables.
 export const tableNamingConfigEntrySchema = z.object({
   schema: z.string(),
   name: z.string(),
@@ -144,6 +162,21 @@ export const tableNamingConfigEntrySchema = z.object({
   resourceFkey: z.string(),
   roleId: z.string(),
   roleFkey: z.string(),
+  resourceInsertTriggerFunction: z.string(),
+  resourceInsertTrigger: z.string(),
+  resourceUpdateTriggerFunction: z.string(),
+  resourceUpdateTrigger: z.string(),
+  resourceDeleteTriggerFunction: z.string(),
+  resourceDeleteTrigger: z.string(),
+  roleInsertTriggerFunction: z.string(),
+  roleInsertTrigger: z.string(),
+  roleUpdateTriggerFunction: z.string(),
+  roleUpdateTrigger: z.string(),
+  roleDeleteTriggerFunction: z.string(),
+  roleDeleteTrigger: z.string(),
+  // Security definer lookups of the parent id from the parent key, for the policies
+  resourceParentFunction: z.string(),
+  roleParentFunction: z.string(),
   permission: z.record(z.string(), permissionPerOperationNamingSchema),
 });
 
@@ -157,6 +190,15 @@ export const namingConfigSchema = baseNamingConfigSchema
   .merge(derivedNamingConfigSchema)
   .merge(tableNamingConfigSchema);
 
+// The column of a bound table that holds its parent in the resource (or role) tree. p9s keeps one edge, the home edge,
+// from that parent to the row. Without a table the column holds resource (or role) ids. With a table it holds values
+// of that table's key column, which defaults to the table's resource (or role) id column.
+export const parentConfigSchema = z.object({
+  column: z.string(),
+  table: z.string().optional(),
+  key: z.string().optional(),
+});
+
 // Table config schema (for CompleteConfig.tables array entries)
 export const tableConfigSchema = z.object({
   schema: z.string(),
@@ -164,9 +206,11 @@ export const tableConfigSchema = z.object({
   isResource: z.boolean(),
   resourceId: z.string(),
   resourceFkey: z.string(),
+  resourceParent: parentConfigSchema.optional(),
   isRole: z.boolean(),
   roleId: z.string(),
   roleFkey: z.string(),
+  roleParent: parentConfigSchema.optional(),
   permission: z.record(z.string(), permissionPerOperationSchema),
 });
 
@@ -251,6 +295,24 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
         });
       }
     });
+    for (const [kind, parentKey, flag] of [["resource", "resourceParent", "isResource"], ["role", "roleParent", "isRole"]] as const) {
+      const parent = table[parentKey];
+      if (!parent) continue;
+      if (!table[flag]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `A ${kind} parent needs the table to be a ${kind} table (${flag})`,
+          path: ["tables", tableIndex, parentKey],
+        });
+      }
+      if (parent.table !== undefined && !data.tables.some(other => other.name === parent.table && other[flag])) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Parent table "${parent.table}" is not a ${kind} table of the config`,
+          path: ["tables", tableIndex, parentKey, "table"],
+        });
+      }
+    }
   });
 });
 
@@ -271,6 +333,7 @@ export type DerivedNamingConfig = z.infer<typeof derivedNamingConfigSchema>;
 export type TableNamingConfigEntry = z.infer<typeof tableNamingConfigEntrySchema>;
 export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
 export type NamingConfig = z.infer<typeof namingConfigSchema>;
+export type ParentConfig = z.infer<typeof parentConfigSchema>;
 export type TableConfig = z.infer<typeof tableConfigSchema>;
 export type EngineConfig = z.infer<typeof engineConfigSchema>;
 export type MigrationConfig = z.infer<typeof migrationConfigSchema>;

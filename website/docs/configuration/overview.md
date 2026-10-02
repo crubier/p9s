@@ -16,7 +16,7 @@ const config: Config<"authenticated"> = {
     schema: "public",
     // Roles that run end-user queries, they get RLS policies and read-only access to the permission graph
     users: ["authenticated"],
-    // Roles allowed to change nodes, edges and assignments, see the security model
+    // Roles allowed to change edges and assignments, see the security model
     graphWriters: ["app_backend"],
     permission: {
       bitmap: { size: 16 },
@@ -33,10 +33,21 @@ const config: Config<"authenticated"> = {
   },
   tables: [
     {
+      name: "folder",
+      isResource: true,
+      resourceId: "resource_id",
+      // A folder is in the folder whose "id" is in its "parent_id" column
+      resourceParent: { column: "parent_id", table: "folder", key: "id" },
+      // Bit positions in the permission bitmap
+      permission: {
+        authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
+      },
+    },
+    {
       name: "document",
       isResource: true,
       resourceId: "resource_id",
-      // Bit positions in the permission bitmap
+      resourceParent: { column: "folder_id", table: "folder", key: "id" },
       permission: {
         authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
       },
@@ -59,7 +70,7 @@ import { compile } from "pg-sql2";
 const { text } = compile(createMigration(config));
 ```
 
-The migration is idempotent: running it again updates functions, triggers, policies and privileges without dropping data, and backfills node ids for business rows that existed before a table was bound to p9s.
+The migration is idempotent: running it again updates functions, triggers, policies and privileges without dropping data, and gives ids and home edges to business rows that existed before a table was bound to p9s. Databases created with node tables by earlier versions are upgraded, see [Upgrading](./upgrading).
 
 ## Configuration Sections
 
@@ -69,12 +80,12 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | --------------------------------- | -------------------------------- | ------------------------------------------------------------------------ |
 | `schema`                          | `string`                         | PostgreSQL schema name, must be the current schema when migrating        |
 | `users`                           | `string[]`                       | Roles that query business tables through RLS                             |
-| `graphWriters`                    | `string[]`                       | Roles allowed to modify nodes, edges and assignments (default: none)     |
+| `graphWriters`                    | `string[]`                       | Roles allowed to modify edges and assignments (default: none)            |
 | `permission.bitmap.size`          | `number`                         | Size of permission bitmap (4-1024)                                       |
 | `permission.maxDepth.resource`    | `number`                         | Max depth for resource tree (1-128)                                      |
 | `permission.maxDepth.role`        | `number`                         | Max depth for role tree (1-128)                                          |
-| `authentication.getCurrentUserId` | `string`                         | SQL function returning the current user's role node id                   |
-| `id.mode`                         | `'integer' \| 'uuid'`            | Type of node ids                                                         |
+| `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row             |
+| `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
 
 `getCurrentUserId` must exist before the migration runs, for example:
@@ -97,17 +108,28 @@ With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` 
 
 Each table entry defines how a database table integrates with the permission system:
 
-| Property       | Type      | Description                                                         |
-| -------------- | --------- | ------------------------------------------------------------------- |
-| `schema`       | `string`  | Table schema                                                        |
-| `name`         | `string`  | Table name                                                          |
-| `isResource`   | `boolean` | Whether rows are resources, adds a column referencing `resource_node` |
-| `resourceId`   | `string`  | Resource node id column name                                        |
-| `resourceFkey` | `string`  | Resource foreign key name                                           |
-| `isRole`       | `boolean` | Whether rows are roles, adds a column referencing `role_node`       |
-| `roleId`       | `string`  | Role node id column name                                            |
-| `roleFkey`     | `string`  | Role foreign key name                                               |
-| `permission`   | `object`  | For each user role, the bit checked for each operation              |
+| Property         | Type      | Description                                                                   |
+| ---------------- | --------- | ----------------------------------------------------------------------------- |
+| `schema`         | `string`  | Table schema                                                                  |
+| `name`           | `string`  | Table name                                                                    |
+| `isResource`     | `boolean` | Whether rows are resources                                                    |
+| `resourceId`     | `string`  | Resource id column, added by p9s if missing, with a default                   |
+| `resourceParent` | `object`  | Column naming each row's parent resource, see below                          |
+| `resourceFkey`   | `string`  | Foreign key to `resource_node` from earlier versions, dropped when upgrading  |
+| `isRole`         | `boolean` | Whether rows are roles                                                        |
+| `roleId`         | `string`  | Role id column, added by p9s if missing, with a default                       |
+| `roleParent`     | `object`  | Column naming each row's parent role, see below                              |
+| `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
+| `permission`     | `object`  | For each user role, the bit checked for each operation                        |
+
+#### Parent columns
+
+`resourceParent: { column, table?, key? }` makes p9s keep an edge from each row's parent to the row, its *home edge*, in sync with `column`:
+
+- Without `table`, `column` holds resource ids, of a row of any resource table.
+- With `table`, `column` holds values of that table's `key` column. `key` defaults to the parent table's `resourceId` column. With `key: "id"`, the column can be an ordinary foreign key to the parent's primary key.
+
+`roleParent` works the same on the role tree, for example to put each user in a team. A parent `table` must be a resource (or role) table of the config. Index the parent columns, p9s looks rows up by them.
 
 ## Validation
 
@@ -116,6 +138,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - Bitmap size must be between 4 and 1024
 - Max depth must be between 1 and 128
 - Permission users in tables must exist in `engine.users`
+- A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind
 
 ```typescript
 import { validateCompleteConfig } from "@p9s/core";

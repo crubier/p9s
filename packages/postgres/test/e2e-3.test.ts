@@ -22,9 +22,12 @@ describe('SQL end to end test combined roles', async () => {
         "email" varchar(1024) unique not null
       );
       grant select, insert, update, delete on table "human_user" to ${identifier(database_user_username)};
+      drop table if exists "folder" cascade;
+      create table "folder" ("id" integer primary key);
       drop table if exists "blog_post" cascade;
       create table "blog_post" (
         "id" uuid default uuid_generate_v4() primary key,
+        "folder_id" integer references "folder"("id"),
         "created_at" timestamptz default current_timestamp,
         "updated_at" timestamptz default current_timestamp,
         "name" varchar(1024) not null,
@@ -52,9 +55,12 @@ describe('SQL end to end test combined roles', async () => {
         isRole: true,
         roleId: "role_id"
       }, {
+        name: "folder", isResource: true, resourceId: "resource_id"
+        }, {
         name: "blog_post",
         isResource: true,
         resourceId: "resource_id",
+        resourceParent: { column: "folder_id", table: "folder", key: "id" },
         permission: {
           [database_user_username]: { select: 0, insert: 1, update: 1, delete: 1 }
         }
@@ -65,11 +71,9 @@ describe('SQL end to end test combined roles', async () => {
       create type "jwt_token" as (role_id integer, exp bigint);
       create function "register_human_user"("human_user_email" varchar(1024)) returns "human_user" as $$
       declare
-        "result_role_node" "role_node";
         "result_human_user" "human_user";
       begin
-        insert into "role_node" default values returning * into "result_role_node";
-        insert into "human_user" ("email", "role_id") values ("human_user_email", "result_role_node"."id") returning * into "result_human_user";
+        insert into "human_user" ("email") values ("human_user_email") returning * into "result_human_user";
         return "result_human_user";
       end;
       $$ language plpgsql strict security definer;
@@ -83,12 +87,12 @@ describe('SQL end to end test combined roles', async () => {
     `);
 
     // Populate the p9s tables with some data
-    await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "folder" ("id") select 100 + i from generate_series(1, 8) as i`);
     await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
       (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
       (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
       (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
-    await exec(sql`insert into "role_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "human_user" ("email") select 'user' || i || '@example.com' from generate_series(1, 8) as i`);
     await exec(sql`insert into "role_edge"("parent_id", "child_id", "permission") values
       (1, 2, b'1111'::bit(4)), (2, 3, b'1010'::bit(4)), (2, 7, b'1110'::bit(4)),
       (3, 4, b'1000'::bit(4)), (3, 5, b'1111'::bit(4)), (7, 6, b'0100'::bit(4)),

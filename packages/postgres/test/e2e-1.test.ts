@@ -24,9 +24,12 @@ describe('SQL end to end test', async () => {
         "email" varchar(1024) unique not null
       );
       grant select, insert, update, delete on table "human_user" to ${identifier(database_user_username)};
+      drop table if exists "folder" cascade;
+      create table "folder" ("id" integer primary key);
       drop table if exists "blog_post" cascade;
       create table "blog_post" (
         "id" uuid default uuid_generate_v4() primary key,
+        "folder_id" integer references "folder"("id"),
         "created_at" timestamptz default current_timestamp,
         "updated_at" timestamptz default current_timestamp,
         "name" varchar(1024) not null,
@@ -52,9 +55,12 @@ describe('SQL end to end test', async () => {
         isRole: true,
         roleId: "role_id"
       }, {
+        name: "folder", isResource: true, resourceId: "resource_id"
+        }, {
         name: "blog_post",
         isResource: true,
         resourceId: "resource_id",
+        resourceParent: { column: "folder_id", table: "folder", key: "id" },
         permission: {
           [database_user_username]: { select: 0, insert: 1, update: 1, delete: 1 }
         }
@@ -65,11 +71,9 @@ describe('SQL end to end test', async () => {
       create type "jwt_token" as (role_id integer, exp bigint);
       create function "register_human_user"("human_user_email" varchar(1024)) returns "human_user" as $$
       declare
-        "result_role_node" "role_node";
         "result_human_user" "human_user";
       begin
-        insert into "role_node" default values returning * into "result_role_node";
-        insert into "human_user" ("email", "role_id") values ("human_user_email", "result_role_node"."id") returning * into "result_human_user";
+        insert into "human_user" ("email") values ("human_user_email") returning * into "result_human_user";
         return "result_human_user";
       end;
       $$ language plpgsql strict security definer;
@@ -83,38 +87,46 @@ describe('SQL end to end test', async () => {
     `);
 
     // Populate the p9s tables with some data
-    await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "folder" ("id") select 100 + i from generate_series(1, 8) as i`);
     await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
       (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
       (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
       (5, 7, b'1000'::bit(4)), (5, 8, b'1111'::bit(4))`);
 
-    expect(await runTestQuery(sql`select * from "resource_node"; `)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`select "id", "resource_id" from "folder" order by 1; `)).toMatchInlineSnapshot(`
       [
         [
           {
-            "id": 1,
+            "id": 101,
+            "resource_id": 1,
           },
           {
-            "id": 2,
+            "id": 102,
+            "resource_id": 2,
           },
           {
-            "id": 3,
+            "id": 103,
+            "resource_id": 3,
           },
           {
-            "id": 4,
+            "id": 104,
+            "resource_id": 4,
           },
           {
-            "id": 5,
+            "id": 105,
+            "resource_id": 5,
           },
           {
-            "id": 6,
+            "id": 106,
+            "resource_id": 6,
           },
           {
-            "id": 7,
+            "id": 107,
+            "resource_id": 7,
           },
           {
-            "id": 8,
+            "id": 108,
+            "resource_id": 8,
           },
         ],
       ]
@@ -125,41 +137,49 @@ describe('SQL end to end test', async () => {
         [
           {
             "child_id": 3,
+            "home": false,
             "parent_id": 1,
             "permission": "1111",
           },
           {
             "child_id": 4,
+            "home": false,
             "parent_id": 2,
             "permission": "1100",
           },
           {
             "child_id": 4,
+            "home": false,
             "parent_id": 3,
             "permission": "1100",
           },
           {
             "child_id": 5,
+            "home": false,
             "parent_id": 3,
             "permission": "1010",
           },
           {
             "child_id": 6,
+            "home": false,
             "parent_id": 4,
             "permission": "0100",
           },
           {
             "child_id": 7,
+            "home": false,
             "parent_id": 5,
             "permission": "1000",
           },
           {
             "child_id": 8,
+            "home": false,
             "parent_id": 4,
             "permission": "1111",
           },
           {
             "child_id": 8,
+            "home": false,
             "parent_id": 5,
             "permission": "1111",
           },
@@ -1603,161 +1623,161 @@ describe('SQL end to end test', async () => {
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '1'; insert into "blog_post"("resource_id", "name") values (3, 'post_3'), (4, 'post_4'), (6, 'post_6'), (8, 'post_8'); select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '1'; insert into "blog_post"("folder_id", "name") values (103, 'post_3'), (104, 'post_4'), (106, 'post_6'), (108, 'post_8'); select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [],
         [
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '2'; insert into "blog_post"("resource_id", "name") values (1, 'post_1'); select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '2'; insert into "blog_post"("folder_id", "name") values (101, 'post_1'); select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [],
         [
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '3'; insert into "blog_post"("resource_id", "name") values (2, 'post_2'); select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '3'; insert into "blog_post"("folder_id", "name") values (102, 'post_2'); select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [],
         [
           {
+            "folder_id": 102,
             "name": "post_2",
-            "resource_id": 2,
           },
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '4'; select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '4'; select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [
           {
+            "folder_id": 102,
             "name": "post_2",
-            "resource_id": 2,
           },
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '5'; select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '5'; select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [
           {
+            "folder_id": 102,
             "name": "post_2",
-            "resource_id": 2,
           },
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '6'; select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '6'; select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '7'; select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '7'; select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [
           {
+            "folder_id": 103,
             "name": "post_3",
-            "resource_id": 3,
           },
           {
+            "folder_id": 104,
             "name": "post_4",
-            "resource_id": 4,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
     `);
-    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '8'; insert into "blog_post"("resource_id", "name") values (5, 'post_5'); select "resource_id", "name" from "blog_post";`)).toMatchInlineSnapshot(`
+    expect(await runTestQuery(sql`set local role ${identifier(database_user_username)}; set local "jwt.claims.role_id" = '8'; insert into "blog_post"("folder_id", "name") values (105, 'post_5'); select "folder_id", "name" from "blog_post" order by "name";`)).toMatchInlineSnapshot(`
       [
         [],
         [],
         [],
         [
           {
+            "folder_id": 105,
             "name": "post_5",
-            "resource_id": 5,
           },
           {
+            "folder_id": 108,
             "name": "post_8",
-            "resource_id": 8,
           },
         ],
       ]
@@ -1778,8 +1798,10 @@ describe('Disable and enable triggers', async () => {
       drop table if exists "human_user" cascade;
       create table "human_user" ("id" uuid default uuid_generate_v4() primary key, "created_at" timestamptz default current_timestamp, "updated_at" timestamptz default current_timestamp, "email" varchar(1024) unique not null);
       grant select, insert, update, delete on table "human_user" to ${identifier(database_user_username)};
+      drop table if exists "folder" cascade;
+      create table "folder" ("id" integer primary key);
       drop table if exists "blog_post" cascade;
-      create table "blog_post" ("id" uuid default uuid_generate_v4() primary key, "created_at" timestamptz default current_timestamp, "updated_at" timestamptz default current_timestamp, "name" varchar(1024) not null, "author" uuid references "human_user"("id"));
+      create table "blog_post" ("id" uuid default uuid_generate_v4() primary key, "folder_id" integer references "folder"("id"), "created_at" timestamptz default current_timestamp, "updated_at" timestamptz default current_timestamp, "name" varchar(1024) not null, "author" uuid references "human_user"("id"));
       grant select, insert, update, delete on table "blog_post" to ${identifier(database_user_username)};
     `);
 
@@ -1794,7 +1816,9 @@ describe('Disable and enable triggers', async () => {
       tables: [{
         name: "human_user", isRole: true, roleId: "role_id"
       }, {
-        name: "blog_post", isResource: true, resourceId: "resource_id",
+        name: "folder", isResource: true, resourceId: "resource_id"
+        }, {
+        name: "blog_post", isResource: true, resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" },
         permission: { [database_user_username]: { select: 0, insert: 1, update: 1, delete: 1 } }
       }]
     }));
@@ -1802,10 +1826,9 @@ describe('Disable and enable triggers', async () => {
     await exec(sql`
       create type "jwt_token" as (role_id integer, exp bigint);
       create function "register_human_user"("human_user_email" varchar(1024)) returns "human_user" as $$
-      declare "result_role_node" "role_node"; "result_human_user" "human_user";
+      declare "result_human_user" "human_user";
       begin
-        insert into "role_node" default values returning * into "result_role_node";
-        insert into "human_user" ("email", "role_id") values ("human_user_email", "result_role_node"."id") returning * into "result_human_user";
+        insert into "human_user" ("email") values ("human_user_email") returning * into "result_human_user";
         return "result_human_user";
       end;
       $$ language plpgsql strict security definer;
@@ -1822,7 +1845,7 @@ describe('Disable and enable triggers', async () => {
     await exec(sql`select role_trigger_disable()`);
 
     await exec(sql`delete from "resource_edge_cache"`);
-    await exec(sql`insert into "resource_node" ("id") values (1),(2),(3),(4),(5),(6),(7),(8)`);
+    await exec(sql`insert into "folder" ("id") select 100 + i from generate_series(1, 8) as i`);
     await exec(sql`insert into "resource_edge" ("parent_id", "child_id", "permission") values
         (1, 3, b'1111'::bit(4)), (2, 4, b'1100'::bit(4)), (3, 4, b'1100'::bit(4)),
         (3, 5, b'1010'::bit(4)), (4, 6, b'0100'::bit(4)), (4, 8, b'1111'::bit(4)),
