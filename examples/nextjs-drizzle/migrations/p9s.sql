@@ -353,6 +353,7 @@ alter table "public"."text_content" add column if not exists "resource_id" uuid 
 alter table "public"."user" add column if not exists "role_id" uuid unique;
 
 
+
 do $$
 begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."folder"'::regclass and "attname" = 'resource_id') then
@@ -2821,6 +2822,17 @@ using (
     
 
   
+
+  
+-----------------------------------------------------------------------------------------------------------------------
+-- Leaf tables
+-----------------------------------------------------------------------------------------------------------------------
+drop trigger if exists "10_folder_resource_parent_trigger" on "public"."folder";
+drop trigger if exists "10_image_resource_parent_trigger" on "public"."image";
+drop trigger if exists "10_text_content_resource_parent_trigger" on "public"."text_content";
+
+
+
 
   
 -----------------------------------------------------------------------------------------------------------------------

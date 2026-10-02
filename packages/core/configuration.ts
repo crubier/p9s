@@ -281,7 +281,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   ]);
 
   return {
-    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, roleParent, ...customNames }) => {
+    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, ...customNames }) => {
 
       const result = {
         schema: `${tableSchema ?? schema}`,
@@ -294,6 +294,9 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
         ...triggerNames(roleName, name),
         resourceParentFunction: `${prefix}${name}_${resourceName}_${parent}`,
         roleParentFunction: `${prefix}${name}_${roleName}_${parent}`,
+        resourceParentId: `${prefix}${resourceName}_${parent}_${resourceId}`,
+        resourceLeafTriggerFunction: `${prefix}${name}_${resourceName}_${parent}_${trigger}_${functionz}`,
+        resourceLeafTrigger: `10_${prefix}${name}_${resourceName}_${parent}_${trigger}`,
         permission: Object.fromEntries(Object.entries(permission ?? {}).map(([user, value]) => {
           return [user, {
             select: `${prefix}${name}_${user}_${select}_${policy}`,

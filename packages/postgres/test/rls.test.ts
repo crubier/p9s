@@ -1,5 +1,5 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
-import { query as sql } from "pg-sql2";
+import { query as sql, raw } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import {
   OPERATION_BITS, as, combineModes, createGraphDriver, createPermissionModel, createRandom, emptyGraph, fromNodeId, nodeId, randomOperation, setupBlog,
@@ -26,10 +26,20 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
       await driver.createNodes();
       const id = (n: number) => nodeId(idMode, n);
       const user = context.database_user_username;
-      // Each group holds one post, which gets its permissions through its home edge
-      const restorePost = (resource: number) => context.exec(sql`
-        delete from "blog_post" where "group_id" = ${id(resource)};
-        insert into "blog_post" ("group_id", "name") values (${id(resource)}, 'post')`);
+      // Each group holds one post, which gets its permissions through its home edge. Each post holds one comment, a
+      // leaf row with the permissions of its post.
+      const posts = new Map<number, number>();
+      const groupOfPost = (post: number) => [...posts].find(([, id]) => id === post)?.[0];
+      const restoreComment = (resource: number) => context.exec(sql`
+        delete from "blog_comment" where "post_id" = ${raw(String(posts.get(resource)))};
+        insert into "blog_comment" ("post_id", "body") values (${raw(String(posts.get(resource)))}, 'comment')`);
+      const restorePost = async (resource: number) => {
+        const [[{ id: post }]] = await context.exec(sql`
+          delete from "blog_post" where "group_id" = ${id(resource)};
+          insert into "blog_post" ("group_id", "name") values (${id(resource)}, 'post') returning "id"`).then(results => results.slice(-1));
+        posts.set(resource, post);
+        await restoreComment(resource);
+      };
       for (let resource = 1; resource <= RESOURCES; resource++) await restorePost(resource);
 
       const random = createRandom(7 + combineModes.indexOf(combineAssignmentsWith));
@@ -57,6 +67,8 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
           const visible = rows.map(row => fromNodeId(row.group_id)).sort((a, b) => a - b);
           const expected = Array.from({ length: RESOURCES }, (_, i) => i + 1).filter(resource => count(allowed(role, resource, "select")));
           expect({ role, visible }).toEqual({ role, visible: expected });
+          const comments = await as(context, user, sql`select "post_id" from "blog_comment"`, id(role));
+          expect({ role, comments: comments.map(row => groupOfPost(row.post_id)).sort((a, b) => a! - b!) }).toEqual({ role, comments: expected });
         }
 
         // update and delete need the select bit too, since their where clause reads the row
@@ -70,6 +82,16 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
           expect({ role, resource, deleted: deleted.rows.length })
             .toEqual({ role, resource, deleted: count(allowed(role, resource, "select") && allowed(role, resource, "delete")) ? 1 : 0 });
           await restorePost(resource);
+
+          const post = raw(String(posts.get(resource)));
+          const updatedComment = await attempt(sql`update "blog_comment" set "body" = 'updated' where "post_id" = ${post} returning "id"`, role);
+          expect({ role, resource, updatedComment: updatedComment.rows.length })
+            .toEqual({ role, resource, updatedComment: count(allowed(role, resource, "select") && allowed(role, resource, "update")) ? 1 : 0 });
+
+          const deletedComment = await attempt(sql`delete from "blog_comment" where "post_id" = ${post} returning "id"`, role);
+          expect({ role, resource, deletedComment: deletedComment.rows.length })
+            .toEqual({ role, resource, deletedComment: count(allowed(role, resource, "select") && allowed(role, resource, "delete")) ? 1 : 0 });
+          await restoreComment(resource);
         }
 
         // insert is checked against the parent of the new row
@@ -80,6 +102,12 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
           expect({ role, resource, inserted: inserted.ok }).toEqual({ role, resource, inserted: count(allowed(role, resource, "insert")) });
           if (!inserted.ok) expect(inserted.error).toContain("row-level security");
           await restorePost(resource);
+
+          await context.exec(sql`delete from "blog_comment" where "post_id" = ${raw(String(posts.get(resource)))}`);
+          const insertedComment = await attempt(sql`insert into "blog_comment" ("post_id", "body") values (${raw(String(posts.get(resource)))}, 'inserted')`, role);
+          expect({ role, resource, insertedComment: insertedComment.ok }).toEqual({ role, resource, insertedComment: count(allowed(role, resource, "insert")) });
+          if (!insertedComment.ok) expect(insertedComment.error).toContain("row-level security");
+          await restoreComment(resource);
         }
 
         // moving a post is updating it, and inserting it under its new parent
@@ -93,6 +121,16 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
           if (visible && !expected) expect(moved.error).toContain("row-level security");
           await restorePost(from);
           await restorePost(to);
+
+          // A comment has no node to tell an unchanged parent apart, so moving it needs the bits on both posts. The
+          // new row also has to pass the select policy, since the where clause reads it.
+          const movedComment = await attempt(sql`
+            update "blog_comment" set "post_id" = ${raw(String(posts.get(to)))} where "post_id" = ${raw(String(posts.get(from)))} returning "id"`, role);
+          const expectedComment = count(visible && allowed(role, to, "select") && allowed(role, to, "update"));
+          expect({ role, from, to, movedComment: movedComment.ok && movedComment.rows.length === 1 }).toEqual({ role, from, to, movedComment: expectedComment });
+          if (visible && !expectedComment) expect(movedComment.error).toContain("row-level security");
+          await restoreComment(from);
+          await restoreComment(to);
         }
       }
       expect(outcomes.allowed).toBeGreaterThan(50);

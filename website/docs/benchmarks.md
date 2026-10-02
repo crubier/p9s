@@ -13,7 +13,8 @@ For a size factor `f`:
 - a resource tree of 5 levels (org, workspace, folder, project, object) with `f` children per node, so about `f^5` objects. Each level is a table, and objects are spread over 18 tables. Every row points to its parent through a `parent_id` column, so every edge is a home edge.
 - a role tree of 3 levels (company, team, user), so `f^3` users, also rows with a `parent_id`
 - assignments at every level, some regular and some random
-- RLS enabled on the folder and object tables
+- `4f` comments on each post, the objects of the first table. With `--comments leaf` (the default) they are rows of a [leaf table](./configuration/overview#leaf-tables), with `--comments node` nodes of the graph under their post.
+- RLS enabled on the folder, object and comment tables
 - an 84-bit permission bitmap with random edge bits
 
 ## What is measured
@@ -22,8 +23,8 @@ For a size factor `f`:
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
 - **Reads** as the application role, going through RLS: a point lookup, the first page of 50 rows, and counting every visible row. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments; add, remove and move users and teams.
-- **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder.
-- **Concurrent writes**: throughput and latency of several clients creating objects, alone and while a graph writer keeps moving workspaces.
+- **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments.
+- **Concurrent writes**: throughput and latency of several clients creating objects or comments, alone and while a graph writer keeps moving workspaces.
 
 Each scenario runs a few untimed warm-up repetitions, then reports p50, p95 and p99 over the timed ones. `EXPLAIN (ANALYZE, BUFFERS)` plans of every read are saved with the results.
 
@@ -39,6 +40,9 @@ bun run bench --sizes 4,6,8,10 --combine none,role,resource
 # Against an existing server, or in-process PGlite
 bun run bench --url postgresql://postgres:postgres@localhost:5432/postgres
 bun run bench --db pglite --sizes 4 --reps 5
+
+# Comments as nodes instead of leaves, to compare both with bench:compare
+bun run bench --comments node --out results/node
 ```
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
@@ -75,3 +79,21 @@ Postgres 14 with default settings on an Apple M2 Max, size factor 8 (37k resourc
 Creating a row with a parent and moving one take the graph lock, so they wait for a concurrent workspace move. Rows without parent don't touch the graph beyond their own cache row.
 
 For a single row, walking the trees at query time is as fast as reading the caches. Reads that touch many rows are where the caches pay off. A write costs about as much as the number of cache rows it changes: moving a workspace changes the rows between each of its 585 nodes and the workspace's old and new ancestors, so it is the most expensive write here. `combineAssignmentsWith: role` makes reads cheaper, and assignment and role changes more expensive.
+
+### Leaf tables
+
+The same dataset with 58k comments on the 1.8k posts, as leaves and as nodes, `combineAssignmentsWith: none`. p50 in milliseconds.
+
+|                                                  | Comments as nodes | Comments as leaves |
+| ------------------------------------------------ | ----------------- | ------------------ |
+| Resource edges / cache rows                      | 96k / 532k        | 37k / 182k         |
+| Cache size                                       | 66 MB             | 25 MB              |
+| Cache rebuild                                    | 4.2 s             | 1.3 s              |
+| Comments of a post                               | 2.6               | 1.3                |
+| Count visible comments                           | 7.5               | 7.0                |
+| Create 1000 comments in one statement            | 47                | 11                 |
+| Delete a post and its 32 comments                | 1.1               | 0.39               |
+| Move a workspace                                 | 23                | 7.8                |
+| Create comments while a graph writer moves workspaces, 4 clients | 84 tx/s | 4200 tx/s |
+
+Leaf rows have no cache rows, so the graph and every write that walks it shrink: a workspace move no longer recomputes the cache rows of the comments below it. Writing a comment never waits for the graph lock.

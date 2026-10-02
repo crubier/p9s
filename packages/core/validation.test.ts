@@ -493,6 +493,52 @@ describe("Configuration Validation", () => {
     });
   });
 
+  describe("leaf table validation", () => {
+    const baseConfig = {
+      engine: {
+        schema: "public",
+        users: ["user"],
+        permission: { bitmap: { size: 128 }, maxDepth: { resource: 16, role: 16 } },
+        authentication: { getCurrentUserId: "get_current_user_id" },
+        id: { mode: "integer" as const },
+        combineAssignmentsWith: "none" as const,
+        naming: {},
+      },
+      migration: { output: { sql: "migration.sql" } },
+    };
+    const table = (name: string, extra: Record<string, unknown> = {}) => ({
+      schema: "public", name, isResource: true, resourceId: "resource_id", resourceFkey: "", isRole: false, roleId: "", roleFkey: "", permission: {}, ...extra,
+    });
+    const errorsOf = (tables: unknown[]) => {
+      const result = validateCompleteConfig({ ...baseConfig, tables });
+      return result.success ? [] : getValidationErrors(result);
+    };
+
+    test("[valid] leaf under a node table", () => {
+      expect(errorsOf([
+        table("page"),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" } }),
+      ])).toEqual([]);
+    });
+
+    test("[invalid] leaf without parent", () => {
+      expect(errorsOf([table("block", { resourceLeaf: true })]).some(e => e.includes("tables.0.resourceLeaf"))).toBe(true);
+    });
+
+    test("[invalid] leaf that is not a resource table", () => {
+      expect(errorsOf([table("block", { isResource: false, isRole: true, resourceLeaf: true, resourceParent: { column: "page_id" } })])
+        .some(e => e.includes("tables.0.resourceLeaf"))).toBe(true);
+    });
+
+    test("[invalid] child of a leaf", () => {
+      expect(errorsOf([
+        table("page"),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" } }),
+        table("annotation", { resourceParent: { column: "block_id", table: "block", key: "id" } }),
+      ]).some(e => e.includes("leaf table") && e.includes("tables.2.resourceParent.table"))).toBe(true);
+    });
+  });
+
   describe("parseConfig", () => {
     test("[valid] returns parsed config on valid input", () => {
       const config = parseConfig({

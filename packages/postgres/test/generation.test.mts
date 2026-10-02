@@ -407,6 +407,7 @@ test('Default Migration', () => {
 
     alter table "public"."human_user" add column if not exists "role_id" integer unique;
 
+
     do $$
     declare
       "the_max" integer := (select max("the_id"."id") from (select "resource_id" from "public"."blog_post") as "the_id" ("id"));
@@ -2002,6 +2003,15 @@ test('Default Migration', () => {
     drop function if exists "assignment_edge_resource_delete_trigger_function" ();
     drop view if exists "assignment_edge_cache_view";
     drop table if exists "assignment_edge_cache";
+
+
+      
+    -----------------------------------------------------------------------------------------------------------------------
+    -- Leaf tables
+    -----------------------------------------------------------------------------------------------------------------------
+    drop trigger if exists "10_blog_post_resource_parent_trigger" on "public"."blog_post";
+
+
 
 
       

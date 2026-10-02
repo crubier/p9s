@@ -1266,7 +1266,16 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "resourceInsertTrigger": {
       "type": "string",
     },
+    "resourceLeafTrigger": {
+      "type": "string",
+    },
+    "resourceLeafTriggerFunction": {
+      "type": "string",
+    },
     "resourceParentFunction": {
+      "type": "string",
+    },
+    "resourceParentId": {
       "type": "string",
     },
     "resourceTriggerFunction": {
@@ -1317,6 +1326,9 @@ exports[`Configuration JSON Schemas tableNamingConfigEntrySchema 1`] = `
     "roleDeleteTrigger",
     "resourceParentFunction",
     "roleParentFunction",
+    "resourceParentId",
+    "resourceLeafTriggerFunction",
+    "resourceLeafTrigger",
     "permission",
   ],
   "type": "object",
@@ -1386,7 +1398,16 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "resourceInsertTrigger": {
             "type": "string",
           },
+          "resourceLeafTrigger": {
+            "type": "string",
+          },
+          "resourceLeafTriggerFunction": {
+            "type": "string",
+          },
           "resourceParentFunction": {
+            "type": "string",
+          },
+          "resourceParentId": {
             "type": "string",
           },
           "resourceTriggerFunction": {
@@ -1437,6 +1458,9 @@ exports[`Configuration JSON Schemas tableNamingConfigSchema 1`] = `
           "roleDeleteTrigger",
           "resourceParentFunction",
           "roleParentFunction",
+          "resourceParentId",
+          "resourceLeafTriggerFunction",
+          "resourceLeafTrigger",
           "permission",
         ],
         "type": "object",
@@ -2145,7 +2169,16 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "resourceInsertTrigger": {
             "type": "string",
           },
+          "resourceLeafTrigger": {
+            "type": "string",
+          },
+          "resourceLeafTriggerFunction": {
+            "type": "string",
+          },
           "resourceParentFunction": {
+            "type": "string",
+          },
+          "resourceParentId": {
             "type": "string",
           },
           "resourceTriggerFunction": {
@@ -2196,6 +2229,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
           "roleDeleteTrigger",
           "resourceParentFunction",
           "roleParentFunction",
+          "resourceParentId",
+          "resourceLeafTriggerFunction",
+          "resourceLeafTrigger",
           "permission",
         ],
         "type": "object",
@@ -2334,6 +2370,9 @@ exports[`Configuration JSON Schemas tableConfigSchema 1`] = `
     },
     "resourceId": {
       "type": "string",
+    },
+    "resourceLeaf": {
+      "type": "boolean",
     },
     "resourceParent": {
       "additionalProperties": false,
@@ -3133,7 +3172,16 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "resourceInsertTrigger": {
                 "type": "string",
               },
+              "resourceLeafTrigger": {
+                "type": "string",
+              },
+              "resourceLeafTriggerFunction": {
+                "type": "string",
+              },
               "resourceParentFunction": {
+                "type": "string",
+              },
+              "resourceParentId": {
                 "type": "string",
               },
               "resourceTriggerFunction": {
@@ -3184,6 +3232,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
               "roleDeleteTrigger",
               "resourceParentFunction",
               "roleParentFunction",
+              "resourceParentId",
+              "resourceLeafTriggerFunction",
+              "resourceLeafTrigger",
               "permission",
             ],
             "type": "object",
@@ -4056,7 +4107,16 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "resourceInsertTrigger": {
                     "type": "string",
                   },
+                  "resourceLeafTrigger": {
+                    "type": "string",
+                  },
+                  "resourceLeafTriggerFunction": {
+                    "type": "string",
+                  },
                   "resourceParentFunction": {
+                    "type": "string",
+                  },
+                  "resourceParentId": {
                     "type": "string",
                   },
                   "resourceTriggerFunction": {
@@ -4107,6 +4167,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "roleDeleteTrigger",
                   "resourceParentFunction",
                   "roleParentFunction",
+                  "resourceParentId",
+                  "resourceLeafTriggerFunction",
+                  "resourceLeafTrigger",
                   "permission",
                 ],
                 "type": "object",
@@ -4272,6 +4335,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
           },
           "resourceId": {
             "type": "string",
+          },
+          "resourceLeaf": {
+            "type": "boolean",
           },
           "resourceParent": {
             "additionalProperties": false,
@@ -5084,7 +5150,16 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "resourceInsertTrigger": {
                     "type": "string",
                   },
+                  "resourceLeafTrigger": {
+                    "type": "string",
+                  },
+                  "resourceLeafTriggerFunction": {
+                    "type": "string",
+                  },
                   "resourceParentFunction": {
+                    "type": "string",
+                  },
+                  "resourceParentId": {
                     "type": "string",
                   },
                   "resourceTriggerFunction": {
@@ -5135,6 +5210,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "roleDeleteTrigger",
                   "resourceParentFunction",
                   "roleParentFunction",
+                  "resourceParentId",
+                  "resourceLeafTriggerFunction",
+                  "resourceLeafTrigger",
                   "permission",
                 ],
                 "type": "object",
@@ -5287,6 +5365,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
           },
           "resourceId": {
             "type": "string",
+          },
+          "resourceLeaf": {
+            "type": "boolean",
           },
           "resourceParent": {
             "additionalProperties": false,

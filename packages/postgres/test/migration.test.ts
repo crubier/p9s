@@ -208,6 +208,7 @@ for (const { fixtureName, idMode, combineAssignmentsWith } of legacyConfiguratio
       await context.exec(sql`
         create extension if not exists "uuid-ossp";
         create table "blog_post" ("id" serial primary key, "name" text not null default '');
+        create table "blog_comment" ("id" serial primary key, "post_id" integer references "blog_post" ("id"));
         grant select, insert, update, delete on table "blog_post" to ${identifier(context.database_user_username)};
         grant usage on sequence "blog_post_id_seq" to ${identifier(context.database_user_username)};
         create function "current_role_id"() returns ${idType} as $$

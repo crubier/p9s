@@ -41,8 +41,13 @@ export interface BenchmarkOptions {
   // Connections creating objects at the same time in the concurrent scenarios, 0 to skip them
   concurrency?: number;
   concurrencySeconds?: number;
+  // Comments on each post, rows of a leaf table that take the permissions of their post, or nodes of the graph
+  commentsPerPost?: number;
+  comments?: CommentMode;
   logger?: typeof console;
 }
+
+export type CommentMode = "leaf" | "node";
 
 export interface Stats {
   n: number;
@@ -56,10 +61,10 @@ export interface Stats {
 
 export interface BenchmarkResult {
   options: Required<Omit<BenchmarkOptions, "logger">>;
-  dataset: Record<"resourceNodes" | "resourceEdges" | "roleNodes" | "roleEdges" | "assignmentPairs" | "businessRows", number>;
+  dataset: Record<"resourceNodes" | "resourceEdges" | "roleNodes" | "roleEdges" | "assignmentPairs" | "businessRows" | "comments", number>;
   // Seconds
   // Rows are the business rows of both trees, inserted with triggers disabled like edges and assignments
-  load: Record<"schema" | "dataGen" | "insert" | "disableTriggers" | "resourceRows" | "resourceEdge" | "roleRows" | "roleEdge" | "assignmentEdge" | "enableTriggers" | "analyze", number>;
+  load: Record<"schema" | "dataGen" | "insert" | "disableTriggers" | "resourceRows" | "resourceEdge" | "roleRows" | "roleEdge" | "assignmentEdge" | "commentRows" | "enableTriggers" | "analyze", number>;
   cache: Array<{ table: string, rows: number, bytes: number }>;
   // Milliseconds
   reads: Array<{ name: string, policy: "p9s" | "baseline", stats: Stats, meanVisibleRows?: number }>;
@@ -128,6 +133,8 @@ export async function runPostgresBenchmark(context: Context, {
   baseline = true,
   concurrency = 0,
   concurrencySeconds = 3,
+  commentsPerPost = 4 * benchmarkSizeFactor,
+  comments = "leaf",
   logger = nullConsole
 }: BenchmarkOptions): Promise<BenchmarkResult> {
   const startTime = performance.now();
@@ -208,7 +215,17 @@ export async function runPostgresBenchmark(context: Context, {
       );
       grant select, insert, update, delete on table ${identifier(resourceTable)} to ${identifier(database_user_username)};
     `), "\n")}
-    
+
+    drop table if exists "comment" cascade;
+    create table "comment" (
+      "id" uuid default uuid_generate_v4() primary key,
+      "created_at" timestamptz default current_timestamp,
+      "post_id" uuid references "post" ("id") on delete cascade,
+      "author" uuid references "human_user"("id"),
+      "body" varchar(1024) not null
+    );
+    create index on "comment" ("post_id");
+    grant select, insert, update, delete on table "comment" to ${identifier(database_user_username)};
   `);
 
   await exec(idMode === "uuid" ? sql`
@@ -280,7 +297,18 @@ export async function runPostgresBenchmark(context: Context, {
           delete: 15 + 4 * index
         }
       }
-    }))]
+    })),
+    {
+      // With the bits of posts, so that a comment is visible exactly when its post is
+      name: "comment",
+      isResource: true,
+      resourceId: "resource_id",
+      resourceParent: { column: "post_id", table: "post", key: "id" },
+      ...(comments === "leaf" ? { resourceLeaf: true } : {}),
+      permission: {
+        [database_user_username]: { select: 12, insert: 13, update: 14, delete: 15 }
+      }
+    }]
   }));
 
   await exec(idMode === "uuid" ? sql`
@@ -523,6 +551,14 @@ export async function runPostgresBenchmark(context: Context, {
       select setval('role_id_seq', ${raw(String(roleTree.totalNodes + 100000))});`);
   }
 
+  // As nodes, comments get their home edge and cache rows when the triggers are enabled below
+  tick("comment_rows_start");
+  await exec(sql`
+    insert into "comment" ("post_id", "body")
+    select "post"."id", 'comment ' || s from "post", generate_series(1, ${raw(String(commentsPerPost))}) as s`);
+  const [[{ count: commentCount }]] = await exec(sql`select count(*)::integer as "count" from "comment"`);
+  tick("comment_rows_end");
+
   tick("enable_triggers_start");
   await exec(sql`
     select resource_trigger_enable();
@@ -549,6 +585,7 @@ export async function runPostgresBenchmark(context: Context, {
     roleRows: elapsed("role_rows_start", "role_rows_end"),
     roleEdge: elapsed("role_edge_start", "role_edge_end"),
     assignmentEdge: elapsed("assignment_edge_start", "assignment_edge_end"),
+    commentRows: elapsed("comment_rows_start", "comment_rows_end"),
     enableTriggers: elapsed("enable_triggers_start", "enable_triggers_end"),
     analyze: elapsed("analyze_start", "analyze_end"),
   };
@@ -577,8 +614,15 @@ export async function runPostgresBenchmark(context: Context, {
   const pick = (level: TreeLevelInfo) => level.start + random.int(level.size);
   const users = roleTree.levelInfo[2]!;
 
-  // Reads, as the application database role going through RLS
-  const readScenarios: Array<{ name: string, table: string, statement: () => SQL, counts?: boolean }> = [
+  const [sampledComments]: [Array<{ id: string, post_id: string }>] = await exec(sql`
+    select "id", "post_id" from "comment" order by md5("id"::text) limit 1000`);
+  // A random sequence of their own, so that the other scenarios pick the same nodes as without comments
+  const commentRandom = createRandom(777);
+  const pickComment = () => sampledComments[commentRandom.int(sampledComments.length)]!;
+  const uuid = (value: string) => sql`${literal(value)}::uuid`;
+
+  // Reads, as the application database role going through RLS. The baseline replaces the policies of node tables only.
+  const readScenarios: Array<{ name: string, table: string, statement: () => SQL, counts?: boolean, baseline?: false }> = [
     {
       name: "point lookup (object)",
       table: "post",
@@ -587,6 +631,12 @@ export async function runPostgresBenchmark(context: Context, {
     { name: "first page of 50 (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" limit 50` },
     { name: "count visible (object)", table: "post", statement: () => sql`select count(*)::integer as "count" from "post"`, counts: true },
     { name: "count visible (folder)", table: "folder", statement: () => sql`select count(*)::integer as "count" from "folder"`, counts: true },
+    ...(sampledComments.length === 0 ? [] : [
+      { name: "point lookup (comment)", table: "comment", statement: () => sql`select "id" from "comment" where "id" = ${uuid(pickComment().id)}`, baseline: false as const },
+      { name: "comments of a post", table: "comment", statement: () => sql`select "id", "body" from "comment" where "post_id" = ${uuid(pickComment().post_id)} order by "created_at"`, baseline: false as const },
+      { name: "first page of 50 (comment)", table: "comment", statement: () => sql`select "id", "body" from "comment" order by "id" limit 50`, baseline: false as const },
+      { name: "count visible (comment)", table: "comment", statement: () => sql`select count(*)::integer as "count" from "comment"`, counts: true, baseline: false as const },
+    ]),
   ];
 
   const asUser = async (userId: number) => {
@@ -599,7 +649,7 @@ export async function runPostgresBenchmark(context: Context, {
   const plans: Record<string, string> = {};
 
   const measureReads = async (policy: "p9s" | "baseline", scenarioReps: number) => {
-    for (const scenario of readScenarios) {
+    for (const scenario of readScenarios.filter(scenario => policy === "p9s" || scenario.baseline !== false)) {
       const samples: number[] = [];
       let visibleRows = 0;
       for (let i = 0; i < warmup + scenarioReps; i++) {
@@ -647,7 +697,7 @@ export async function runPostgresBenchmark(context: Context, {
     const cachedCounts = await visibleCounts();
     // Same access rule as p9s, but walking both trees at query time instead of reading the caches
     const selectBit = (table: string) => table === "folder" ? 8 : 12 + 4 * resourceTables.indexOf(table);
-    const baselineTables = [...new Set(readScenarios.map(s => s.table))];
+    const baselineTables = [...new Set(readScenarios.filter(s => s.baseline !== false).map(s => s.table))];
     const selectPolicy = (table: string) => identifier(`${table}_${database_user_username}_select_policy`);
     const [p9sPolicies]: [Array<{ tablename: string, qual: string }>] = await exec(sql`
       select "tablename", "qual" from pg_policies
@@ -908,6 +958,57 @@ export async function runPostgresBenchmark(context: Context, {
     { name: "row: delete folder", statement: () => rowWrites.deleteRows("folder", [pickFrom(writableFolders)]) },
   ]);
 
+  // Comments on the posts the application user can write: the loaded edges have random bits, so only some posts of its
+  // projects keep every post bit. As leaves, writing a comment never touches the graph.
+  const [writablePosts]: [Array<{ id: string }>] = await exec(sql`
+    select "post"."id" from "post"
+    join "resource_edge_cache" on "resource_edge_cache"."child_id" = "post"."resource_id"
+    where "resource_edge_cache"."parent_id" in (${ids(writableProjects)})
+    and ("resource_edge_cache"."permission" << 12)::bit(4) = b'1111'
+    order by "post"."id"`);
+  const [writableComments]: [Array<{ id: string, post_id: string }>] = writablePosts.length < 2 ? [[]] : await exec(sql`
+    select "id", "post_id" from "comment" where "post_id" in (${join(writablePosts.map(({ id }) => uuid(id)), ", ")})
+    order by md5("id"::text) limit ${raw(String(warmup + reps))}`);
+  const commentWrites = {
+    create: (post: string) => sql`
+      ${asApp}
+      insert into "comment" ("post_id", "body") values (${uuid(post)}, 'new comment');
+      reset role;`,
+    createMany: (post: string) => sql`
+      insert into "comment" ("post_id", "body") select ${uuid(post)}, 'new comment' from generate_series(1, ${raw(String(BULK_ROWS))});`,
+    edit: (comment: string) => sql`
+      ${asApp}
+      update "comment" set "body" = 'edited comment' where "id" = ${uuid(comment)};
+      reset role;`,
+    move: (comment: string, post: string) => sql`
+      ${asApp}
+      update "comment" set "post_id" = ${uuid(post)} where "id" = ${uuid(comment)};
+      reset role;`,
+    delete: (comment: string) => sql`
+      ${asApp}
+      delete from "comment" where "id" = ${uuid(comment)};
+      reset role;`,
+    deletePost: (post: string) => sql`delete from "post" where "id" = ${uuid(post)};`,
+  };
+  const otherPost = (post: string) => writablePosts[(writablePosts.findIndex(({ id }) => id === post) + 1) % writablePosts.length]!.id;
+  if (writableComments.length > 0) {
+    const [{ id: comment, post_id: post }] = writableComments as [{ id: string, post_id: string }];
+    const commentWhere = (condition: SQL) => sql`exists (select 1 from "comment" where "id" = ${uuid(comment)} and ${condition})`;
+    await verify("create comment", sql``, commentWrites.create(post), sql`(select count(*) from "comment" where "body" = 'new comment') = 1`);
+    await verify("edit comment", sql``, commentWrites.edit(comment), commentWhere(sql`"body" = 'edited comment'`));
+    await verify("move comment", sql``, commentWrites.move(comment, otherPost(post)), commentWhere(sql`"post_id" = ${uuid(otherPost(post))}`));
+    await verify("delete comment", sql``, commentWrites.delete(comment), sql`not exists (select 1 from "comment" where "id" = ${uuid(comment)})`);
+    const sampled = (i: number) => writableComments[i % writableComments.length]!;
+    await measureWrites([
+      { name: "comment: create comment on post", statement: (i) => commentWrites.create(sampled(i).post_id) },
+      { name: `comment: create ${BULK_ROWS} comments in one statement`, statement: (i) => commentWrites.createMany(sampled(i).post_id) },
+      { name: "comment: edit comment", statement: (i) => commentWrites.edit(sampled(i).id) },
+      { name: "comment: move comment to other post", statement: (i) => commentWrites.move(sampled(i).id, otherPost(sampled(i).post_id)) },
+      { name: "comment: delete comment", statement: (i) => commentWrites.delete(sampled(i).id) },
+      { name: `comment: delete post with its ${commentsPerPost} comments`, statement: (i) => commentWrites.deletePost(sampled(i).post_id) },
+    ]);
+  }
+
   logger.table(writes.map(({ name, stats }) => ({ name, p50: stats.p50, p95: stats.p95 })));
 
   // Several connections committing at once. Graph writes wait on each other, so this measures throughput under the
@@ -955,20 +1056,27 @@ export async function runPostgresBenchmark(context: Context, {
     await run("create parentless object", () => rowWrites.createParentlessObject(freshObject()));
     await run("create object in project, while a graph writer moves a workspace", createInProject,
       i => rowWrites.moveWorkspace(workspaces.start, orgs.start + (i % 2 === 0 ? 1 : 0)));
+    if (writableComments.length > 0) {
+      const createComment = () => commentWrites.create(writablePosts[random.int(writablePosts.length)]!.id);
+      await run("create comment on post", createComment);
+      await run("create comment on post, while a graph writer moves a workspace", createComment,
+        i => rowWrites.moveWorkspace(workspaces.start, orgs.start + (i % 2 === 0 ? 1 : 0)));
+    }
     logger.table(concurrent.map(({ name, transactions, errors, throughput, stats }) => ({ name, transactions, errors, throughput, p50: stats.p50, p99: stats.p99 })));
   }
 
   logger.log("Total time (seconds):", (performance.now() - startTime) / 1000);
 
   return {
-    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, reps, warmup, baseline, concurrency, concurrencySeconds },
+    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, reps, warmup, baseline, concurrency, concurrencySeconds, commentsPerPost, comments },
     dataset: {
       resourceNodes: resourceTree.totalNodes,
       resourceEdges: resourceTree.totalEdges,
       roleNodes: roleTree.totalNodes,
       roleEdges: roleTree.totalEdges,
       assignmentPairs: totalAssignmentPairs,
-      businessRows: resourceTree.totalNodes + roleTree.totalNodes,
+      businessRows: resourceTree.totalNodes + roleTree.totalNodes + commentCount,
+      comments: commentCount,
     },
     load,
     cache,

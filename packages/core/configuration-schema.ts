@@ -176,6 +176,10 @@ export const tableNamingConfigEntrySchema = z.object({
   // Security definer lookups of the parent id from the parent key, for the policies
   resourceParentFunction: z.string(),
   roleParentFunction: z.string(),
+  // On leaf tables whose parent column holds a key: the resource id of the parent, kept by a trigger
+  resourceParentId: z.string(),
+  resourceLeafTriggerFunction: z.string(),
+  resourceLeafTrigger: z.string(),
   permission: z.record(z.string(), permissionPerOperationNamingSchema),
 });
 
@@ -206,6 +210,9 @@ export const tableConfigSchema = z.object({
   resourceId: z.string(),
   resourceFkey: z.string(),
   resourceParent: parentConfigSchema.optional(),
+  // Rows of a leaf table are not nodes: they have no resource id and take the permissions of their parent. Nothing
+  // can be a child of a leaf row, share it on its own, or assign roles to it.
+  resourceLeaf: z.boolean().optional(),
   isRole: z.boolean(),
   roleId: z.string(),
   roleFkey: z.string(),
@@ -311,6 +318,20 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
           path: ["tables", tableIndex, parentKey, "table"],
         });
       }
+      if (kind === "resource" && parent.table !== undefined && data.tables.some(other => other.name === parent.table && other.resourceLeaf)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Parent table "${parent.table}" is a leaf table, its rows cannot have children`,
+          path: ["tables", tableIndex, parentKey, "table"],
+        });
+      }
+    }
+    if (table.resourceLeaf && !(table.isResource && table.resourceParent)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A leaf table needs to be a resource table (isResource) with a parent (resourceParent)",
+        path: ["tables", tableIndex, "resourceLeaf"],
+      });
     }
   });
 });

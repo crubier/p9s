@@ -91,6 +91,7 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     insert into "resource_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1), (4, 1);
     insert into "role_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1);
     insert into "blog_post" ("group_id", "name") select 1, 'post' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
+    insert into "blog_comment" ("post_id", "body") select 1, 'comment' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
     insert into "assignment_edge" ("resource_id", "role_id", "permission") values (1, 1, ${bits("1011")}), (2, 2, ${bits("1111")}), (3, 3, ${bits("0011")});`;
   const aPostOf = (group: number) => sql`(select "id" from "blog_post" where "group_id" = ${raw(String(group))} limit 1)`;
   const flatWrites = (postOfRoot: number): Array<[string, SQL, boolean]> => [
@@ -101,6 +102,14 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["move a group", sql`update "resource_group" set "parent_id" = 2 where "id" = 4`, false],
     ["delete a post", sql`delete from "blog_post" where "id" = ${aPostOf(1)}`, false],
     ["link a post to a group", sql`insert into "resource_edge" values (4, ${raw(String(postOfRoot))}, ${bits("1111")})`, true],
+  ];
+
+  // Comments are leaves: the 20000 of the first post are not nodes, so writing them reads no graph table at all
+  const ownerCommentWrites: Array<[string, SQL]> = [
+    ["add a comment", sql`insert into "blog_comment" ("post_id", "body") values (1, 'new')`],
+    ["add 1000 comments", sql`insert into "blog_comment" ("post_id", "body") select 1, 'new' from generate_series(1, 1000)`],
+    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 1`],
+    ["delete a comment", sql`delete from "blog_comment" where "id" = 1`],
   ];
 
   for (const combineAssignmentsWith of combineModes) {
@@ -124,6 +133,13 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
         if (Object.keys(tables).length > 0) reads[name] = tables;
       }
       expect(reads).toEqual({});
+
+      const ownerReads: Record<string, Record<string, number>> = {};
+      for (const [name, statement] of ownerCommentWrites) {
+        const tables = await rowsRead(statement, false);
+        if (Object.keys(tables).length > 0) ownerReads[name] = tables;
+      }
+      expect(ownerReads).toEqual({});
     }, { timeout: 60000 });
   }
 });
