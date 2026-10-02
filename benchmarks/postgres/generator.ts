@@ -858,8 +858,7 @@ export async function runPostgresBenchmark(context: Context, {
 
   // Business-row writes, the way an application creates, moves and deletes its rows. The application user acts as a
   // role assigned all bits on a few projects and folders spread over the tree, which it can then write. Objects are
-  // created untimed under those projects for the scenarios that move or delete one. The role has only a few
-  // assignments because the policies of updates and deletes enumerate every resource the user can see.
+  // created untimed under those projects for the scenarios that move or delete one.
   const ones = raw(`~b'0'::bit(${bitmapSize})`);
   const orgs = resourceTree.levelInfo[0]!;
   const workspaces = resourceTree.levelInfo[1]!;
@@ -1006,6 +1005,39 @@ export async function runPostgresBenchmark(context: Context, {
       { name: "comment: move comment to other post", statement: (i) => commentWrites.move(sampled(i).id, otherPost(sampled(i).post_id)) },
       { name: "comment: delete comment", statement: (i) => commentWrites.delete(sampled(i).id) },
       { name: `comment: delete post with its ${commentsPerPost} comments`, statement: (i) => commentWrites.deletePost(sampled(i).post_id) },
+    ]);
+  }
+
+  // An org admin is assigned every bit on every org, so it sees most of the graph. Reading or writing one row still only
+  // checks the ancestors of that row. Last, so that its assignments change none of the scenarios above.
+  const adminRole = appRole + 1;
+  await exec(sql`
+    insert into "human_user" ("name", "email", "role_id") values ('admin', 'admin@example.com', ${nodeId(adminRole)});
+    insert into "assignment_edge" ("role_id", "resource_id", "permission") values
+    ${join(Array.from({ length: orgs.size }, (_, k) => sql`(${nodeId(adminRole)}, ${nodeId(orgs.start + k)}, ${ones})`), ", ")};
+  `);
+  const [adminPosts]: [Array<{ id: string }>] = await exec(sql`
+    select distinct "post"."resource_id"::text as "id" from "post"
+    join "resource_edge_cache" on "resource_edge_cache"."child_id" = "post"."resource_id"
+    where "resource_edge_cache"."parent_id" in (${ids(Array.from({ length: orgs.size }, (_, k) => orgs.start + k))})
+    and ("resource_edge_cache"."permission" << 12)::bit(4) = b'1111'
+    order by 1 limit ${raw(String(warmup + reps))}`);
+  if (adminPosts.length > 0) {
+    const asAdmin = sql`
+      set local role ${identifier(database_user_username)};
+      select set_config('jwt.claims.role_id', ${raw(`'${idMode === "uuid" ? generateUuidFromInteger(adminRole) : adminRole}'`)}, true);`;
+    const adminPost = (i: number) => literal(adminPosts[i % adminPosts.length]!.id);
+    const renameAsAdmin = (i: number) => sql`
+      ${asAdmin}
+      update "post" set "name" = 'renamed by admin' where "resource_id" = ${adminPost(i)};
+      reset role;`;
+    await verify("rename object as org admin", sql``, renameAsAdmin(0), sql`(select "name" from "post" where "resource_id" = ${adminPost(0)}) = 'renamed by admin'`);
+    await measureWrites([
+      { name: "admin: read object as org admin", statement: (i) => sql`
+        ${asAdmin}
+        select "name" from "post" where "resource_id" = ${adminPost(i)};
+        reset role;` },
+      { name: "admin: rename object as org admin", statement: renameAsAdmin },
     ]);
   }
 

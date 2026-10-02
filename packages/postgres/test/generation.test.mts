@@ -178,6 +178,12 @@ test('Default Migration', () => {
 
     create index if not exists "resource_edge_cache_child_id_index" on "resource_edge_cache" ("child_id");
 
+    -- Policies either check the ancestors of each row, or list once every resource the user can see, from the ones
+    -- assigned to them. Postgres estimates the descendants of an assigned resource as the cache rows per distinct parent,
+    -- a few rows, while assignments are mostly high in the tree, over large subtrees. It would then list every visible
+    -- resource to check a single row. Estimate the descendants of a resource as those of the largest subtree instead.
+    alter table "resource_edge_cache" alter column "parent_id" set (n_distinct = 1);
+
     -- Only p9s triggers write to the cache
     select pg_temp.p9s_set_privileges('"resource_edge_cache"'::regclass, array['user1']::text[], array[]::text[]);
 
@@ -667,11 +673,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),
@@ -778,11 +790,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),
@@ -878,11 +896,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),
@@ -1291,11 +1315,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),
@@ -1402,11 +1432,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),
@@ -1502,11 +1538,17 @@ test('Default Migration', () => {
           where "walk"."inside"
           and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
           union all
-          select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4)
-          from "walk"
-          join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-          where not "walk"."inside"
-          and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+          -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+          -- walked node, and prefer comparing every walked node with the whole cache.
+          select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+          from (
+            select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(4) as "permission"
+            from "walk"
+            join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+            where not "walk"."inside"
+            offset 0
+          ) as "the_ancestor"
+          where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
         ) as "the_path"
         group by ("the_path"."parent_id", "the_path"."child_id")
       ),

@@ -67,7 +67,7 @@ Postgres 14 with default settings on an Apple M2 Max, size factor 8 (37k resourc
 | Add a user to a team                   | 0.13   | 0.26   |
 | Move a team to another org             | 0.25   | 2.6    |
 | Create an object, as the app role      | 0.66   | 0.36   |
-| Create 1000 objects in one statement   | 45     | 45     |
+| Create 1000 objects in one statement   | 45     | 57     |
 | Delete 1000 objects in one statement   | 18     | 34     |
 
 | Concurrent writes, 4 clients                          | `none`     | `role`     |
@@ -97,3 +97,15 @@ The same dataset with 58k comments on the 1.8k posts, as leaves and as nodes, `c
 | Create comments while a graph writer moves workspaces, 4 clients | 84 tx/s | 4200 tx/s |
 
 Leaf rows have no cache rows, so the graph and every write that walks it shrink: a workspace move no longer recomputes the cache rows of the comments below it. Writing a comment never waits for the graph lock.
+
+### Users who see much of the graph
+
+A policy either checks the ancestors of each row, or lists once every resource the user can see. Listing pays off for statements over many rows, and checking ancestors for a few rows. p9s tells the planner that an assigned resource can have most of the cache below it, so a statement over a few rows checks their ancestors. In a flat graph, where one group holds 20,000 posts and a user is assigned on it, `combineAssignmentsWith: none`:
+
+|                     | Before: listing visible resources | Now                          |
+| ------------------- | --------------------------------- | ---------------------------- |
+| Read one post       | 17.5 ms                           | 0.03 ms, checking ancestors  |
+| Update one post     | 36 ms                             | 0.7 ms, checking ancestors   |
+| Count visible posts | 7.6 ms                            | 7.6 ms, still listing        |
+
+In the balanced trees of the benchmark, an org admin who sees most objects reads one in 0.5 ms and renames one in 1.7 ms either way. A statement over many rows by a user who sees few resources now checks ancestors too: as the application user, creating 1000 objects in one statement takes 57 ms instead of 45 ms with `combineAssignmentsWith: role`.

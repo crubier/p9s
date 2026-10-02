@@ -72,6 +72,8 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
 
   const leaf = raw(String(LEAF));
   const leafWrites: Array<[string, SQL, boolean]> = [
+    // First, as a session keeps the plans of the trigger statements: they are then planned for many rows
+    ["add 1000 posts to leaves", sql`insert into "blog_post" ("group_id", "name") select ${raw(String(RESOURCES - 4095))} + s % 4096, 'new' from generate_series(1, 1000) as s`, false],
     ["add a leaf", sql`insert into "resource_group" ("id", "parent_id") values (${raw(String(RESOURCES + 1))}, ${raw(String(parentOf(LEAF)))})`, false],
     ["add a post to a leaf", sql`insert into "blog_post" ("group_id", "name") values (${leaf}, 'new')`, false],
     ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "group_id" = ${leaf}`, false],
@@ -112,6 +114,19 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["delete a comment", sql`delete from "blog_comment" where "id" = 1`],
   ];
 
+  // Role 1 may select, update and delete in the root, which holds every post. Policies check one row by its ancestors,
+  // rather than listing the 20000 posts the role can see.
+  const userRowStatements: Array<[string, SQL]> = [
+    ["read a post", sql`select "id" from "blog_post" where "id" = 5`],
+    ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "id" = 5 returning "id"`],
+    ["move a post", sql`update "blog_post" set "group_id" = 1 where "id" = 5 returning "id"`],
+    ["delete a post", sql`delete from "blog_post" where "id" = 5 returning "id"`],
+    ["read a comment", sql`select "id" from "blog_comment" where "id" = 5`],
+    ["edit a comment", sql`update "blog_comment" set "body" = 'edited' where "id" = 5 returning "id"`],
+    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 5 returning "id"`],
+    ["delete a comment", sql`delete from "blog_comment" where "id" = 5 returning "id"`],
+  ];
+
   for (const combineAssignmentsWith of combineModes) {
     test(`combineAssignmentsWith ${combineAssignmentsWith}`, async () => {
       await load(combineAssignmentsWith, deepGraph);
@@ -140,6 +155,16 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
         if (Object.keys(tables).length > 0) ownerReads[name] = tables;
       }
       expect(ownerReads).toEqual({});
+
+      const userReads: Record<string, Record<string, number>> = {};
+      for (const [name, statement] of userRowStatements) {
+        const asUser = sql`set local role ${identifier(context.database_user_username)}; select set_config('jwt.claims.role_id', '1', true); ${statement}; reset role`;
+        const tables = Object.fromEntries(Object.entries(await rowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ));
+        if (Object.keys(tables).length > 0) userReads[name] = tables;
+        const [, , , rows] = await context.runTestQuery(sql`begin; ${asUser}; rollback;`);
+        expect({ name, rows: rows.length }).toEqual({ name, rows: 1 });
+      }
+      expect(userReads).toEqual({});
     }, { timeout: 60000 });
   }
 });

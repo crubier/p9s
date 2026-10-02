@@ -434,7 +434,13 @@ create table if not exists ${edgeCache} (
 create index if not exists ${edgeCacheParentIdIndex} on ${edgeCache} (${parentId});
 
 create index if not exists ${edgeCacheChildIdIndex} on ${edgeCache} (${childId});
-
+${kind === "resource" ? sql`
+-- Policies either check the ancestors of each row, or list once every resource the user can see, from the ones
+-- assigned to them. Postgres estimates the descendants of an assigned resource as the cache rows per distinct parent,
+-- a few rows, while assignments are mostly high in the tree, over large subtrees. It would then list every visible
+-- resource to check a single row. Estimate the descendants of a resource as those of the largest subtree instead.
+alter table ${edgeCache} alter column ${parentId} set (n_distinct = 1);
+` : sql``}
 -- Only p9s triggers write to the cache
 ${setPrivileges(edgeCache, everyone, [])}
 
@@ -726,11 +732,17 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
       where "walk"."inside"
       and ${isIn(sql`"walk".${parentId}`, sql`select ${parentId} from "upstream"`)}
       union all
-      select "the_edge_cache".${parentId}, "walk".${childId}, ("the_edge_cache".${permission} & "walk".${permission})::bit(${literal(size)})
-      from "walk"
-      join ${edgeCache} as "the_edge_cache" on "the_edge_cache".${childId} = "walk".${parentId}
-      where not "walk"."inside"
-      and ${isIn(sql`"the_edge_cache".${parentId}`, sql`select ${parentId} from "upstream"`)}
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor".${parentId}, "the_ancestor".${childId}, "the_ancestor".${permission}
+      from (
+        select "the_edge_cache".${parentId}, "walk".${childId}, ("the_edge_cache".${permission} & "walk".${permission})::bit(${literal(size)}) as ${permission}
+        from "walk"
+        join ${edgeCache} as "the_edge_cache" on "the_edge_cache".${childId} = "walk".${parentId}
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ${isIn(sql`"the_ancestor".${parentId}`, sql`select ${parentId} from "upstream"`)}
     ) as "the_path"
     group by ("the_path".${parentId}, "the_path".${childId})
   ),
@@ -1136,11 +1148,14 @@ drop trigger if exists ${modeNaming.combinedEdgeDeleteTrigger} on ${cache};`;
     const newEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_new_rows"`;
     const oldEdgeCaches = sql`select ${thingCombinedWith.childId} from "p9s_old_rows"`;
 
-    // The self row of a new bound row has no assignment yet and nothing can assign it before it commits
+    // The self row of a new bound row has no assignment yet and nothing can assign it before it commits. The assignments
+    // are a join, so they are looked up by index: a correlated exists planned for a bulk write would hash them all.
     const onlyUnassignedSelfRows = sql`not exists (
     select from "p9s_new_rows" as "the_edge_cache"
     where "the_edge_cache".${thingCombinedWith.parentId} <> "the_edge_cache".${thingCombinedWith.childId}
-    or exists (select from ${edge} as "the_assignment" where "the_assignment".${thingCombinedWithId} = "the_edge_cache".${thingCombinedWith.parentId})
+  ) and not exists (
+    select from "p9s_new_rows" as "the_edge_cache"
+    join ${edge} as "the_assignment" on "the_assignment".${thingCombinedWithId} = "the_edge_cache".${thingCombinedWith.parentId}
   )`;
 
     const trigger = (functionName: SQL, triggerName: SQL, table: SQL, event: TriggerEvent, body: SQL, skip?: SQL) =>
@@ -1186,11 +1201,14 @@ begin
   analyze ${edge};
   analyze ${thingCombinedWith.edgeCache};
   delete from ${edgeCache};
+  -- Policies read the rows of a role together. In this order they fill few pages, whatever plan the view takes.
   return query
   insert into ${edgeCache} (${roleId}, ${resourceId}, ${permission})
   select ${roleId}, ${resourceId}, ${permission}
   from
     ${edgeCacheView}
+  order by
+    ${roleId}, ${resourceId}
     returning
       *;
 end;
