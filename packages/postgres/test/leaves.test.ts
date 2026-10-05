@@ -201,7 +201,7 @@ describe('leaf tables', () => {
       await context.exec(sql`
         insert into "resource_edge" ("parent_id", "child_id", "permission")
         select "resource_id", 3, ${bits("1111")} from "blog_comment" limit 1;`);
-      await expect(context.exec(createMigration(blogMigrationConfig(context)))).rejects.toThrow("cannot become a leaf table");
+      await expect(context.exec(createMigration(blogMigrationConfig(context)))).rejects.toThrow("cannot become a resource leaf table");
     });
   });
 });

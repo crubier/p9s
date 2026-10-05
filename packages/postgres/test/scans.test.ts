@@ -26,9 +26,9 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
   afterEach(teardown);
 
   // Edges and assignments are written by the graph writer, rows of bound tables by their owner
-  const tableStats = (column: SQL) => async (statement: SQL, asWriter: boolean) => {
+  const tableStats = (column: SQL, tables = graphTables) => async (statement: SQL, asWriter: boolean) => {
     // pg_stat_xact_user_tables counts the scans of the current transaction, so this is exact and needs no flush
-    const count = sql`select relname::text as "table", (${column})::int as "n" from pg_stat_xact_user_tables where relname in (${join(graphTables.map(table => literal(table)), ", ")})`;
+    const count = sql`select relname::text as "table", (${column})::int as "n" from pg_stat_xact_user_tables where relname in (${join(tables.map(table => literal(table)), ", ")})`;
     const results = await context.runTestQuery(sql`
       begin;
       ${asWriter ? sql`set local role ${identifier(context.database_writer_username)}` : sql`select 1`};
@@ -42,6 +42,8 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
   };
   const seqScans = tableStats(sql`seq_scan`);
   const rowsRead = tableStats(sql`coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0)`);
+  // Policies also look up the api key of the current user
+  const userRowsRead = tableStats(sql`coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0)`, [...graphTables, "api_key"]);
 
   const load = async (combineAssignmentsWith: typeof combineModes[number], rows: SQL) => {
     await setupBlog(context, { combineAssignmentsWith });
@@ -66,6 +68,7 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ${tree("resource_group", RESOURCES)}
     ${tree("role_group", ROLES)}
     insert into "blog_post" ("group_id", "name") values (${raw(String(LEAF))}, 'post');
+    insert into "api_key" ("group_id") select s from generate_series(1, ${raw(String(ROLES))}) as s;
     insert into "assignment_edge" ("resource_id", "role_id", "permission")
     select (s * 37) % ${raw(String(RESOURCES))} + 1, s % ${raw(String(ROLES))} + 1, ${bits("1011")} from generate_series(1, 10000) as s
     on conflict do nothing;`;
@@ -87,6 +90,11 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["detach a leaf edge", sql`update "resource_edge" set "home" = false where "child_id" = ${leaf}; delete from "resource_edge" where "child_id" = ${leaf}`, true],
     ["assign a leaf", sql`insert into "assignment_edge" ("resource_id", "role_id", "permission") values (${leaf}, ${raw(String(ROLES))}, ${bits("1111")}) on conflict do nothing`, true],
     ["move a leaf role", sql`update "role_group" set "parent_id" = ${raw(String(parentOf(ROLES) - 1))} where "id" = ${raw(String(ROLES))}`, false],
+    // API keys are role leaves: their writes only check that their role id is not a node
+    ["add 1000 api keys", sql`insert into "api_key" ("group_id") select ${raw(String(ROLES - 4095))} + s % 4096 from generate_series(1, 1000) as s`, false],
+    ["add an api key", sql`insert into "api_key" ("group_id") values (${raw(String(ROLES))})`, false],
+    ["move an api key", sql`update "api_key" set "group_id" = 1 where "id" = 1`, false],
+    ["delete an api key", sql`delete from "api_key" where "id" = 1`, false],
   ];
 
   const flatGraph = sql`
@@ -94,6 +102,7 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     insert into "role_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1);
     insert into "blog_post" ("group_id", "name") select 1, 'post' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
     insert into "blog_comment" ("post_id", "body") select 1, 'comment' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
+    insert into "api_key" ("group_id") select 1 from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
     insert into "assignment_edge" ("resource_id", "role_id", "permission") values (1, 1, ${bits("1011")}), (2, 2, ${bits("1111")}), (3, 3, ${bits("0011")});`;
   const aPostOf = (group: number) => sql`(select "id" from "blog_post" where "group_id" = ${raw(String(group))} limit 1)`;
   const flatWrites = (postOfRoot: number): Array<[string, SQL, boolean]> => [
@@ -156,13 +165,17 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
       }
       expect(ownerReads).toEqual({});
 
+      // As role 1, and as one of its api keys, which has the same permissions
+      const [[{ role_id: keyRoleId }]] = await context.exec(sql`select "role_id" from "api_key" where "group_id" = 1 order by "id" desc limit 1`);
       const userReads: Record<string, Record<string, number>> = {};
-      for (const [name, statement] of userRowStatements) {
-        const asUser = sql`set local role ${identifier(context.database_user_username)}; select set_config('jwt.claims.role_id', '1', true); ${statement}; reset role`;
-        const tables = Object.fromEntries(Object.entries(await rowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ));
-        if (Object.keys(tables).length > 0) userReads[name] = tables;
-        const [, , , rows] = await context.runTestQuery(sql`begin; ${asUser}; rollback;`);
-        expect({ name, rows: rows.length }).toEqual({ name, rows: 1 });
+      for (const currentRoleId of ["1", String(keyRoleId)]) {
+        for (const [name, statement] of userRowStatements) {
+          const asUser = sql`set local role ${identifier(context.database_user_username)}; select set_config('jwt.claims.role_id', ${literal(currentRoleId)}, true); ${statement}; reset role`;
+          const tables = Object.fromEntries(Object.entries(await userRowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ));
+          if (Object.keys(tables).length > 0) userReads[`${name} as ${currentRoleId}`] = tables;
+          const [, , , rows] = await context.runTestQuery(sql`begin; ${asUser}; rollback;`);
+          expect({ name, currentRoleId, rows: rows.length }).toEqual({ name, currentRoleId, rows: 1 });
+        }
       }
       expect(userReads).toEqual({});
     }, { timeout: 60000 });

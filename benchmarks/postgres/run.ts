@@ -6,7 +6,7 @@ import path from 'node:path';
 import { query as sql } from 'pg-sql2';
 import { setupTests as setupPgTests } from '@p9s/postgres-testing/pg';
 import { setupTests as setupPgliteTests } from '@p9s/postgres-testing/pglite';
-import { runPostgresBenchmark, type BenchmarkResult, type CombineMode, type CommentMode, type Context, type IdMode } from './generator';
+import { runPostgresBenchmark, type BenchmarkResult, type CombineMode, type CommentMode, type Context, type IdMode, type KeyMode } from './generator';
 
 const usage = `
 Usage: bun run.ts [options]
@@ -25,6 +25,8 @@ Usage: bun run.ts [options]
                           Duration of each concurrent scenario (default: 3)
   --comments <leaf|node>  Whether comments on posts are rows of a leaf table or nodes of the graph (default: leaf)
   --comments-per-post <n> Comments on each post (default: 4 times the size)
+  --keys <leaf|node>      Whether the api keys of users are rows of a role leaf table or nodes of the graph (default: leaf)
+  --keys-per-user <n>     Api keys of each user (default: 2)
   --out <dir>             Where to write the JSON results (default: ./results)
 `;
 
@@ -42,6 +44,8 @@ const { values: args } = parseArgs({
     'concurrency-seconds': { type: 'string', default: '3' },
     comments: { type: 'string', default: 'leaf' },
     'comments-per-post': { type: 'string' },
+    keys: { type: 'string', default: 'leaf' },
+    'keys-per-user': { type: 'string' },
     out: { type: 'string', default: path.join(import.meta.dir, 'results') },
     help: { type: 'boolean', default: false },
   },
@@ -63,6 +67,8 @@ const concurrency = db === 'pg' ? Number(args.concurrency) : 0;
 const concurrencySeconds = Number(args['concurrency-seconds']);
 const comments = args.comments as CommentMode;
 const commentsPerPost = args['comments-per-post'] === undefined ? undefined : Number(args['comments-per-post']);
+const keys = args.keys as KeyMode;
+const keysPerUser = args['keys-per-user'] === undefined ? undefined : Number(args['keys-per-user']);
 
 const composeDir = import.meta.dir;
 const composeUrl = 'postgresql://postgres:postgres@localhost:54321/postgres';
@@ -101,7 +107,7 @@ try {
   for (const benchmarkSizeFactor of sizes) {
     for (const idMode of ids) {
       for (const combineAssignmentsWith of combines) {
-        console.log(`\n▶ ${db} size=${benchmarkSizeFactor} id=${idMode} combine=${combineAssignmentsWith} comments=${comments}`);
+        console.log(`\n▶ ${db} size=${benchmarkSizeFactor} id=${idMode} combine=${combineAssignmentsWith} comments=${comments} keys=${keys}`);
         const { context, setup, teardown } = setupTests();
         await setup();
         try {
@@ -117,6 +123,8 @@ try {
             concurrencySeconds,
             comments,
             commentsPerPost,
+            keys,
+            keysPerUser,
           });
           runs.push(result);
           console.log(`  loaded ${result.dataset.resourceNodes} resources, ${result.dataset.roleNodes} roles in ${result.load.insert.toFixed(1)}s`);
@@ -142,6 +150,7 @@ console.table(Object.fromEntries(runs.map(run => [label(run), {
   roles: run.dataset.roleNodes,
   assignments: run.dataset.assignmentPairs,
   comments: `${run.dataset.comments} ${run.options.comments}`,
+  keys: `${run.dataset.apiKeys} ${run.options.keys}`,
   'rows+edges': (run.load.resourceRows + run.load.resourceEdge + run.load.roleRows + run.load.roleEdge).toFixed(2),
   assignments_s: run.load.assignmentEdge.toFixed(2),
   'cache backfill': run.load.enableTriggers.toFixed(2),
@@ -189,7 +198,7 @@ const output = {
     memoryGb: Math.round(os.totalmem() / 1024 ** 3),
     bun: Bun.version,
   },
-  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'], concurrency, concurrencySeconds, comments, commentsPerPost },
+  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'], concurrency, concurrencySeconds, comments, commentsPerPost, keys, keysPerUser },
   runs,
 };
 

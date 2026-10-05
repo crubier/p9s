@@ -82,6 +82,8 @@ const config = generateConfigurationFromDrizzleSchema(schema, {
     // folder: { resourceId: "resource_id", resourceParent: { column: "parent_id" } },
     // Many rows with the permissions of their parent can be leaves, which are not nodes of the graph:
     // comment: { resourceLeaf: true, resourceParent: { column: "folder_id", table: "folder", key: "id" } },
+    // Likewise for roles: an api key acts with the permissions of its user, without being a node:
+    // api_key: { isRole: true, roleId: "role_id", roleLeaf: true, roleParent: { column: "user_id", table: "user", key: "id" } },
 ${config.tables?.map((t: any) => `    // ${t.name}: { isResource: ${t.isResource ?? false}, isRole: ${t.isRole ?? false} },`).join("\n")}
   },
 });

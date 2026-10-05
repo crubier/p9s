@@ -958,11 +958,11 @@ create or replace function "resource_node_insert" ("the_ids" uuid[], "the_parent
 returns void as $$
 begin
 
-  if exists (select from unnest("the_ids") as "the_row" ("id")
+  if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
     join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'resource',
-      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+      (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -1790,11 +1790,11 @@ create or replace function "role_node_insert" ("the_ids" uuid[], "the_parents" u
 returns void as $$
 begin
 
-  if exists (select from unnest("the_ids") as "the_row" ("id")
+  if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
     join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'role',
-      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+      (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -2466,6 +2466,7 @@ grant execute on function "assignment_trigger_disable" () to "app_backend";
 -- Table policies
 -----------------------------------------------------------------------------------------------------------------------
 
+
 create or replace function "folder_resource_parent" ("the_key" "public"."folder"."parent_id"%type)
   returns uuid
   as $$
@@ -2866,6 +2867,7 @@ using (
 
   alter table "public"."text_content" enable row level security;
   
+drop function if exists "current_role_node" (uuid);
     
 
   
@@ -2874,9 +2876,14 @@ using (
 -----------------------------------------------------------------------------------------------------------------------
 -- Leaf tables
 -----------------------------------------------------------------------------------------------------------------------
+
 drop trigger if exists "10_folder_resource_parent_trigger" on "public"."folder";
 drop trigger if exists "10_image_resource_parent_trigger" on "public"."image";
 drop trigger if exists "10_text_content_resource_parent_trigger" on "public"."text_content";
+
+
+
+drop trigger if exists "10_user_role_parent_trigger" on "public"."user";
 
 
 

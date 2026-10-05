@@ -997,11 +997,11 @@ test('Default Migration', () => {
     returns void as $$
     begin
 
-      if exists (select from unnest("the_ids") as "the_row" ("id")
+      if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
         join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
         raise exception 'p9s: the % id % is already used by another row', 'resource',
-          (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-        join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+          (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+        join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
           using errcode = 'unique_violation';
       end if;
       -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -1639,11 +1639,11 @@ test('Default Migration', () => {
     returns void as $$
     begin
 
-      if exists (select from unnest("the_ids") as "the_row" ("id")
+      if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
         join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
         raise exception 'p9s: the % id % is already used by another row', 'role',
-          (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-        join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+          (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+        join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
           using errcode = 'unique_violation';
       end if;
       -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -1921,6 +1921,7 @@ test('Default Migration', () => {
 
 
 
+
     drop policy if exists "blog_post_user1_select_policy" on "public"."blog_post";
     create policy "blog_post_user1_select_policy" on "public"."blog_post" 
     as permissive for select to "user1" 
@@ -2025,6 +2026,7 @@ test('Default Migration', () => {
 
       alter table "public"."blog_post" enable row level security;
       
+    drop function if exists "current_role_node" (integer);
         
 
       
@@ -2051,7 +2053,12 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
     -- Leaf tables
     -----------------------------------------------------------------------------------------------------------------------
+
     drop trigger if exists "10_blog_post_resource_parent_trigger" on "public"."blog_post";
+
+
+
+    drop trigger if exists "10_human_user_role_parent_trigger" on "public"."human_user";
 
 
 

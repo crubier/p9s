@@ -19,6 +19,7 @@ export interface DrizzleP9sOptions<User extends string> {
       roleId?: string;
       roleFkey?: string;
       roleParent?: ParentConfig;
+      roleLeaf?: boolean;
       permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number }> };
     };
   };
@@ -110,6 +111,9 @@ export function generateConfigurationFromDrizzleSchema<User extends string>(
     }
     if (tableOptions.roleParent) {
       tableConfig.roleParent = tableOptions.roleParent;
+    }
+    if (tableOptions.roleLeaf) {
+      tableConfig.roleLeaf = true;
     }
 
     if (tableOptions.permission) {

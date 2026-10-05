@@ -42,14 +42,14 @@ describe("generateConfigurationFromDrizzleSchema", () => {
       tables: {
         folder: { resourceParent: { column: "parent_id" } },
         image: { resourceParent: { column: "folder_id", table: "folder", key: "id" }, resourceLeaf: true },
-        user: { roleParent: { column: "team_id" } },
+        user: { roleParent: { column: "team_id" }, roleLeaf: true },
       },
     });
 
-    expect(config.tables!.map(({ name, resourceParent, resourceLeaf, roleParent }: any) => ({ name, resourceParent, resourceLeaf, roleParent }))).toEqual([
-      { name: "folder", resourceParent: { column: "parent_id" }, resourceLeaf: undefined, roleParent: undefined },
-      { name: "image", resourceParent: { column: "folder_id", table: "folder", key: "id" }, resourceLeaf: true, roleParent: undefined },
-      { name: "user", resourceParent: undefined, resourceLeaf: undefined, roleParent: { column: "team_id" } },
+    expect(config.tables!.map(({ name, resourceParent, resourceLeaf, roleParent, roleLeaf }: any) => ({ name, resourceParent, resourceLeaf, roleParent, roleLeaf }))).toEqual([
+      { name: "folder", resourceParent: { column: "parent_id" }, resourceLeaf: undefined, roleParent: undefined, roleLeaf: undefined },
+      { name: "image", resourceParent: { column: "folder_id", table: "folder", key: "id" }, resourceLeaf: true, roleParent: undefined, roleLeaf: undefined },
+      { name: "user", resourceParent: undefined, resourceLeaf: undefined, roleParent: { column: "team_id" }, roleLeaf: true },
     ]);
   });
 

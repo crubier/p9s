@@ -192,7 +192,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     pkey,
     fkey,
     insert, update, delete: deletez, trigger, function: functionz, cache,
-    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard
+    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard, node
   } = deepMerge(defaultBaseNamingConfig, config.engine.naming);
 
   const size = config.engine.permission.bitmap.size;
@@ -244,6 +244,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     orBitmap: `${prefix}or_bitmap_${size}`,
     truncateGuardFunction: `${prefix}${truncate}_${guard}_${trigger}_${functionz}`,
     truncateGuardTrigger: `05_${prefix}${truncate}_${guard}_${trigger}`,
+    currentRoleNodeFunction: `${prefix}current_${role.name}_${node}`,
   }
 }
 
@@ -281,7 +282,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   ]);
 
   return {
-    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, ...customNames }) => {
+    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, roleLeaf, ...customNames }) => {
 
       const result = {
         schema: `${tableSchema ?? schema}`,
@@ -297,6 +298,9 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
         resourceParentId: `${prefix}${resourceName}_${parent}_${resourceId}`,
         resourceLeafTriggerFunction: `${prefix}${name}_${resourceName}_${parent}_${trigger}_${functionz}`,
         resourceLeafTrigger: `10_${prefix}${name}_${resourceName}_${parent}_${trigger}`,
+        roleParentId: `${prefix}${roleName}_${parent}_${roleId}`,
+        roleLeafTriggerFunction: `${prefix}${name}_${roleName}_${parent}_${trigger}_${functionz}`,
+        roleLeafTrigger: `10_${prefix}${name}_${roleName}_${parent}_${trigger}`,
         permission: Object.fromEntries(Object.entries(permission ?? {}).map(([user, value]) => {
           return [user, {
             select: `${prefix}${name}_${user}_${select}_${policy}`,

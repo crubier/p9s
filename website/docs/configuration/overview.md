@@ -84,7 +84,7 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `permission.bitmap.size`          | `number`                         | Size of permission bitmap (4-1024)                                       |
 | `permission.maxDepth.resource`    | `number`                         | Max depth for resource tree (1-128)                                      |
 | `permission.maxDepth.role`        | `number`                         | Max depth for role tree (1-128)                                          |
-| `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row             |
+| `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
 
@@ -120,6 +120,7 @@ Each table entry defines how a database table integrates with the permission sys
 | `isRole`         | `boolean` | Whether rows are roles                                                        |
 | `roleId`         | `string`  | Role id column, added by p9s if missing, with a default                       |
 | `roleParent`     | `object`  | Column naming each row's parent role, see below                              |
+| `roleLeaf`       | `boolean` | Rows are not nodes and act with the permissions of their parent, see below    |
 | `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
 | `permission`     | `object`  | For each user role, the bit checked for each operation                        |
 
@@ -152,6 +153,24 @@ When the parent column holds a key of the parent table, like `page_id` above, p9
 
 Making a node table a leaf table removes its rows from the graph: the migration drops its p9s triggers, and deletes the shares and assignments of its rows. The `resourceId` column stays, p9s no longer uses it. If rows of the table are parents of other nodes, the migration stops: move their children first.
 
+#### Role leaf tables
+
+`roleLeaf: true` does the same on the role tree, for rows that act on behalf of a single parent, like the API keys of a user. Users stay nodes, so that teams can hold them and resources can be shared with them, while their keys stay out of the graph:
+
+```typescript
+{
+  name: "api_key",
+  isRole: true,
+  roleId: "role_id",
+  roleLeaf: true,
+  roleParent: { column: "user_id", table: "user", key: "id" },
+}
+```
+
+A role leaf row still has a role id, from the same sequence as the role nodes, but only to tell who the current user is: `getCurrentUserId` returns the role id of the key for a request made with it. Policies then look the key up once per query, through the `current_role_node` function, and check the permissions of its parent. A row trigger rejects a role id already used by a node or another leaf row, and an update changing it. With a key as parent column, p9s adds a `role_parent_id` column, kept by the same trigger like `resource_parent_id`. Moving or deleting a key never touches the graph and never waits for the graph lock. In exchange, a key cannot be a member of other roles, be assigned a resource of its own, or be the parent of other roles. A key without parent has no permissions.
+
+Making a role node table a role leaf table removes its rows from the graph, like for resources. Policies only call `current_role_node` when the config has role leaf tables.
+
 ## Validation
 
 Configuration is validated at runtime using Zod schemas. Key validations include:
@@ -160,7 +179,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - Max depth must be between 1 and 128
 - Permission users in tables must exist in `engine.users`
 - A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind
-- A `resourceLeaf` table needs `isResource` and a `resourceParent`, and cannot be the parent table of another table
+- A `resourceLeaf` table needs `isResource` and a `resourceParent`, a `roleLeaf` table needs `isRole` and a `roleParent`, and neither can be the parent table of another table of the same kind
 
 ```typescript
 import { validateCompleteConfig } from "@p9s/core";

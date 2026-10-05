@@ -14,6 +14,7 @@ For a size factor `f`:
 - a role tree of 3 levels (company, team, user), so `f^3` users, also rows with a `parent_id`
 - assignments at every level, some regular and some random
 - `4f` comments on each post, the objects of the first table. With `--comments leaf` (the default) they are rows of a [leaf table](./configuration/overview#leaf-tables), with `--comments node` nodes of the graph under their post.
+- 2 API keys per user (`--keys-per-user`). With `--keys leaf` (the default) they are rows of a [role leaf table](./configuration/overview#role-leaf-tables), with `--keys node` roles of the graph under their user.
 - RLS enabled on the folder, object and comment tables
 - an 84-bit permission bitmap with random edge bits
 
@@ -21,10 +22,10 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS: a point lookup, the first page of 50 rows, and counting every visible row. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, and counting every visible row. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments; add, remove and move users and teams.
-- **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments.
-- **Concurrent writes**: throughput and latency of several clients creating objects or comments, alone and while a graph writer keeps moving workspaces.
+- **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
+- **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
 
 Each scenario runs a few untimed warm-up repetitions, then reports p50, p95 and p99 over the timed ones. `EXPLAIN (ANALYZE, BUFFERS)` plans of every read are saved with the results.
 
@@ -41,8 +42,9 @@ bun run bench --sizes 4,6,8,10 --combine none,role,resource
 bun run bench --url postgresql://postgres:postgres@localhost:5432/postgres
 bun run bench --db pglite --sizes 4 --reps 5
 
-# Comments as nodes instead of leaves, to compare both with bench:compare
+# Comments or API keys as nodes instead of leaves, to compare both with bench:compare
 bun run bench --comments node --out results/node
+bun run bench --keys node --out results/key-node
 ```
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
@@ -97,6 +99,22 @@ The same dataset with 58k comments on the 1.8k posts, as leaves and as nodes, `c
 | Create comments while a graph writer moves workspaces, 4 clients | 84 tx/s | 4200 tx/s |
 
 Leaf rows have no cache rows, so the graph and every write that walks it shrink: a workspace move no longer recomputes the cache rows of the comments below it. Writing a comment never waits for the graph lock.
+
+### Role leaf tables
+
+The same dataset with 2 API keys for each of the 512 users, as roles under their user and as role leaves. p50 in milliseconds.
+
+|                                                     | Keys as nodes, `none` / `role` | Keys as leaves, `none` / `role` |
+| --------------------------------------------------- | ------------------------------ | ------------------------------- |
+| Role edges / cache rows                             | 1.6k / 5.8k                    | 576 / 1.7k                      |
+| Assignment cache rows with `role`                   | 50k                            | 18k                             |
+| Read an object, as an API key                       | 0.58 / 0.47                    | 0.52 / 0.29                     |
+| Create an API key                                   | 0.21 / 0.33                    | 0.11 / 0.08                     |
+| Create 1000 API keys in one statement               | 30 / 155                       | 12 / 13                         |
+| Move an API key to another user                     | 0.99 / 1.28                    | 0.10 / 0.07                     |
+| Create API keys while a graph writer moves workspaces, 4 clients | 230 / 170 tx/s    | 21,000 / 20,000 tx/s            |
+
+Once role leaf tables exist, each policy of a statement looks up the parent of the current user once, whether it is a key or a user, which adds 5 to 10 µs. Writing a key never takes the graph lock, so it does not wait for graph writes.
 
 ### Users who see much of the graph
 
