@@ -8,7 +8,7 @@
     "website"
   ],
   "scripts": {
-    "test": "bun test packages benchmarks",
+    "test": "bun test packages benchmarks examples",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "bench": "bun benchmarks/postgres/run.ts",
     "bench:compare": "bun benchmarks/postgres/compare.ts",

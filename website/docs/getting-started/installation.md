@@ -37,4 +37,4 @@ bun run bench
 - `packages/cli` - The `p9s` command line
 - `packages/core-testing`, `packages/postgres-testing` - Test helpers, PGlite and Postgres test databases
 - `benchmarks/postgres` - Performance benchmarks
-- `examples/nextjs-drizzle` - A Next.js app using Drizzle and Better Auth, with its p9s configuration in `src/p9s.ts`
+- `examples/nextjs-drizzle` - A team workspace built with Next.js, Drizzle and Better Auth: organizations, teams, nested folders, documents, comments, sharing and API keys, with its p9s configuration in `src/p9s.ts`

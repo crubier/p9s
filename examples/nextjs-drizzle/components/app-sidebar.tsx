@@ -1,181 +1,176 @@
-"use client"
+"use client";
 
-import * as React from "react"
 import {
-  IconCamera,
-  IconChartBar,
-  IconDashboard,
-  IconDatabase,
-  IconFileAi,
-  IconFileDescription,
-  IconFileWord,
+  IconBinaryTree,
+  IconChevronDown,
   IconFolder,
-  IconHelp,
-  IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
+  IconHistory,
+  IconHome,
+  IconKey,
+  IconLock,
+  IconLogout,
+  IconPlus,
   IconSearch,
-  IconSettings,
+  IconTable,
   IconUsers,
-} from "@tabler/icons-react"
-
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+} from "@tabler/icons-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
+  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
+import { NewItemButton } from "./new-item-button";
 
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "#",
-      icon: IconDashboard,
-    },
-    {
-      title: "Lifecycle",
-      url: "#",
-      icon: IconListDetails,
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: IconUsers,
-    },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: IconCamera,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: IconFileDescription,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: IconFileAi,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: IconFileWord,
-    },
-  ],
+export interface AppSidebarProps {
+  org: { name: string; slug: string };
+  organizations: { id: string; name: string; slug: string }[];
+  user: { name: string; email: string };
+  spaces: { id: string; name: string }[];
+  isAdmin: boolean;
+  canCreateSpace: boolean;
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreateSpace }: AppSidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const base = `/o/${org.slug}`;
+  const link = (href: string, label: string, Icon: typeof IconHome) => (
+    <SidebarMenuItem key={href}>
+      <SidebarMenuButton asChild isActive={pathname === href}>
+        <Link href={href}>
+          <Icon />
+          <span>{label}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
-              <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
-              </a>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg">
+                  <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
+                    <IconBinaryTree className="size-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{org.name}</span>
+                    <span className="text-muted-foreground truncate text-xs">p9s example</span>
+                  </div>
+                  <IconChevronDown className="ml-auto" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56" align="start">
+                <DropdownMenuLabel className="text-muted-foreground text-xs">Organizations</DropdownMenuLabel>
+                {organizations.map((other) => (
+                  <DropdownMenuItem key={other.id} asChild>
+                    <Link href={`/o/${other.slug}`}>{other.name}</Link>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/onboarding">
+                    <IconPlus /> New organization
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
+        <form
+          className="relative"
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const query = new FormData(event.currentTarget).get("q");
+            router.push(`${base}/search?q=${encodeURIComponent(String(query ?? ""))}`);
+          }}
+        >
+          <IconSearch className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+          <SidebarInput name="q" placeholder="Search" aria-label="Search folders and documents" className="pl-8" />
+        </form>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <SidebarGroup>
+          <SidebarMenu>{link(base, "Home", IconHome)}</SidebarMenu>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Spaces</SidebarGroupLabel>
+          <SidebarMenu>
+            {spaces.map((space) => link(`${base}/f/${space.id}`, space.name, IconFolder))}
+            {canCreateSpace && (
+              <SidebarMenuItem>
+                <NewItemButton orgSlug={org.slug} kind="space" parentId={null}>
+                  <SidebarMenuButton className="text-muted-foreground">
+                    <IconPlus />
+                    <span>New space</span>
+                  </SidebarMenuButton>
+                </NewItemButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Organization</SidebarGroupLabel>
+          <SidebarMenu>
+            {link(`${base}/members`, "Members and teams", IconUsers)}
+            {isAdmin && link(`${base}/access`, "Access overview", IconTable)}
+            {isAdmin && link(`${base}/audit`, "Audit log", IconHistory)}
+            {link(`${base}/api-keys`, "API keys", IconKey)}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg">
+                  <div className="bg-muted flex size-8 items-center justify-center rounded-lg text-xs font-medium">
+                    {user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                  </div>
+                  {isAdmin && <IconLock className="text-muted-foreground ml-auto size-4" aria-label="Admin" />}
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56" align="end" side="top">
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await authClient.signOut();
+                    router.push("/sign-in");
+                  }}
+                >
+                  <IconLogout /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
