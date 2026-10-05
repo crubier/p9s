@@ -787,6 +787,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "orBitmap": {
       "type": "string",
     },
+    "permissionFunction": {
+      "type": "string",
+    },
     "resource": {
       "additionalProperties": false,
       "properties": {
@@ -1206,6 +1209,7 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "truncateGuardFunction",
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
+    "permissionFunction",
   ],
   "type": "object",
   "~standard": {
@@ -1722,6 +1726,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
       "type": "string",
     },
     "permission": {
+      "type": "string",
+    },
+    "permissionFunction": {
       "type": "string",
     },
     "pkey": {
@@ -2350,6 +2357,7 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "truncateGuardFunction",
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
+    "permissionFunction",
     "tables",
   ],
   "type": "object",
@@ -2744,6 +2752,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
           "type": "string",
         },
         "permission": {
+          "type": "string",
+        },
+        "permissionFunction": {
           "type": "string",
         },
         "pkey": {
@@ -3694,6 +3705,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
               "type": "string",
             },
             "permission": {
+              "type": "string",
+            },
+            "permissionFunction": {
               "type": "string",
             },
             "pkey": {
@@ -4755,6 +4769,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               "type": "string",
             },
             "permission": {
+              "type": "string",
+            },
+            "permissionFunction": {
               "type": "string",
             },
             "pkey": {

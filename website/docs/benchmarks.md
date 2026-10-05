@@ -22,7 +22,7 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, and counting every visible row. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, and counting every visible row. Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
@@ -58,6 +58,8 @@ Postgres 14 with default settings on an Apple M2 Max, size factor 8 (37k resourc
 | Point lookup                 | 0.51                                | 0.26        | 0.40–0.42         |
 | First page of 50 rows        | 1.4                                 | 1.2         | 23–27             |
 | Count visible rows (1.8k rows) | 1.0                               | 0.87        | 34                |
+| `resource_permission` of a row | 0.12                              | 0.10        |                   |
+| First page of 50 rows, with `resource_permission` of each | 3.4  | 1.9         |                   |
 
 | Write                                  | `none` | `role` |
 | -------------------------------------- | ------ | ------ |

@@ -1436,34 +1436,38 @@ ${combined ? sql`select ${naming.assignment.enableTriggerFunction}();` : sql``}
 
 
 export const createMigrationDataModelPolicies = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { resource, role, assignment, currentRoleNodeFunction } = naming;
+  const { resource, role, assignment, currentRoleNodeFunction, permissionFunction, orBitmap } = naming;
   const { type: idType } = getIdType(config);
-  const { users } = getRoles(config);
+  const { users, writers, everyone } = getRoles(config);
+  const size = config.engine.permission.bitmap.size;
   const roleLeaves = getLeaves("role", naming, config);
+  const getCurrentUserId = sql`${identifier(config.engine.authentication.getCurrentUserId)}()`;
   // A user that is a role leaf row has the permissions of its parent. As a sub-select, the lookup runs once per query.
-  const currentUserId = roleLeaves.length === 0
-    ? sql`${identifier(config.engine.authentication.getCurrentUserId)}()`
-    : sql`(select ${currentRoleNodeFunction}(${identifier(config.engine.authentication.getCurrentUserId)}()))`;
+  const currentUserId = roleLeaves.length === 0 ? getCurrentUserId : sql`(select ${currentRoleNodeFunction}())`;
+  const roleNodeOf = (roleId: SQL) => roleLeaves.length === 0 ? roleId : sql`coalesce(${join(roleLeaves.map(leaf => sql`
+    (select ${parentOfLeaf(leaf, sql`"the_leaf"`)} from ${leaf.table} as "the_leaf" where "the_leaf".${leaf.id} = ${roleId}),`), ``)}
+    ${roleId}
+  )`;
   const hasBit = (alias: string, column: SQL, bit: number | SQL) => sql`(${identifier(alias)}.${column} << ${typeof bit === "number" ? literal(bit) : bit})::bit = b'1'`;
   const nodeBindings = getBindings("resource", naming, config);
   const bindings = new Map([...nodeBindings, ...getLeaves("resource", naming, config)].map(binding => [binding.tableName, binding]));
 
-  // As the owner, so that the policies of role leaf tables do not apply. A parentless leaf row maps to itself, which is
-  // not a node and so has no permissions. In plpgsql, which keeps its plan for the session: a sql function that cannot
-  // be inlined is planned again by every query.
+  // As the owner, so that the policies of role leaf tables do not apply. It takes no argument, so that it only ever
+  // tells the parent of the current user, not of any key. A parentless leaf row maps to itself, which is not a node and
+  // so has no permissions. In plpgsql, which keeps its plan for the session: a sql function that cannot be inlined is
+  // planned again by every query.
   const currentRoleNode = roleLeaves.length === 0 ? sql`` : sql`
-create or replace function ${currentRoleNodeFunction} ("the_user_id" ${idType})
+create or replace function ${currentRoleNodeFunction} ()
   returns ${idType}
   as $$
+declare
+  "the_user_id" ${idType} := ${getCurrentUserId};
 begin
-  return coalesce(${join(roleLeaves.map(leaf => sql`
-    (select ${parentOfLeaf(leaf, sql`"the_leaf"`)} from ${leaf.table} as "the_leaf" where "the_leaf".${leaf.id} = "the_user_id"),`), ``)}
-    "the_user_id"
-  );
+  return ${roleNodeOf(sql`"the_user_id"`)};
 end
 $$ language plpgsql stable ${definer(naming)};
 
-${grantExecute(sql`${currentRoleNodeFunction} (${idType})`, users)}
+${grantExecute(sql`${currentRoleNodeFunction} ()`, everyone)}
 `;
 
   // A (user, resource) pair has a bit iff some path role -> assignment -> resource has that bit on every edge.
@@ -1524,6 +1528,60 @@ ${grantExecute(sql`${currentRoleNodeFunction} (${idType})`, users)}
     }
   };
 
+  // The same chains as accessCheck, for every bit at once: a bit is set iff it is set on every segment of some chain
+  const permissionOf = (target: SQL, roleId: SQL) => {
+    switch (config.engine.combineAssignmentsWith) {
+      case "role": return sql`
+    select ${orBitmap} ("var_resource_edge".${resource.permission} & "var_assignment_edge".${assignment.permission})
+    from ${resource.edgeCache} as "var_resource_edge"
+    join ${assignment.edgeCache} as "var_assignment_edge" on "var_assignment_edge".${assignment.resourceId} = "var_resource_edge".${resource.parentId}
+    where "var_resource_edge".${resource.childId} = ${target} and "var_assignment_edge".${assignment.roleId} = ${roleId}`;
+      case "resource": return sql`
+    select ${orBitmap} ("var_assignment_edge".${assignment.permission} & "var_role_edge".${role.permission})
+    from ${assignment.edgeCache} as "var_assignment_edge"
+    join ${role.edgeCache} as "var_role_edge" on "var_role_edge".${role.parentId} = "var_assignment_edge".${assignment.roleId}
+    where "var_assignment_edge".${assignment.resourceId} = ${target} and "var_role_edge".${role.childId} = ${roleId}`;
+      default: return sql`
+    select ${orBitmap} ("var_resource_edge".${resource.permission} & "var_assignment_edge".${assignment.permission} & "var_role_edge".${role.permission})
+    from ${resource.edgeCache} as "var_resource_edge"
+    join ${assignment.edge} as "var_assignment_edge" on "var_assignment_edge".${assignment.resourceId} = "var_resource_edge".${resource.parentId}
+    join ${role.edgeCache} as "var_role_edge" on "var_role_edge".${role.parentId} = "var_assignment_edge".${assignment.roleId}
+    where "var_resource_edge".${resource.childId} = ${target} and "var_role_edge".${role.childId} = ${roleId}`;
+    }
+  };
+
+  // Users only learn their own permissions: no bits for a resource they have no access to, as for one that does not
+  // exist. Graph writers can ask for any role, to check a user before a graph write. A role leaf row, like an API key,
+  // has the permissions of its parent.
+  const permissionFunctionSql = sql`
+create or replace function ${permissionFunction} ("the_resource_id" ${idType})
+  returns bit(${literal(size)})
+  as $$
+declare
+  "the_role_node" ${idType} := ${currentUserId};
+begin
+  return (${permissionOf(sql`"the_resource_id"`, sql`"the_role_node"`)}
+  )::bit(${literal(size)});
+end
+$$ language plpgsql stable set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${permissionFunction} (${idType})`, everyone)}
+
+-- As the owner, to find the parent of any key
+create or replace function ${permissionFunction} ("the_resource_id" ${idType}, "the_role_id" ${idType})
+  returns bit(${literal(size)})
+  as $$
+declare
+  "the_role_node" ${idType} := ${roleNodeOf(sql`"the_role_id"`)};
+begin
+  return (${permissionOf(sql`"the_resource_id"`, sql`"the_role_node"`)}
+  )::bit(${literal(size)});
+end
+$$ language plpgsql stable ${definer(naming)};
+
+${grantExecute(sql`${permissionFunction} (${idType}, ${idType})`, writers)}
+`;
+
   // Policies read the parent table through this lookup, so that its own policies do not apply. A table whose parent
   // is a row of the same table would otherwise recurse into its own policies.
   const parentFunctions = join(nodeBindings.filter(binding => binding.parent?.lookup).map(binding => {
@@ -1561,6 +1619,7 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
 -- Table policies
 -----------------------------------------------------------------------------------------------------------------------
 ${currentRoleNode}
+${permissionFunctionSql}
 ${parentFunctions}
 ${parentValidate}
 
@@ -1631,6 +1690,8 @@ ${join(config.tables.flatMap(table => {
   alter table ${schema}.${name} enable row level security;
   `];
     }), `\n`)}
-${roleLeaves.length === 0 ? sql`drop function if exists ${currentRoleNodeFunction} (${idType});` : sql``}
+-- Earlier versions mapped any role id, policies have stopped calling it by now
+drop function if exists ${currentRoleNodeFunction} (${idType});
+${roleLeaves.length === 0 ? sql`drop function if exists ${currentRoleNodeFunction} ();` : sql``}
     `;
 }

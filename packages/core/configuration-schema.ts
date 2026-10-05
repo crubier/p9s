@@ -157,6 +157,8 @@ export const derivedNamingConfigSchema = z.object({
   truncateGuardTrigger: z.string(),
   // With role leaf tables: the role node whose permissions the current user has, its parent for a leaf row
   currentRoleNodeFunction: z.string(),
+  // The permission bitmap of a role on a resource, for application code
+  permissionFunction: z.string(),
 });
 
 // Table naming config entry schema. The fkey names are only used to upgrade from node tables.

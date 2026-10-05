@@ -245,6 +245,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     truncateGuardFunction: `${prefix}${truncate}_${guard}_${trigger}_${functionz}`,
     truncateGuardTrigger: `05_${prefix}${truncate}_${guard}_${trigger}`,
     currentRoleNodeFunction: `${prefix}current_${role.name}_${node}`,
+    permissionFunction: `${prefix}${resource.name}_${permission}`,
   }
 }
 

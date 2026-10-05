@@ -96,6 +96,8 @@ create function current_role_id() returns uuid language sql stable as $$
 $$;
 ```
 
+With role leaf tables, p9s calls it from `current_role_node()`, which runs as the owner of the migration so that it can read the leaf tables. It should read the request, like a setting, rather than `current_user`, and belong to a role you trust, since it already decides who the user is.
+
 With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` of every (user, resource) pair reachable through an assignment, and RLS policies read it instead of joining the role cache. Reads get cheaper and assignment or role changes get more expensive, see [Benchmarks](../benchmarks).
 
 ### Migration Configuration

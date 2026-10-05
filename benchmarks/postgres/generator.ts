@@ -659,7 +659,8 @@ export async function runPostgresBenchmark(context: Context, {
     order by md5("api_key"."id"::text) limit 1000`);
   const keyRandom = createRandom(888);
   const pickKey = () => sampledKeys[keyRandom.int(sampledKeys.length)]!;
-  const objectPointLookup = (from = random) => sql`select "id" from "post" where "resource_id" = ${nodeId(objects.start + resourceTables.length * from.int(Math.ceil(objects.size / resourceTables.length)))}`;
+  const pickPost = (from = random) => nodeId(objects.start + resourceTables.length * from.int(Math.ceil(objects.size / resourceTables.length)));
+  const objectPointLookup = (from = random) => sql`select "id" from "post" where "resource_id" = ${pickPost(from)}`;
 
   // Reads, as the application database role going through RLS. The baseline replaces the policies of node tables only.
   // Reads as an api key have the permissions of its user.
@@ -668,6 +669,9 @@ export async function runPostgresBenchmark(context: Context, {
     { name: "first page of 50 (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" limit 50` },
     { name: "count visible (object)", table: "post", statement: () => sql`select count(*)::integer as "count" from "post"`, counts: true },
     { name: "count visible (folder)", table: "folder", statement: () => sql`select count(*)::integer as "count" from "folder"`, counts: true },
+    // What an application asks to show the actions a user can take
+    { name: "permissions of an object", table: "post", statement: () => sql`select "resource_permission"(${pickPost()})`, baseline: false },
+    { name: "first page of 50 with permissions (object)", table: "post", statement: () => sql`select "id", "name", "resource_permission"("resource_id") from "post" order by "id" limit 50`, baseline: false },
     ...(sampledComments.length === 0 ? [] : [
       { name: "point lookup (comment)", table: "comment", statement: () => sql`select "id" from "comment" where "id" = ${uuid(pickComment().id)}`, baseline: false as const },
       { name: "comments of a post", table: "comment", statement: () => sql`select "id", "body" from "comment" where "post_id" = ${uuid(pickComment().post_id)} order by "created_at"`, baseline: false as const },
@@ -678,6 +682,7 @@ export async function runPostgresBenchmark(context: Context, {
       { name: "point lookup (object, as api key)", table: "post", statement: () => objectPointLookup(keyRandom), baseline: false as const, asKey: true as const },
       { name: "first page of 50 (object, as api key)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" limit 50`, baseline: false as const, asKey: true as const },
       { name: "count visible (object, as api key)", table: "post", statement: () => sql`select count(*)::integer as "count" from "post"`, counts: true, baseline: false as const, asKey: true as const },
+      { name: "permissions of an object, as api key", table: "post", statement: () => sql`select "resource_permission"(${pickPost(keyRandom)})`, baseline: false as const, asKey: true as const },
     ]),
   ];
 

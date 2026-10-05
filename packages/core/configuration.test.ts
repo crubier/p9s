@@ -81,6 +81,7 @@ test('Default Configuration', () => {
       "orBitmap": "or_bitmap_128",
       "parent": "parent",
       "permission": "permission",
+      "permissionFunction": "resource_permission",
       "pkey": "pkey",
       "policy": "policy",
       "prefix": "",

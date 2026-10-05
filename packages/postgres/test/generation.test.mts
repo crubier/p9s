@@ -1919,6 +1919,48 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
 
 
+    create or replace function "resource_permission" ("the_resource_id" integer)
+      returns bit(4)
+      as $$
+    declare
+      "the_role_node" integer := "get_current_user_id"();
+    begin
+      return (
+        select "or_bitmap_4" ("var_resource_edge"."permission" & "var_assignment_edge"."permission" & "var_role_edge"."permission")
+        from "resource_edge_cache" as "var_resource_edge"
+        join "assignment_edge" as "var_assignment_edge" on "var_assignment_edge"."resource_id" = "var_resource_edge"."parent_id"
+        join "role_edge_cache" as "var_role_edge" on "var_role_edge"."parent_id" = "var_assignment_edge"."role_id"
+        where "var_resource_edge"."child_id" = "the_resource_id" and "var_role_edge"."child_id" = "the_role_node"
+      )::bit(4);
+    end
+    $$ language plpgsql stable set search_path = "public", pg_temp;
+
+
+    revoke execute on function "resource_permission" (integer) from public;
+    grant execute on function "resource_permission" (integer) to "user1";
+
+    -- As the owner, to find the parent of any key
+    create or replace function "resource_permission" ("the_resource_id" integer, "the_role_id" integer)
+      returns bit(4)
+      as $$
+    declare
+      "the_role_node" integer := "the_role_id";
+    begin
+      return (
+        select "or_bitmap_4" ("var_resource_edge"."permission" & "var_assignment_edge"."permission" & "var_role_edge"."permission")
+        from "resource_edge_cache" as "var_resource_edge"
+        join "assignment_edge" as "var_assignment_edge" on "var_assignment_edge"."resource_id" = "var_resource_edge"."parent_id"
+        join "role_edge_cache" as "var_role_edge" on "var_role_edge"."parent_id" = "var_assignment_edge"."role_id"
+        where "var_resource_edge"."child_id" = "the_resource_id" and "var_role_edge"."child_id" = "the_role_node"
+      )::bit(4);
+    end
+    $$ language plpgsql stable security definer set search_path = "public", pg_temp;
+
+
+    revoke execute on function "resource_permission" (integer, integer) from public;
+
+
+
 
 
 
@@ -2026,7 +2068,9 @@ test('Default Migration', () => {
 
       alter table "public"."blog_post" enable row level security;
       
+    -- Earlier versions mapped any role id, policies have stopped calling it by now
     drop function if exists "current_role_node" (integer);
+    drop function if exists "current_role_node" ();
         
 
       

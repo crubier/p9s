@@ -2467,6 +2467,47 @@ grant execute on function "assignment_trigger_disable" () to "app_backend";
 -----------------------------------------------------------------------------------------------------------------------
 
 
+create or replace function "resource_permission" ("the_resource_id" uuid)
+  returns bit(8)
+  as $$
+declare
+  "the_role_node" uuid := "current_role_id"();
+begin
+  return (
+    select "or_bitmap_8" ("var_resource_edge"."permission" & "var_assignment_edge"."permission")
+    from "resource_edge_cache" as "var_resource_edge"
+    join "assignment_edge_cache" as "var_assignment_edge" on "var_assignment_edge"."resource_id" = "var_resource_edge"."parent_id"
+    where "var_resource_edge"."child_id" = "the_resource_id" and "var_assignment_edge"."role_id" = "the_role_node"
+  )::bit(8);
+end
+$$ language plpgsql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "resource_permission" (uuid) from public;
+grant execute on function "resource_permission" (uuid) to "app_user";
+grant execute on function "resource_permission" (uuid) to "app_backend";
+
+-- As the owner, to find the parent of any key
+create or replace function "resource_permission" ("the_resource_id" uuid, "the_role_id" uuid)
+  returns bit(8)
+  as $$
+declare
+  "the_role_node" uuid := "the_role_id";
+begin
+  return (
+    select "or_bitmap_8" ("var_resource_edge"."permission" & "var_assignment_edge"."permission")
+    from "resource_edge_cache" as "var_resource_edge"
+    join "assignment_edge_cache" as "var_assignment_edge" on "var_assignment_edge"."resource_id" = "var_resource_edge"."parent_id"
+    where "var_resource_edge"."child_id" = "the_resource_id" and "var_assignment_edge"."role_id" = "the_role_node"
+  )::bit(8);
+end
+$$ language plpgsql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "resource_permission" (uuid, uuid) from public;
+grant execute on function "resource_permission" (uuid, uuid) to "app_backend";
+
+
 create or replace function "folder_resource_parent" ("the_key" "public"."folder"."parent_id"%type)
   returns uuid
   as $$
@@ -2867,7 +2908,9 @@ using (
 
   alter table "public"."text_content" enable row level security;
   
+-- Earlier versions mapped any role id, policies have stopped calling it by now
 drop function if exists "current_role_node" (uuid);
+drop function if exists "current_role_node" ();
     
 
   

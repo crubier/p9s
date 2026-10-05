@@ -1,8 +1,8 @@
 import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
-import { query as sql, raw } from "pg-sql2";
+import { query as sql, join, raw } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import {
-  OPERATION_BITS, as, combineModes, createGraphDriver, createPermissionModel, createRandom, emptyGraph, fromNodeId, nodeId, randomOperation, setupBlog,
+  BITMAP_SIZE, OPERATION_BITS, as, combineModes, createGraphDriver, createPermissionModel, createRandom, emptyGraph, fromNodeId, nodeId, randomOperation, setupBlog,
   type CombineMode, type IdMode,
 } from './helpers';
 
@@ -70,6 +70,24 @@ for (const { combineAssignmentsWith, idMode } of configurations) {
           const comments = await as(context, user, sql`select "post_id" from "blog_comment"`, id(role));
           expect({ role, comments: comments.map(row => groupOfPost(row.post_id)).sort((a, b) => a! - b!) }).toEqual({ role, comments: expected });
         }
+
+        // resource_permission gives application code every bit the policies check, for the current user by default
+        const resources = Array.from({ length: RESOURCES }, (_, i) => i + 1);
+        const bitmap = (role: number, resource: number) =>
+          Array.from({ length: BITMAP_SIZE }, (_, bit) => model.allowed(role, resource, bit) ? "1" : "0").join("");
+        for (let role = 1; role <= ROLES; role++) {
+          const rows = await as(context, user, sql`
+            select "resource", "resource_permission"("id")::text as "permission"
+            from (values ${join(resources.map(resource => sql`(${raw(String(resource))}, ${id(resource)})`), ", ")}) as "the_resource" ("resource", "id")
+            order by "resource"`, id(role));
+          expect({ role, permissions: rows.map(row => row.permission) }).toEqual({ role, permissions: resources.map(resource => bitmap(role, resource)) });
+        }
+        const pairs = Array.from({ length: ROLES }, (_, i) => i + 1).flatMap(role => resources.map(resource => ({ role, resource })));
+        const permissions = await as(context, context.database_writer_username, sql`
+          select "resource_permission"("resource", "role")::text as "permission"
+          from (values ${join(pairs.map(({ role, resource }, index) => sql`(${raw(String(index))}, ${id(resource)}, ${id(role)})`), ", ")}) as "the_pair" ("index", "resource", "role")
+          order by "index"`);
+        expect(permissions.map(row => row.permission)).toEqual(pairs.map(({ role, resource }) => bitmap(role, resource)));
 
         // update and delete need the select bit too, since their where clause reads the row
         for (let i = 0; i < 20; i++) {

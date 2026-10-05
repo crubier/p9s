@@ -3,7 +3,7 @@ import { query as sql, identifier, raw } from "pg-sql2";
 import { createMigration } from '../generation';
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
 import {
-  FIRST_GENERATED_ID, OPERATION_BITS, as, bits, blogMigrationConfig, cacheMismatches, combineModes, createGraphDriver, createPermissionModel, createRandom, emptyGraph,
+  BITMAP_SIZE, FIRST_GENERATED_ID, OPERATION_BITS, as, bits, blogMigrationConfig, cacheMismatches, combineModes, createGraphDriver, createPermissionModel, createRandom, emptyGraph,
   fromNodeId, noMismatches, randomOperation, setupBlog, setupBlogTables, type TestContext,
 } from './helpers';
 
@@ -80,6 +80,17 @@ describe('role leaf tables', () => {
         expect((await postNames(context, role)).map(row => row.name).sort()).toEqual(visible);
       }
       expect(visiblePosts).toBeGreaterThan(0);
+
+      // resource_permission answers for a key with the bitmap of its parent, or nothing without parent
+      const permissionsOf = async (currentRoleId: number) => (await as(context, context.database_user_username, sql`
+        select "resource_permission"("id")::text as "permission" from generate_series(1, ${raw(String(RESOURCES))}) as "id" order by "id"`, raw(String(currentRoleId)))).map(row => row.permission);
+      let grantedBits = 0;
+      for (const key of keys) {
+        const expected = key.group_id === null ? (await permissionsOf(key.role_id)).map(() => "0".repeat(BITMAP_SIZE)) : await permissionsOf(key.group_id);
+        expect({ key, permissions: await permissionsOf(key.role_id) }).toEqual({ key, permissions: expected });
+        grantedBits += expected.join("").replaceAll("0", "").length;
+      }
+      expect(grantedBits).toBeGreaterThan(0);
 
       // Writes too: a key can insert where its parent can
       for (const key of keys.filter(key => key.group_id !== null)) {
