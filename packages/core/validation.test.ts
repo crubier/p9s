@@ -493,6 +493,84 @@ describe("Configuration Validation", () => {
     });
   });
 
+  describe("leaf table validation", () => {
+    const baseConfig = {
+      engine: {
+        schema: "public",
+        users: ["user"],
+        permission: { bitmap: { size: 128 }, maxDepth: { resource: 16, role: 16 } },
+        authentication: { getCurrentUserId: "get_current_user_id" },
+        id: { mode: "integer" as const },
+        combineAssignmentsWith: "none" as const,
+        naming: {},
+      },
+      migration: { output: { sql: "migration.sql" } },
+    };
+    const table = (name: string, extra: Record<string, unknown> = {}) => ({
+      schema: "public", name, isResource: true, resourceId: "resource_id", resourceFkey: "", isRole: false, roleId: "", roleFkey: "", permission: {}, ...extra,
+    });
+    const errorsOf = (tables: unknown[]) => {
+      const result = validateCompleteConfig({ ...baseConfig, tables });
+      return result.success ? [] : getValidationErrors(result);
+    };
+
+    test("[valid] leaf under a node table", () => {
+      expect(errorsOf([
+        table("page"),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" } }),
+      ])).toEqual([]);
+    });
+
+    test("[invalid] leaf without parent", () => {
+      expect(errorsOf([table("block", { resourceLeaf: true })]).some(e => e.includes("tables.0.resourceLeaf"))).toBe(true);
+    });
+
+    test("[invalid] leaf that is not a resource table", () => {
+      expect(errorsOf([table("block", { isResource: false, isRole: true, resourceLeaf: true, resourceParent: { column: "page_id" } })])
+        .some(e => e.includes("tables.0.resourceLeaf"))).toBe(true);
+    });
+
+    test("[invalid] child of a leaf", () => {
+      expect(errorsOf([
+        table("page"),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" } }),
+        table("annotation", { resourceParent: { column: "block_id", table: "block", key: "id" } }),
+      ]).some(e => e.includes("leaf table") && e.includes("tables.2.resourceParent.table"))).toBe(true);
+    });
+
+    const roleTable = (name: string, extra: Record<string, unknown> = {}) => table(name, { isResource: false, resourceId: "", isRole: true, roleId: "role_id", ...extra });
+
+    test("[valid] role leaf under a role node table", () => {
+      expect(errorsOf([
+        roleTable("user"),
+        roleTable("api_key", { roleLeaf: true, roleParent: { column: "user_id", table: "user", key: "id" } }),
+      ])).toEqual([]);
+    });
+
+    test("[valid] a table can be a resource node and a role leaf", () => {
+      expect(errorsOf([
+        roleTable("user"),
+        roleTable("api_key", { isResource: true, resourceId: "resource_id", roleLeaf: true, roleParent: { column: "user_id", table: "user", key: "id" } }),
+      ])).toEqual([]);
+    });
+
+    test("[invalid] role leaf without parent", () => {
+      expect(errorsOf([roleTable("api_key", { roleLeaf: true })]).some(e => e.includes("tables.0.roleLeaf"))).toBe(true);
+    });
+
+    test("[invalid] role leaf that is not a role table", () => {
+      expect(errorsOf([table("api_key", { roleLeaf: true, roleParent: { column: "user_id" } })]).some(e => e.includes("tables.0.roleLeaf"))).toBe(true);
+    });
+
+    test("[invalid] child of a role leaf", () => {
+      expect(errorsOf([
+        roleTable("user"),
+        roleTable("api_key", { roleLeaf: true, roleParent: { column: "user_id", table: "user", key: "id" } }),
+        roleTable("scope", { roleParent: { column: "api_key_id", table: "api_key", key: "id" } }),
+      ]).some(e => e.includes("role leaf table") && e.includes("tables.2.roleParent.table"))).toBe(true);
+    });
+  });
+
   describe("parseConfig", () => {
     test("[valid] returns parsed config on valid input", () => {
       const config = parseConfig({

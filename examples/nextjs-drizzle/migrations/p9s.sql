@@ -118,6 +118,12 @@ create index if not exists "resource_edge_cache_parent_id_index" on "resource_ed
 
 create index if not exists "resource_edge_cache_child_id_index" on "resource_edge_cache" ("child_id");
 
+-- Policies either check the ancestors of each row, or list once every resource the user can see, from the ones
+-- assigned to them. Postgres estimates the descendants of an assigned resource as the cache rows per distinct parent,
+-- a few rows, while assignments are mostly high in the tree, over large subtrees. It would then list every visible
+-- resource to check a single row. Estimate the descendants of a resource as those of the largest subtree instead.
+alter table "resource_edge_cache" alter column "parent_id" set (n_distinct = 1);
+
 -- Only p9s triggers write to the cache
 select pg_temp.p9s_set_privileges('"resource_edge_cache"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
 
@@ -351,6 +357,7 @@ alter table "public"."image" add column if not exists "resource_id" uuid unique;
 alter table "public"."text_content" add column if not exists "resource_id" uuid unique;
 
 alter table "public"."user" add column if not exists "role_id" uuid unique;
+
 
 
 do $$
@@ -627,11 +634,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -738,11 +751,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -838,11 +857,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "resource_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -933,11 +958,11 @@ create or replace function "resource_node_insert" ("the_ids" uuid[], "the_parent
 returns void as $$
 begin
 
-  if exists (select from unnest("the_ids") as "the_row" ("id")
+  if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
     join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'resource',
-      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+      (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "resource_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -1441,11 +1466,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -1552,11 +1583,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -1652,11 +1689,17 @@ begin
       where "walk"."inside"
       and ("walk"."parent_id" in (select "parent_id" from "upstream")) is true
       union all
-      select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8)
-      from "walk"
-      join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
-      where not "walk"."inside"
-      and ("the_edge_cache"."parent_id" in (select "parent_id" from "upstream")) is true
+      -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
+      -- walked node, and prefer comparing every walked node with the whole cache.
+      select "the_ancestor"."parent_id", "the_ancestor"."child_id", "the_ancestor"."permission"
+      from (
+        select "the_edge_cache"."parent_id", "walk"."child_id", ("the_edge_cache"."permission" & "walk"."permission")::bit(8) as "permission"
+        from "walk"
+        join "role_edge_cache" as "the_edge_cache" on "the_edge_cache"."child_id" = "walk"."parent_id"
+        where not "walk"."inside"
+        offset 0
+      ) as "the_ancestor"
+      where ("the_ancestor"."parent_id" in (select "parent_id" from "upstream")) is true
     ) as "the_path"
     group by ("the_path"."parent_id", "the_path"."child_id")
   ),
@@ -1747,11 +1790,11 @@ create or replace function "role_node_insert" ("the_ids" uuid[], "the_parents" u
 returns void as $$
 begin
 
-  if exists (select from unnest("the_ids") as "the_row" ("id")
+  if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
     join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'role',
-      (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id" limit 1)
+      (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -2070,11 +2113,14 @@ begin
   analyze "assignment_edge";
   analyze "role_edge_cache";
   delete from "assignment_edge_cache";
+  -- Policies read the rows of a role together. In this order they fill few pages, whatever plan the view takes.
   return query
   insert into "assignment_edge_cache" ("role_id", "resource_id", "permission")
   select "role_id", "resource_id", "permission"
   from
     "assignment_edge_cache_view"
+  order by
+    "role_id", "resource_id"
     returning
       *;
 end;
@@ -2244,7 +2290,9 @@ begin
   if not exists (
     select from "p9s_new_rows" as "the_edge_cache"
     where "the_edge_cache"."parent_id" <> "the_edge_cache"."child_id"
-    or exists (select from "assignment_edge" as "the_assignment" where "the_assignment"."role_id" = "the_edge_cache"."parent_id")
+  ) and not exists (
+    select from "p9s_new_rows" as "the_edge_cache"
+    join "assignment_edge" as "the_assignment" on "the_assignment"."role_id" = "the_edge_cache"."parent_id"
   ) then
     return null;
   end if;
@@ -2417,6 +2465,7 @@ grant execute on function "assignment_trigger_disable" () to "app_backend";
 -----------------------------------------------------------------------------------------------------------------------
 -- Table policies
 -----------------------------------------------------------------------------------------------------------------------
+
 
 create or replace function "folder_resource_parent" ("the_key" "public"."folder"."parent_id"%type)
   returns uuid
@@ -2818,9 +2867,26 @@ using (
 
   alter table "public"."text_content" enable row level security;
   
+drop function if exists "current_role_node" (uuid);
     
 
   
+
+  
+-----------------------------------------------------------------------------------------------------------------------
+-- Leaf tables
+-----------------------------------------------------------------------------------------------------------------------
+
+drop trigger if exists "10_folder_resource_parent_trigger" on "public"."folder";
+drop trigger if exists "10_image_resource_parent_trigger" on "public"."image";
+drop trigger if exists "10_text_content_resource_parent_trigger" on "public"."text_content";
+
+
+
+drop trigger if exists "10_user_role_parent_trigger" on "public"."user";
+
+
+
 
   
 -----------------------------------------------------------------------------------------------------------------------

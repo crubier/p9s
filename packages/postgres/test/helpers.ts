@@ -51,6 +51,20 @@ export const blogMigrationConfig = (ctx: TestContext, { combineAssignmentsWith =
     resourceId: "resource_id",
     resourceParent: { column: "group_id" },
     permission: { [ctx.database_user_username]: { ...OPERATION_BITS } },
+  }, {
+    // Comments are leaves: they have the permissions of their post, and are not nodes themselves
+    name: "blog_comment",
+    isResource: true,
+    resourceLeaf: true,
+    resourceParent: { column: "post_id", table: "blog_post", key: "id" },
+    permission: { [ctx.database_user_username]: { ...OPERATION_BITS } },
+  }, {
+    // API keys are role leaves: a key acts with the permissions of its group, and is not a node itself
+    name: "api_key",
+    isRole: true,
+    roleId: "role_id",
+    roleLeaf: true,
+    roleParent: { column: "group_id" },
   }],
 });
 
@@ -67,9 +81,12 @@ export const setupBlogTables = async (ctx: TestContext, { idMode = "integer" }: 
     create table "blog_post" ("id" serial primary key, "name" text not null default '', "group_id" ${idType} references "resource_group" ("id") on delete cascade);
     create index on "resource_group" ("parent_id");
     create index on "role_group" ("parent_id");
+    create table "blog_comment" ("id" serial primary key, "body" text not null default '', "post_id" integer references "blog_post" ("id") on delete cascade);
     create index on "blog_post" ("group_id");
-    grant select, insert, update, delete on table "blog_post" to ${user};
-    grant usage on sequence "blog_post_id_seq" to ${user};
+    create index on "blog_comment" ("post_id");
+    create table "api_key" ("id" serial primary key, "group_id" ${idType} references "role_group" ("id") on delete cascade);
+    grant select, insert, update, delete on table "blog_post", "blog_comment" to ${user};
+    grant usage on sequence "blog_post_id_seq", "blog_comment_id_seq" to ${user};
     create function "current_role_id"() returns ${idType} as $$
       select nullif(current_setting('jwt.claims.role_id', true), '')::${idType}
     $$ language sql stable;
