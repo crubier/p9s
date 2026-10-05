@@ -82,8 +82,9 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `users`                           | `string[]`                       | Roles that query business tables through RLS                             |
 | `graphWriters`                    | `string[]`                       | Roles allowed to modify edges and assignments (default: none)            |
 | `permission.bitmap.size`          | `number`                         | Size of permission bitmap (4-1024)                                       |
-| `permission.maxDepth.resource`    | `number`                         | Max depth for resource tree (1-128)                                      |
-| `permission.maxDepth.role`        | `number`                         | Max depth for role tree (1-128)                                          |
+| `permission.maxDepth.resource`    | `number`                         | Most edges on a path of the resource tree (1-128), longer paths are rejected |
+| `permission.maxDepth.role`        | `number`                         | Most edges on a path of the role tree (1-128), longer paths are rejected |
+| `naming.triggerPrefix`            | `string`                         | Put before the names of p9s triggers, to order them with yours (default: none) |
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
@@ -97,6 +98,10 @@ $$;
 ```
 
 With role leaf tables, p9s calls it from `current_role_node()`, which runs as the owner of the migration so that it can read the leaf tables. It should read the request, like a setting, rather than `current_user`, and belong to a role you trust, since it already decides who the user is.
+
+The caches follow paths of up to `maxDepth` edges. A write that would make a longer path, like adding a row under the deepest folder or moving a folder under another, fails with `p9s: the resource edge 4 -> 5 makes a path of more than 16 edges`, and so does enabling the triggers again after a bulk load with a longer path. Paths are counted without going twice through a node, so a cycle does not make a tree deeper than its longest path. The check costs a walk up from the new edge and down from it, a few hundredths of a millisecond per write in the [benchmarks](../benchmarks).
+
+Postgres runs the triggers of a table that fire on the same event in the order of their names. p9s names its triggers `05_…`, `10_…` and `20_…`, so with `naming: { triggerPrefix: "p9s_" }` they become `p9s_05_…`, and run after triggers named `a_…` to `o_…` and before `q_…` to `z_…`. Changing the prefix renames the p9s triggers on the next migration.
 
 With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` of every (user, resource) pair reachable through an assignment, and RLS policies read it instead of joining the role cache. Reads get cheaper and assignment or role changes get more expensive, see [Benchmarks](../benchmarks).
 

@@ -45,6 +45,19 @@ Other edges are *shares*, written by graph writers to link a node under more par
 
 **Role leaf rows.** A row of a role leaf table (`roleLeaf`), like an API key, has exactly the permissions of its parent role. Policies map the role id returned by `getCurrentUserId` to the parent of its leaf row, and check the permissions of that parent. The `current_role_node()` function that does it takes no argument, so it never tells the parent of another key. The role id of a leaf row is unique across the role nodes and the other leaf rows, so a key can never be taken for a node. It has no cache row, so edges and assignments reject it like any id that is not a node. With a key as parent column, the `role_parent_id` column follows that column whatever the client writes, as for resource leaf rows. Role tables have no RLS: who can create a key for which user is up to the application, as for role nodes.
 
+**Managing roles through RLS.** To let RLS decide who adds a user to a team, make the role tables resource tables too, with the same column as `resourceParent` and `roleParent`:
+
+```typescript
+{ name: "team", isRole: true, roleId: "role_id", roleParent: { column: "parent_id", table: "team", key: "id" },
+  isResource: true, resourceId: "resource_id", resourceParent: { column: "parent_id", table: "team", key: "id" },
+  permission: { app_user: { select: 0, insert: 1, update: 2, delete: 3 } } },
+{ name: "member", isRole: true, roleId: "role_id", roleParent: { column: "team_id", table: "team", key: "id" },
+  isResource: true, resourceId: "resource_id", resourceParent: { column: "team_id", table: "team", key: "id" },
+  permission: { app_user: { select: 0, insert: 1, update: 2, delete: 3 } } },
+```
+
+Each team is then a role and a resource, and the policies of resource tables apply: adding a member to a team needs the `insert` bit on the team, moving them needs the `update` bit on them and the `insert` bit on the new team, and an org admin gets these bits through an assignment on the org. Every membership is an edge in both trees, so the graph holds them twice.
+
 Nobody except p9s writes to the cache tables (`resource_edge_cache`, `role_edge_cache`, `assignment_edge_cache`). They are maintained by `security definer` triggers owned by the migration owner, which pin `search_path` to `engine.schema, pg_temp` so that a temporary table cannot shadow a p9s table.
 
 Re-running the migration re-applies these privileges, and revokes broader grants left by older versions.

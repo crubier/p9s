@@ -1,7 +1,7 @@
 
 // To get syntax highlighting in VSCode with the qufiwefefwoyn.inline-sql-syntax extension
 import { type SQL, query as sql, join, literal, identifier, compile, raw } from "pg-sql2";
-import { getCompleteConfig, getNaming } from "@p9s/core";
+import { getCompleteConfig, getCompleteNamingConfig, getNaming } from "@p9s/core";
 import type { CompleteConfig, Naming, Config } from "@p9s/core";
 
 type Kind = "resource" | "role";
@@ -12,6 +12,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   const result = sql`
   ${createMigrationPreamble(naming, completeConfig)}
+
+  ${createMigrationTriggerNames(completeConfig)}
 
   ${createMigrationExtensions(naming, completeConfig)}
 
@@ -302,6 +304,50 @@ end
 $$;
 `;
 }
+
+// Every name of a naming config, with the key that holds it
+const namesIn = (value: unknown, key = ""): Array<[string, string]> =>
+  typeof value === "string" ? [[key, value]]
+    : value && typeof value === "object" ? Object.entries(value).flatMap(([entryKey, entry]) => namesIn(entry, entryKey))
+      : [];
+
+// Triggers fire in the order of their names. When the trigger prefix changes, the p9s triggers of the previous prefix
+// get the new names, so that the migration replaces them instead of adding triggers that fire next to them. A p9s
+// trigger calls a p9s function, and its name ends with the name it has without prefix.
+export const createMigrationTriggerNames = <User extends string>(config: CompleteConfig<User>) => {
+  const namingConfig = getCompleteNamingConfig(config);
+  const names = namesIn(namingConfig);
+  const triggers = [...new Set(names.filter(([key]) => key.endsWith("Trigger")).map(([, name]) => name))];
+  const functions = [...new Set(names.map(([, name]) => name))];
+  const unprefixed = triggers.map(name => name.slice(namingConfig.triggerPrefix.length));
+  const textArray = (values: string[]) => sql`array[${join(values.map(textLiteral), ", ")}]::text[]`;
+  return sql`
+do $$
+declare
+  "the_trigger" record;
+begin
+  for "the_trigger" in
+    select "t"."tgrelid"::regclass::text as "table", "t"."tgname"::text as "name", "the_name"."name" as "expected",
+      exists (select from pg_trigger as "o" where "o"."tgrelid" = "t"."tgrelid" and "o"."tgname" = "the_name"."name") as "replaced"
+    from pg_trigger as "t"
+    join pg_proc as "p" on "p"."oid" = "t"."tgfoid"
+    join unnest(${textArray(triggers)}, ${textArray(unprefixed)}) as "the_name" ("name", "unprefixed")
+      on right("t"."tgname", length("the_name"."unprefixed")) = "the_name"."unprefixed"
+    where not "t"."tgisinternal"
+    and "t"."tgname" <> all (${textArray(triggers)})
+    and "p"."pronamespace" = ${textLiteral(config.engine.schema)}::regnamespace
+    and "p"."proname" = any (${textArray(functions)})
+  loop
+    if "the_trigger"."replaced" then
+      execute format('drop trigger %I on %s', "the_trigger"."name", "the_trigger"."table");
+    else
+      execute format('alter trigger %I on %s rename to %I', "the_trigger"."name", "the_trigger"."table", "the_trigger"."expected");
+    end if;
+  end loop;
+end
+$$;
+`;
+};
 
 export const createMigrationPreamble = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   return sql`
@@ -802,9 +848,62 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
       using errcode = 'foreign_key_violation';
   end if;`;
 
+  // The caches only follow paths of up to maxDepth edges. A path longer than that only exists if it goes through a new
+  // edge: an edge with a path of length "above" its parent and one "below" its child, that share no node, makes a
+  // path of above + 1 + below edges. Walks stop at maxDepth, which is enough to tell that a path is longer.
+  const tooDeep = sql`from (
+    with recursive "the_new" as (select distinct ${parentId}, ${childId} from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct ${parentId} as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge".${parentId}, "above"."depth" + 1, "above"."path" || "the_edge".${parentId}
+      from "above" join ${edge} as "the_edge" on "the_edge".${childId} = "above"."node"
+      where "the_edge".${parentId} <> all ("above"."path") and "above"."depth" < ${literal(maxDepth)}
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct ${childId} as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge".${childId}, "below"."depth" + 1, "below"."path" || "the_edge".${childId}
+      from "below" join ${edge} as "the_edge" on "the_edge".${parentId} = "below"."node"
+      where "the_edge".${childId} <> all ("below"."path") and "below"."depth" < ${literal(maxDepth)}
+    )
+    select "the_new".${parentId}, "the_new".${childId}
+    from "the_new"
+    join "above" on "above"."start" = "the_new".${parentId}
+    join "below" on "below"."start" = "the_new".${childId}
+    where "above"."depth" + 1 + "below"."depth" > ${literal(maxDepth)}
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge"`;
+  // Without a cycle through a new edge, the nodes above it and below it are distinct, so the longest path below each
+  // child leaves a budget for the paths above its parent, and one walk up per parent tells. Only when a path above
+  // goes over that budget, which a cycle can cause without a long path, are the paths compared pairwise.
+  const mayBeTooDeep = sql`
+    with recursive "the_new" as (select distinct ${parentId}, ${childId} from "p9s_new_rows"),
+    "below" ("parent", "node", "depth", "path") as (
+      select "the_new".${parentId}, "the_new".${childId}, 0, array["the_new".${childId}] from "the_new"
+      union all
+      select "below"."parent", "the_edge".${childId}, "below"."depth" + 1, "below"."path" || "the_edge".${childId}
+      from "below" join ${edge} as "the_edge" on "the_edge".${parentId} = "below"."node"
+      where "the_edge".${childId} <> all ("below"."path") and "below"."depth" < ${literal(maxDepth)}
+    ),
+    "above" ("node", "depth", "path", "budget") as (
+      select "below"."parent", 0, array["below"."parent"], ${literal(maxDepth - 1)} - max("below"."depth") from "below" group by "below"."parent"
+      union all
+      select "the_edge".${parentId}, "above"."depth" + 1, "above"."path" || "the_edge".${parentId}, "above"."budget"
+      from "above" join ${edge} as "the_edge" on "the_edge".${childId} = "above"."node"
+      where "the_edge".${parentId} <> all ("above"."path") and "above"."depth" <= "above"."budget"
+    )
+    select from "above" where "above"."depth" > "above"."budget"`;
+  const checkDepth = sql`
+  if exists (${mayBeTooDeep}) and exists (select ${tooDeep}) then
+    raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', ${textLiteral(kind)},
+      (select format('%s -> %s', "the_edge".${parentId}, "the_edge".${childId}) ${tooDeep} limit 1), ${literal(maxDepth)}, ${textLiteral(kind)}
+      using errcode = 'program_limit_exceeded';
+  end if;`;
+
   const edgeTrigger = (functionName: SQL, triggerName: SQL, event: TriggerEvent) =>
     statementTrigger(naming, config, functionName, triggerName, edge, event,
-      sql`${event === "delete" ? sql`` : validateEdges}
+      sql`${event === "delete" ? sql`` : sql`${validateEdges}${checkDepth}`}
 ${refreshAffected(changed[event])}`, indexLookupsOnly);
 
   // What bound rows do to the graph, shared by the tables of this tree. Each takes the ids of the rows a statement
@@ -946,6 +1045,17 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
 
   const ids = boundIds(kind, naming, config);
   const everyId = allIds(kind, naming, config);
+  // Rows loaded while the triggers were disabled skipped the depth check of the edge triggers
+  const longPath = sql`from (
+    with recursive "walk" ("node", "depth", "path") as (
+      select distinct "the_edge".${childId}, 0, array["the_edge".${childId}] from ${edge} as "the_edge"
+      union all
+      select "the_edge".${parentId}, "walk"."depth" + 1, "the_edge".${parentId} || "walk"."path"
+      from "walk" join ${edge} as "the_edge" on "the_edge".${childId} = "walk"."node"
+      where "the_edge".${parentId} <> all ("walk"."path") and "walk"."depth" <= ${literal(maxDepth)}
+    )
+    select "walk"."path" from "walk" where "walk"."depth" > ${literal(maxDepth)}
+  ) as "the_path"`;
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
@@ -971,6 +1081,11 @@ begin
   -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
   -- This has to be plpgsql: a sql function plans every statement before running the first one.
   analyze ${edge};
+  if exists (select ${longPath}) then
+    raise exception 'p9s: the % path % has more than % edges, the maxDepth of the % tree', ${textLiteral(kind)},
+      (select array_to_string("the_path"."path", ' -> ') ${longPath} limit 1), ${literal(maxDepth)}, ${textLiteral(kind)}
+      using errcode = 'program_limit_exceeded';
+  end if;
   delete from ${edgeCache};
   return query
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})

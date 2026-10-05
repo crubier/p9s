@@ -110,8 +110,7 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
   - [x] `enableTriggerFunction` enables triggers and backfills cache using `edgeCacheBackfill`
 - [x] Configurable maximum depth when computing cache
   - [x] Defaults to 16
-  - [x] Trees deeper than `maxDepth` will not work as expected.
-  - [x] If there is a depth of more than `maxDepth` between the node linked to an assignment, and the node linked to a resource, the assignment will not be visible to the resource. Same goes for roles.
+  - [x] `maxDepth` is the most edges on a path of each tree. Writes that would make a longer path are rejected with an error, instead of the path silently granting nothing, and so are bulk loads when the triggers are enabled again. Paths are counted without going twice through a node, so cycles are not infinitely deep. A few hundredths of a millisecond per edge write.
 - [x] UUID mode (Other existing mode is INTEGER)
   - [x] UUID mode works, but the benchmark shows that it is 2-3x slower than INTEGER mode
 - [x] Clean up code, don't treat self-edges differently
@@ -145,11 +144,12 @@ The Postgres test suite checks the caches against a from-scratch recomputation a
   - [ ] A user can only grant bits they have on that resource, so sharing never escalates privileges
   - [ ] Revoking needs the `share` bit too. Decide whether a user can remove a share made by someone else, or one with bits they don't have.
   - [ ] Decide which roles a user can share with: any role id, or only roles they can see, like the members of their teams
+- [x] Permissions on role tables. Role tables have no RLS of their own. To let RLS decide who adds a user to a team, make the role tables resource tables too, with the same parent column for both trees: adding a member then needs the `insert` bit on the team, and an org admin gets it through an assignment on the org.
 - [ ] Seeing the permissions of others. A `manageAccess` bit per table, to let a user ask what another role can do on a resource where they have that bit, with `resource_permission(resource_id, role_id)`, and list who has access to it, like the "Share" dialog of a document
 - [ ] Hide the permission graph from application users. Policies read edges, assignments and caches with the rights of the user, so users can read them whole: every resource and role id, and who can access what. Read them through p9s-owned functions or views that only show the current user's part of the graph, and benchmark the cost.
 - [ ] Assignment-driven cache reduction
   - [ ] Do not store all combinatorical possibilities in cache tables, but only store edges starting from assignments.
   - [ ] Simplify `combineAssignmentsWith`. Currently, if set to e.g. `role`, it still maintains the `roleEdgeCache`, and the `roleAssignmentCache` tables. This is more compute-optimized, but less space-optimized. We could stop maintaining `roleEdgeCache` in that case and only focus on `roleAssignmentCache`. This would be a bit more complex, but could save space. If space is an issue, need to consider adding this.
-- [ ] Customizable prefix for triggers, to allow ordering p9s triggers with other existing triggers (Postgres runs triggers in alphanumerical order). Before that, triggers are prefixed with `10`, `20`, etc.
+- [x] Customizable prefix for triggers, to order p9s triggers with the other triggers of a table (Postgres runs them in the order of their names): `naming.triggerPrefix` goes before the `05_`, `10_` and `20_` that order p9s triggers among themselves. Changing it renames the p9s triggers on the next migration.
 - [ ] Support soft-delete for all kinds of nodes
 - [ ] Build an actual life-sized example SaaS app

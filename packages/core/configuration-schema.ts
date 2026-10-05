@@ -53,6 +53,7 @@ export const baseNamingConfigSchema = z.object({
   guard: z.string(),
   validate: z.string(),
   truncate: z.string(),
+  triggerPrefix: z.string(),
 });
 
 // Derived resource or role naming config schema. The node, pkey, fkey and node trigger names are only used to upgrade

@@ -95,11 +95,14 @@ export const defaultBaseNamingConfig = {
   guard: "guard",
   validate: "validate",
   truncate: "truncate",
+  // Before the number that orders p9s triggers, to order them with other triggers of the same table
+  triggerPrefix: "",
 };
 
 export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resourceOrRole: "resource" | "role", config: CompleteConfig<User>) => {
   const {
     prefix,
+    triggerPrefix,
     id,
     node,
     edge,
@@ -142,9 +145,9 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     home: `${home}`,
     edgePkey: `${prefix}${name}_${edge}_${pkey}`,
     edgeGuardTriggerFunction: `${prefix}${name}_${edge}_${guard}_${trigger}_${functionz}`,
-    edgeGuardInsertTrigger: `05_${prefix}${name}_${edge}_${guard}_${insert}_${trigger}`,
-    edgeGuardUpdateTrigger: `05_${prefix}${name}_${edge}_${guard}_${update}_${trigger}`,
-    edgeGuardDeleteTrigger: `05_${prefix}${name}_${edge}_${guard}_${deletez}_${trigger}`,
+    edgeGuardInsertTrigger: `${triggerPrefix}05_${prefix}${name}_${edge}_${guard}_${insert}_${trigger}`,
+    edgeGuardUpdateTrigger: `${triggerPrefix}05_${prefix}${name}_${edge}_${guard}_${update}_${trigger}`,
+    edgeGuardDeleteTrigger: `${triggerPrefix}05_${prefix}${name}_${edge}_${guard}_${deletez}_${trigger}`,
     parentValidateFunction: `${prefix}${name}_${parent}_${validate}`,
     nodeInsertFunction: `${prefix}${name}_${node}_${insert}`,
     nodeUpdateFunction: `${prefix}${name}_${node}_${update}`,
@@ -166,17 +169,17 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     edgeCacheView: `${prefix}${name}_${edge}_${cache}_${view}`,
     edgeCacheBackfill: `${prefix}${name}_${edge}_${cache}_${backfill}`,
     edgeInsertTriggerFunction: `${prefix}${name}_${edge}_${insert}_${trigger}_${functionz}`,
-    edgeInsertTrigger: `10_${prefix}${name}_${edge}_${insert}_${trigger}`,
+    edgeInsertTrigger: `${triggerPrefix}10_${prefix}${name}_${edge}_${insert}_${trigger}`,
     edgeUpdateTriggerFunction: `${prefix}${name}_${edge}_${update}_${trigger}_${functionz}`,
-    edgeUpdateTrigger: `10_${prefix}${name}_${edge}_${update}_${trigger}`,
+    edgeUpdateTrigger: `${triggerPrefix}10_${prefix}${name}_${edge}_${update}_${trigger}`,
     edgeDeleteTriggerFunction: `${prefix}${name}_${edge}_${deletez}_${trigger}_${functionz}`,
-    edgeDeleteTrigger: `10_${prefix}${name}_${edge}_${deletez}_${trigger}`,
+    edgeDeleteTrigger: `${triggerPrefix}10_${prefix}${name}_${edge}_${deletez}_${trigger}`,
     nodeInsertTriggerFunction: `${prefix}${name}_${node}_${insert}_${trigger}_${functionz}`,
-    nodeInsertTrigger: `10_${prefix}${name}_${node}_${insert}_${trigger}`,
+    nodeInsertTrigger: `${triggerPrefix}10_${prefix}${name}_${node}_${insert}_${trigger}`,
     nodeUpdateTriggerFunction: `${prefix}${name}_${node}_${update}_${trigger}_${functionz}`,
-    nodeUpdateTrigger: `10_${prefix}${name}_${node}_${update}_${trigger}`,
+    nodeUpdateTrigger: `${triggerPrefix}10_${prefix}${name}_${node}_${update}_${trigger}`,
     nodeDeleteTriggerFunction: `${prefix}${name}_${node}_${deletez}_${trigger}_${functionz}`,
-    nodeDeleteTrigger: `10_${prefix}${name}_${node}_${deletez}_${trigger}`,
+    nodeDeleteTrigger: `${triggerPrefix}10_${prefix}${name}_${node}_${deletez}_${trigger}`,
     enableTriggerFunction: `${prefix}${name}_${trigger}_${enable}`,
     disableTriggerFunction: `${prefix}${name}_${trigger}_${disable}`,
   }, config.engine.naming[resourceOrRole]);
@@ -185,6 +188,7 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
 export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNamingConfig => {
   const {
     prefix,
+    triggerPrefix,
     edge,
     assignment,
     permission,
@@ -223,27 +227,27 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       edgeCacheView: `${prefix}${assignment.name}_${edge}_${cache}_${view}`,
       edgeCacheBackfill: `${prefix}${assignment.name}_${edge}_${cache}_${backfill}`,
       edgeInsertTriggerFunction: `${prefix}${assignment.name}_${edge}_${insert}_${trigger}_${functionz}`,
-      edgeInsertTrigger: `10_${prefix}${assignment.name}_${edge}_${insert}_${trigger}`,
+      edgeInsertTrigger: `${triggerPrefix}10_${prefix}${assignment.name}_${edge}_${insert}_${trigger}`,
       edgeUpdateTriggerFunction: `${prefix}${assignment.name}_${edge}_${update}_${trigger}_${functionz}`,
-      edgeUpdateTrigger: `10_${prefix}${assignment.name}_${edge}_${update}_${trigger}`,
+      edgeUpdateTrigger: `${triggerPrefix}10_${prefix}${assignment.name}_${edge}_${update}_${trigger}`,
       edgeDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${deletez}_${trigger}_${functionz}`,
-      edgeDeleteTrigger: `10_${prefix}${assignment.name}_${edge}_${deletez}_${trigger}`,
+      edgeDeleteTrigger: `${triggerPrefix}10_${prefix}${assignment.name}_${edge}_${deletez}_${trigger}`,
       edgeValidateTriggerFunction: `${prefix}${assignment.name}_${edge}_${validate}_${trigger}_${functionz}`,
-      edgeValidateInsertTrigger: `05_${prefix}${assignment.name}_${edge}_${validate}_${insert}_${trigger}`,
-      edgeValidateUpdateTrigger: `05_${prefix}${assignment.name}_${edge}_${validate}_${update}_${trigger}`,
+      edgeValidateInsertTrigger: `${triggerPrefix}05_${prefix}${assignment.name}_${edge}_${validate}_${insert}_${trigger}`,
+      edgeValidateUpdateTrigger: `${triggerPrefix}05_${prefix}${assignment.name}_${edge}_${validate}_${update}_${trigger}`,
       combinedEdgeInsertTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${insert}_${trigger}_${functionz}`,
-      combinedEdgeInsertTrigger: `20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${insert}_${trigger}`,
+      combinedEdgeInsertTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${insert}_${trigger}`,
       combinedEdgeUpdateTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${update}_${trigger}_${functionz}`,
-      combinedEdgeUpdateTrigger: `20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${update}_${trigger}`,
+      combinedEdgeUpdateTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${update}_${trigger}`,
       combinedEdgeDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}_${functionz}`,
-      combinedEdgeDeleteTrigger: `20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}`,
+      combinedEdgeDeleteTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}`,
       enableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${enable}`,
       disableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${disable}`
     },
     schema: `${config.engine.schema}`,
     orBitmap: `${prefix}or_bitmap_${size}`,
     truncateGuardFunction: `${prefix}${truncate}_${guard}_${trigger}_${functionz}`,
-    truncateGuardTrigger: `05_${prefix}${truncate}_${guard}_${trigger}`,
+    truncateGuardTrigger: `${triggerPrefix}05_${prefix}${truncate}_${guard}_${trigger}`,
     currentRoleNodeFunction: `${prefix}current_${role.name}_${node}`,
     permissionFunction: `${prefix}${resource.name}_${permission}`,
   }
@@ -254,6 +258,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   const {
     fkey,
     prefix,
+    triggerPrefix,
     resource: {
       name: resourceName,
       id: resourceId
@@ -278,7 +283,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
     [`${kind}TriggerFunction`, `${prefix}${table}_${kind}_${trigger}_${functionz}`],
     ...(["insert", "update", "delete"] as const).map(event => {
       const word = { insert, update, delete: deletez }[event];
-      return [`${kind}${event[0]!.toUpperCase()}${event.slice(1)}Trigger`, `10_${prefix}${table}_${kind}_${word}_${trigger}`];
+      return [`${kind}${event[0]!.toUpperCase()}${event.slice(1)}Trigger`, `${triggerPrefix}10_${prefix}${table}_${kind}_${word}_${trigger}`];
     }),
   ]);
 
@@ -298,10 +303,10 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
         roleParentFunction: `${prefix}${name}_${roleName}_${parent}`,
         resourceParentId: `${prefix}${resourceName}_${parent}_${resourceId}`,
         resourceLeafTriggerFunction: `${prefix}${name}_${resourceName}_${parent}_${trigger}_${functionz}`,
-        resourceLeafTrigger: `10_${prefix}${name}_${resourceName}_${parent}_${trigger}`,
+        resourceLeafTrigger: `${triggerPrefix}10_${prefix}${name}_${resourceName}_${parent}_${trigger}`,
         roleParentId: `${prefix}${roleName}_${parent}_${roleId}`,
         roleLeafTriggerFunction: `${prefix}${name}_${roleName}_${parent}_${trigger}_${functionz}`,
-        roleLeafTrigger: `10_${prefix}${name}_${roleName}_${parent}_${trigger}`,
+        roleLeafTrigger: `${triggerPrefix}10_${prefix}${name}_${roleName}_${parent}_${trigger}`,
         permission: Object.fromEntries(Object.entries(permission ?? {}).map(([user, value]) => {
           return [user, {
             select: `${prefix}${name}_${user}_${select}_${policy}`,

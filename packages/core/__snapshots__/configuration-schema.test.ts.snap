@@ -196,6 +196,9 @@ exports[`Configuration JSON Schemas baseNamingConfigSchema 1`] = `
     "trigger": {
       "type": "string",
     },
+    "triggerPrefix": {
+      "type": "string",
+    },
     "truncate": {
       "type": "string",
     },
@@ -248,6 +251,7 @@ exports[`Configuration JSON Schemas baseNamingConfigSchema 1`] = `
     "guard",
     "validate",
     "truncate",
+    "triggerPrefix",
   ],
   "type": "object",
   "~standard": {
@@ -2294,6 +2298,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "trigger": {
       "type": "string",
     },
+    "triggerPrefix": {
+      "type": "string",
+    },
     "truncate": {
       "type": "string",
     },
@@ -2352,6 +2359,7 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "guard",
     "validate",
     "truncate",
+    "triggerPrefix",
     "schema",
     "orBitmap",
     "truncateGuardFunction",
@@ -3320,6 +3328,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "trigger": {
           "type": "string",
         },
+        "triggerPrefix": {
+          "type": "string",
+        },
         "truncate": {
           "type": "string",
         },
@@ -4271,6 +4282,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
               "type": "object",
             },
             "trigger": {
+              "type": "string",
+            },
+            "triggerPrefix": {
               "type": "string",
             },
             "truncate": {
@@ -5335,6 +5349,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               "type": "object",
             },
             "trigger": {
+              "type": "string",
+            },
+            "triggerPrefix": {
               "type": "string",
             },
             "truncate": {

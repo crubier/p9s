@@ -253,6 +253,7 @@ test('Default Configuration', () => {
         },
       },
       "trigger": "trigger",
+      "triggerPrefix": "",
       "truncate": "truncate",
       "truncateGuardFunction": "truncate_guard_trigger_function",
       "truncateGuardTrigger": "05_truncate_guard_trigger",

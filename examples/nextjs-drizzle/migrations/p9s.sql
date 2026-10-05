@@ -43,6 +43,33 @@ end;
 $$ language plpgsql;
 
 
+  
+do $$
+declare
+  "the_trigger" record;
+begin
+  for "the_trigger" in
+    select "t"."tgrelid"::regclass::text as "table", "t"."tgname"::text as "name", "the_name"."name" as "expected",
+      exists (select from pg_trigger as "o" where "o"."tgrelid" = "t"."tgrelid" and "o"."tgname" = "the_name"."name") as "replaced"
+    from pg_trigger as "t"
+    join pg_proc as "p" on "p"."oid" = "t"."tgfoid"
+    join unnest(array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_image_resource_insert_trigger', '10_image_resource_update_trigger', '10_image_resource_delete_trigger', '10_image_role_insert_trigger', '10_image_role_update_trigger', '10_image_role_delete_trigger', '10_image_resource_parent_trigger', '10_image_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_text_content_resource_insert_trigger', '10_text_content_resource_update_trigger', '10_text_content_resource_delete_trigger', '10_text_content_role_insert_trigger', '10_text_content_role_update_trigger', '10_text_content_role_delete_trigger', '10_text_content_resource_parent_trigger', '10_text_content_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[], array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_image_resource_insert_trigger', '10_image_resource_update_trigger', '10_image_resource_delete_trigger', '10_image_role_insert_trigger', '10_image_role_update_trigger', '10_image_role_delete_trigger', '10_image_resource_parent_trigger', '10_image_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_text_content_resource_insert_trigger', '10_text_content_resource_update_trigger', '10_text_content_resource_delete_trigger', '10_text_content_role_insert_trigger', '10_text_content_role_update_trigger', '10_text_content_role_delete_trigger', '10_text_content_resource_parent_trigger', '10_text_content_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[]) as "the_name" ("name", "unprefixed")
+      on right("t"."tgname", length("the_name"."unprefixed")) = "the_name"."unprefixed"
+    where not "t"."tgisinternal"
+    and "t"."tgname" <> all (array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_image_resource_insert_trigger', '10_image_resource_update_trigger', '10_image_resource_delete_trigger', '10_image_role_insert_trigger', '10_image_role_update_trigger', '10_image_role_delete_trigger', '10_image_resource_parent_trigger', '10_image_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_text_content_resource_insert_trigger', '10_text_content_resource_update_trigger', '10_text_content_resource_delete_trigger', '10_text_content_role_insert_trigger', '10_text_content_role_update_trigger', '10_text_content_role_delete_trigger', '10_text_content_resource_parent_trigger', '10_text_content_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[])
+    and "p"."pronamespace" = 'public'::regnamespace
+    and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_8', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'account', 'resource_account_fkey', 'role_account_fkey', 'account_resource_trigger_function', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', 'account_role_trigger_function', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', 'account_resource_parent', 'account_role_parent', 'resource_parent_id', 'account_resource_parent_trigger_function', '10_account_resource_parent_trigger', 'role_parent_id', 'account_role_parent_trigger_function', '10_account_role_parent_trigger', 'folder', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'folder_app_user_select_policy', 'folder_app_user_insert_policy', 'folder_app_user_update_policy', 'folder_app_user_delete_policy', 'image', 'resource_image_fkey', 'role_image_fkey', 'image_resource_trigger_function', '10_image_resource_insert_trigger', '10_image_resource_update_trigger', '10_image_resource_delete_trigger', 'image_role_trigger_function', '10_image_role_insert_trigger', '10_image_role_update_trigger', '10_image_role_delete_trigger', 'image_resource_parent', 'image_role_parent', 'image_resource_parent_trigger_function', '10_image_resource_parent_trigger', 'image_role_parent_trigger_function', '10_image_role_parent_trigger', 'image_app_user_select_policy', 'image_app_user_insert_policy', 'image_app_user_update_policy', 'image_app_user_delete_policy', 'session', 'resource_session_fkey', 'role_session_fkey', 'session_resource_trigger_function', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', 'session_role_trigger_function', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', 'session_resource_parent', 'session_role_parent', 'session_resource_parent_trigger_function', '10_session_resource_parent_trigger', 'session_role_parent_trigger_function', '10_session_role_parent_trigger', 'text_content', 'resource_text_content_fkey', 'role_text_content_fkey', 'text_content_resource_trigger_function', '10_text_content_resource_insert_trigger', '10_text_content_resource_update_trigger', '10_text_content_resource_delete_trigger', 'text_content_role_trigger_function', '10_text_content_role_insert_trigger', '10_text_content_role_update_trigger', '10_text_content_role_delete_trigger', 'text_content_resource_parent', 'text_content_role_parent', 'text_content_resource_parent_trigger_function', '10_text_content_resource_parent_trigger', 'text_content_role_parent_trigger_function', '10_text_content_role_parent_trigger', 'text_content_app_user_select_policy', 'text_content_app_user_insert_policy', 'text_content_app_user_update_policy', 'text_content_app_user_delete_policy', 'user', 'resource_user_fkey', 'role_user_fkey', 'user_resource_trigger_function', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', 'user_role_trigger_function', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', 'user_resource_parent', 'user_role_parent', 'user_resource_parent_trigger_function', '10_user_resource_parent_trigger', 'user_role_parent_trigger_function', '10_user_role_parent_trigger', 'verification', 'resource_verification_fkey', 'role_verification_fkey', 'verification_resource_trigger_function', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', 'verification_role_trigger_function', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', 'verification_resource_parent', 'verification_role_parent', 'verification_resource_parent_trigger_function', '10_verification_resource_parent_trigger', 'verification_role_parent_trigger_function', '10_verification_role_parent_trigger']::text[])
+  loop
+    if "the_trigger"."replaced" then
+      execute format('drop trigger %I on %s', "the_trigger"."name", "the_trigger"."table");
+    else
+      execute format('alter trigger %I on %s rename to %I', "the_trigger"."name", "the_trigger"."table", "the_trigger"."expected");
+    end if;
+  end loop;
+end
+$$;
+
+
   create extension if not exists "uuid-ossp";
 
   
@@ -546,6 +573,29 @@ begin
   -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
   -- This has to be plpgsql: a sql function plans every statement before running the first one.
   analyze "resource_edge";
+  if exists (select from (
+    with recursive "walk" ("node", "depth", "path") as (
+      select distinct "the_edge"."child_id", 0, array["the_edge"."child_id"] from "resource_edge" as "the_edge"
+      union all
+      select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
+      from "walk" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+    )
+    select "walk"."path" from "walk" where "walk"."depth" > 16
+  ) as "the_path") then
+    raise exception 'p9s: the % path % has more than % edges, the maxDepth of the % tree', 'resource',
+      (select array_to_string("the_path"."path", ' -> ') from (
+    with recursive "walk" ("node", "depth", "path") as (
+      select distinct "the_edge"."child_id", 0, array["the_edge"."child_id"] from "resource_edge" as "the_edge"
+      union all
+      select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
+      from "walk" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+    )
+    select "walk"."path" from "walk" where "walk"."depth" > 16
+  ) as "the_path" limit 1), 16, 'resource'
+      using errcode = 'program_limit_exceeded';
+  end if;
   delete from "resource_edge_cache";
   return query
   insert into "resource_edge_cache" ("parent_id", "child_id", "permission")
@@ -593,6 +643,71 @@ begin
     left join "resource_edge_cache" as "the_child_self" on "the_child_self"."parent_id" = "the_edge"."child_id" and "the_child_self"."child_id" = "the_edge"."child_id"
     where "the_parent_self"."parent_id" is null or "the_child_self"."parent_id" is null limit 1)
       using errcode = 'foreign_key_violation';
+  end if;
+  if exists (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "below" ("parent", "node", "depth", "path") as (
+      select "the_new"."parent_id", "the_new"."child_id", 0, array["the_new"."child_id"] from "the_new"
+      union all
+      select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    ),
+    "above" ("node", "depth", "path", "budget") as (
+      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      union all
+      select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" <= "above"."budget"
+    )
+    select from "above" where "above"."depth" > "above"."budget") and exists (select from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge") then
+    raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'resource',
+      (select format('%s -> %s', "the_edge"."parent_id", "the_edge"."child_id") from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge" limit 1), 16, 'resource'
+      using errcode = 'program_limit_exceeded';
   end if;
 
   with recursive "affected" ("parent_id") as (
@@ -710,6 +825,71 @@ begin
     left join "resource_edge_cache" as "the_child_self" on "the_child_self"."parent_id" = "the_edge"."child_id" and "the_child_self"."child_id" = "the_edge"."child_id"
     where "the_parent_self"."parent_id" is null or "the_child_self"."parent_id" is null limit 1)
       using errcode = 'foreign_key_violation';
+  end if;
+  if exists (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "below" ("parent", "node", "depth", "path") as (
+      select "the_new"."parent_id", "the_new"."child_id", 0, array["the_new"."child_id"] from "the_new"
+      union all
+      select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    ),
+    "above" ("node", "depth", "path", "budget") as (
+      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      union all
+      select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" <= "above"."budget"
+    )
+    select from "above" where "above"."depth" > "above"."budget") and exists (select from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge") then
+    raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'resource',
+      (select format('%s -> %s', "the_edge"."parent_id", "the_edge"."child_id") from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge" limit 1), 16, 'resource'
+      using errcode = 'program_limit_exceeded';
   end if;
 
   with recursive "affected" ("parent_id") as (
@@ -1378,6 +1558,29 @@ begin
   -- seq scan the edge table at every step of the recursive walk, which is quadratic in the number of edges.
   -- This has to be plpgsql: a sql function plans every statement before running the first one.
   analyze "role_edge";
+  if exists (select from (
+    with recursive "walk" ("node", "depth", "path") as (
+      select distinct "the_edge"."child_id", 0, array["the_edge"."child_id"] from "role_edge" as "the_edge"
+      union all
+      select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
+      from "walk" join "role_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+    )
+    select "walk"."path" from "walk" where "walk"."depth" > 16
+  ) as "the_path") then
+    raise exception 'p9s: the % path % has more than % edges, the maxDepth of the % tree', 'role',
+      (select array_to_string("the_path"."path", ' -> ') from (
+    with recursive "walk" ("node", "depth", "path") as (
+      select distinct "the_edge"."child_id", 0, array["the_edge"."child_id"] from "role_edge" as "the_edge"
+      union all
+      select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
+      from "walk" join "role_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+    )
+    select "walk"."path" from "walk" where "walk"."depth" > 16
+  ) as "the_path" limit 1), 16, 'role'
+      using errcode = 'program_limit_exceeded';
+  end if;
   delete from "role_edge_cache";
   return query
   insert into "role_edge_cache" ("parent_id", "child_id", "permission")
@@ -1425,6 +1628,71 @@ begin
     left join "role_edge_cache" as "the_child_self" on "the_child_self"."parent_id" = "the_edge"."child_id" and "the_child_self"."child_id" = "the_edge"."child_id"
     where "the_parent_self"."parent_id" is null or "the_child_self"."parent_id" is null limit 1)
       using errcode = 'foreign_key_violation';
+  end if;
+  if exists (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "below" ("parent", "node", "depth", "path") as (
+      select "the_new"."parent_id", "the_new"."child_id", 0, array["the_new"."child_id"] from "the_new"
+      union all
+      select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    ),
+    "above" ("node", "depth", "path", "budget") as (
+      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      union all
+      select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" <= "above"."budget"
+    )
+    select from "above" where "above"."depth" > "above"."budget") and exists (select from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge") then
+    raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'role',
+      (select format('%s -> %s', "the_edge"."parent_id", "the_edge"."child_id") from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge" limit 1), 16, 'role'
+      using errcode = 'program_limit_exceeded';
   end if;
 
   with recursive "affected" ("parent_id") as (
@@ -1542,6 +1810,71 @@ begin
     left join "role_edge_cache" as "the_child_self" on "the_child_self"."parent_id" = "the_edge"."child_id" and "the_child_self"."child_id" = "the_edge"."child_id"
     where "the_parent_self"."parent_id" is null or "the_child_self"."parent_id" is null limit 1)
       using errcode = 'foreign_key_violation';
+  end if;
+  if exists (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "below" ("parent", "node", "depth", "path") as (
+      select "the_new"."parent_id", "the_new"."child_id", 0, array["the_new"."child_id"] from "the_new"
+      union all
+      select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    ),
+    "above" ("node", "depth", "path", "budget") as (
+      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      union all
+      select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" <= "above"."budget"
+    )
+    select from "above" where "above"."depth" > "above"."budget") and exists (select from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge") then
+    raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'role',
+      (select format('%s -> %s', "the_edge"."parent_id", "the_edge"."child_id") from (
+    with recursive "the_new" as (select distinct "parent_id", "child_id" from "p9s_new_rows"),
+    "above" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "parent_id" as "id" from "the_new") as "the_start"
+      union all
+      select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
+      from "above" join "role_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+    ),
+    "below" ("start", "node", "depth", "path") as (
+      select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
+      union all
+      select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
+      from "below" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+    )
+    select "the_new"."parent_id", "the_new"."child_id"
+    from "the_new"
+    join "above" on "above"."start" = "the_new"."parent_id"
+    join "below" on "below"."start" = "the_new"."child_id"
+    where "above"."depth" + 1 + "below"."depth" > 16
+    and not ("above"."path" && "below"."path")
+  ) as "the_edge" limit 1), 16, 'role'
+      using errcode = 'program_limit_exceeded';
   end if;
 
   with recursive "affected" ("parent_id") as (
