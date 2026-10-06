@@ -109,7 +109,7 @@ With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` 
 
 #### Resource cache
 
-Permissions only come from the resources that have assignments, and the policies only read the cache rows that start at one of them. With `resourceCache: "assigned"`, p9s only keeps those rows, and a self row for every resource. In the example app, where 870 of 190,000 resources are shared, that is 573,000 of 1.32 million rows. Reads and writes in the tree cost the same, see [the benchmarks](../benchmarks#caching-only-below-assignments). What changes:
+Permissions only come from the resources that have assignments, and the policies only read the cache rows that start at one of them. With `resourceCache: "assigned"`, p9s only keeps those rows, and a self row for every resource. In the example app, where 870 of 190,000 resources are shared, that is 572,000 of 1.32 million rows. Reads and writes in the tree cost the same, see [the benchmarks](../benchmarks#caching-only-below-assignments). What changes:
 
 - The first assignment of a resource caches everything below it, and removing its last assignment drops those rows. Sharing a workspace of 1,110 resources for the first time takes 6 ms instead of 0.2 ms, an organization of 11,110 resources 63 ms.
 - `current_resource_edge`, and `resource_edge_cache` for graph writers, only tell whether a resource is below another when the one above has assignments. To tell whether a folder would move inside itself, walk up its new parents, as the example app does.
