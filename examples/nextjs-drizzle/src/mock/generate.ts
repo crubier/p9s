@@ -5,7 +5,7 @@ import { ACCESS_LEVELS, type AccessLevel } from "../../lib/permissions";
 import { db, rows, switchToGraphWriter } from "../db";
 import { account, apiKey, comment, document, folder, member, team, user } from "../schema";
 import * as service from "../service";
-import { MOCK_PASSWORD, mockEmail, mockMember, mockName, mockOrganizations, type MockMember, type MockOrganization } from "./people";
+import { DOCUMENTS_PER_MEMBER, MOCK_PASSWORD, mockEmail, mockMember, mockName, mockOrganizations, type MockMember, type MockOrganization } from "./people";
 
 // Mock organizations, the same on every run: thousands of members in teams, spaces with nested folders, documents,
 // comments, shares and API keys, then a month of activity.
@@ -114,7 +114,6 @@ const COMMENTS = [
 ];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-export const DOCUMENTS_PER_MEMBER = 55;
 const DOCUMENTS_PER_FOLDER = 30;
 const MAX_CHILDREN = 12;
 const MAX_DEPTH = 5;

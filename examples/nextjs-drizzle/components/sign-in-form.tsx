@@ -31,6 +31,7 @@ export interface MockExample {
   name: string;
   first: number;
   last: number;
+  documents: number;
   accounts: Account[];
 }
 
@@ -86,6 +87,8 @@ export function SignInForm({ acme, mockUsers, mockExamples }: { acme: boolean; m
   );
 
   const seeded = acme || mockUsers > 0;
+  const largest = mockExamples.reduce<MockExample | undefined>((max, org) => (max && max.documents >= org.documents ? max : org), undefined);
+  const about = (n: number) => Number(n.toPrecision(2)).toLocaleString("en");
   const both = mockExamples.length > 1 && mockExamples[1]!.first <= mockExamples[0]!.last;
 
   return (
@@ -113,7 +116,7 @@ export function SignInForm({ acme, mockUsers, mockExamples }: { acme: boolean; m
           )}
           {acme && organization("Acme", "5 people, small and easy to follow", ACME)}
           {mockExamples.map((org) =>
-            organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, a year of history`, org.accounts),
+            organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, about ${about(org.documents)} documents`, org.accounts),
           )}
           {mockUsers > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -151,6 +154,12 @@ export function SignInForm({ acme, mockUsers, mockExamples }: { acme: boolean; m
             <div className="bg-muted/60 flex flex-col gap-1.5 rounded-md p-3 text-xs">
               <span className="font-medium">Things to try</span>
               <ul className="text-muted-foreground flex list-disc flex-col gap-1 pl-4">
+                {largest && (
+                  <li>
+                    {acme && "Acme only has a handful of documents. "}To browse a large workspace, sign in to {largest.name}, which has about{" "}
+                    {about(largest.documents)} documents.
+                  </li>
+                )}
                 <li>Sign in as an admin, open Members, and use View as on someone to see the workspace through their eyes.</li>
                 <li>Open Share on a folder or a document to see who has access, and which folder it comes from.</li>
                 <li>As an admin, the Audit log shows who changed what, including while acting as someone else.</li>

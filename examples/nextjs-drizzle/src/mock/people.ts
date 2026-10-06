@@ -12,6 +12,8 @@
 export const MOCK_PASSWORD = "password1234";
 export const DEFAULT_MOCK_USERS = 3000;
 export const MOCK_DOMAIN = "example.test";
+// Documents in each organization for each of its members, unless `bun run db:seed --documents-per-member` says otherwise
+export const DOCUMENTS_PER_MEMBER = 55;
 
 export const mockEmail = (n: number) => `user${String(n).padStart(4, "0")}@${MOCK_DOMAIN}`;
 
@@ -94,6 +96,7 @@ export const mockExamples = (users: number) =>
       name: org.name,
       first: org.first,
       last: org.last,
+      documents: (org.last - org.first + 1) * DOCUMENTS_PER_MEMBER,
       accounts: numbers.filter((n) => n <= org.last).map((n) => ({ name: mockName(n), email: mockEmail(n), who: describeMockMember(mockMember(org, n)) })),
     };
   });
