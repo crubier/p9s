@@ -9,9 +9,17 @@ const vercelOrigins = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, pr
   .filter(Boolean)
   .map((host) => `https://${host}`);
 
+// Vercel also answers on aliases that no variable names, like the team's: a page of the host it posts to is trusted.
+// Next makes the request's URL from its own hostname, so the host comes from the headers, which pages cannot set
+const ownOrigin = (request: Request) => {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const protocol = request.headers.get("x-forwarded-proto") ?? new URL(request.url).protocol.replace(":", "");
+  return `${protocol}://${host}`;
+};
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? vercelOrigins[0],
-  trustedOrigins: vercelOrigins,
+  trustedOrigins: (request) => [...vercelOrigins, ...(request ? [ownOrigin(request)] : [])],
   database: drizzleAdapter(db, { provider: "pg", schema: { user, session, account, verification } }),
   emailAndPassword: { enabled: true },
   plugins: [nextCookies()],
