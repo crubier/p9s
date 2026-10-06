@@ -90,6 +90,9 @@ export function SignInForm({ acme, mockUsers, mockExamples }: { acme: boolean; m
   const largest = mockExamples.reduce<MockExample | undefined>((max, org) => (max && max.documents >= org.documents ? max : org), undefined);
   const about = (n: number) => Number(n.toPrecision(2)).toLocaleString("en");
   const both = mockExamples.length > 1 && mockExamples[1]!.first <= mockExamples[0]!.last;
+  // The largest organization first: it has the most to explore
+  const mockOrganization = (org: MockExample) =>
+    organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, about ${about(org.documents)} documents`, org.accounts);
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,10 +117,9 @@ export function SignInForm({ acme, mockUsers, mockExamples }: { acme: boolean; m
               There are no demo accounts yet. Run <code>bun run db:seed</code> to create them, or sign up below.
             </p>
           )}
+          {largest && mockOrganization(largest)}
           {acme && organization("Acme", "5 people, small and easy to follow", ACME)}
-          {mockExamples.map((org) =>
-            organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, about ${about(org.documents)} documents`, org.accounts),
-          )}
+          {mockExamples.filter((org) => org !== largest).map(mockOrganization)}
           {mockUsers > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="number" className="font-medium">

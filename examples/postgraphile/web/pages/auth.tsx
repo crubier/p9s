@@ -117,6 +117,9 @@ export function SignIn() {
   const largest = examples.reduce<(typeof examples)[number] | undefined>((max, org) => (max && max.documents >= org.documents ? max : org), undefined);
   const about = (n: number) => Number(n.toPrecision(2)).toLocaleString("en");
   const both = examples.length > 1 && examples[1]!.first <= examples[0]!.last;
+  // The largest organization first: it has the most to explore
+  const mockOrganization = (org: (typeof examples)[number]) =>
+    organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, about ${about(org.documents)} documents`, org.accounts);
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,10 +145,9 @@ export function SignIn() {
               There are no demo accounts yet. Run <code>bun run db:seed</code> to create them, or sign up below.
             </p>
           )}
+          {largest && mockOrganization(largest)}
           {acme && organization("Acme", "5 people, small and easy to follow", ACME)}
-          {examples.map((org) =>
-            organization(org.name, `${(org.last - org.first + 1).toLocaleString("en")} people, about ${about(org.documents)} documents`, org.accounts),
-          )}
+          {examples.filter((org) => org !== largest).map(mockOrganization)}
           {mockUsers > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="number" className="font-medium">
