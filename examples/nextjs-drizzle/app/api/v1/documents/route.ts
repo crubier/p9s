@@ -2,24 +2,26 @@ import { capabilities } from "@/lib/permissions";
 import { createDocument, getDocument, listDocuments } from "@/src/service";
 import { withApiKey } from "../api";
 
-// The documents the key's member can read, last updated first, and what they can do with each: `?limit=50&offset=0`
+// The documents the key's member can read, last updated first, and what they can do with each: `?limit=50`, then
+// `?limit=50&after=...` with the `next` of the previous page
 export const GET = (request: Request) =>
   withApiKey(request, async (actor) => {
     const params = new URL(request.url).searchParams;
     const limit = Math.min(200, Math.max(1, Number(params.get("limit")) || 50));
-    const offset = Math.max(0, Number(params.get("offset")) || 0);
+    const after = params.get("after");
+    const found = await listDocuments(actor, { limit, after: after ? Buffer.from(after, "base64url").toString() : undefined });
     return {
-    organization: actor.org.slug,
-    limit,
-    offset,
-    documents: (await listDocuments(actor, { limit, offset })).map(({ id, title, folderId, updatedAt, permission }) => ({
-      id,
-      title,
-      folderId,
-      updatedAt,
-      permission,
-      can: capabilities(permission),
-    })),
+      organization: actor.org.slug,
+      limit,
+      documents: found.map(({ id, title, folderId, updatedAt, permission }) => ({
+        id,
+        title,
+        folderId,
+        updatedAt,
+        permission,
+        can: capabilities(permission),
+      })),
+      next: found.length === limit ? Buffer.from(found.at(-1)!.cursor).toString("base64url") : null,
     };
   });
 

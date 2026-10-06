@@ -210,17 +210,23 @@ const assertResourceInOrganization = async (tx: Tx, actor: Actor, resourceId: st
 export const listSpaces = (actor: Actor) =>
   asRole(actor, (tx) => rows<FolderRow>(tx, sql`select ${folderColumns} from folder f where f.org_id = ${actor.org.id} and f.parent_id is null order by f.name`));
 
-// What was shared with the actor inside spaces they cannot see
+// What was shared with the actor inside spaces they cannot see. Access given on a folder reaches what is inside, so
+// a folder or document whose parent RLS hides was shared on its own: only look among what is assigned to the actor,
+// their teams and the organization, rather than through everything they can read
+const assignedToActor = sql`select resource_id from assignment_edge_cache where role_id = (select current_role_node())`;
+
 export const listShared = (actor: Actor) =>
   asRole(actor, async (tx) => ({
     folders: await rows<FolderRow>(tx, sql`
       select ${folderColumns} from folder f
-      where f.org_id = ${actor.org.id} and f.parent_id is not null and not exists (select 1 from folder p where p.id = f.parent_id)
+      where f.resource_id in (${assignedToActor}) and f.org_id = ${actor.org.id} and f.parent_id is not null
+        and not exists (select 1 from folder p where p.id = f.parent_id)
       order by f.name`),
     // The folder of these documents is hidden by RLS
     documents: await rows<DocumentRow>(tx, sql`
       select ${documentColumns} from document d
-      where not exists (select 1 from folder p where p.id = d.folder_id) and ${inOrganization(actor, sql`d.resource_id`)}
+      where d.resource_id in (${assignedToActor}) and not exists (select 1 from folder p where p.id = d.folder_id)
+        and ${inOrganization(actor, sql`d.resource_id`)}
       order by d.title`),
   }));
 
@@ -308,21 +314,38 @@ export const getDocument = (actor: Actor, documentId: string) =>
     };
   });
 
-// The documents the actor can read, last updated first
-export const listDocuments = (actor: Actor, { offset = 0, limit = 1000 }: Page = {}) =>
-  asRole(actor, (tx) =>
-    rows<DocumentRow>(tx, sql`
-      select ${documentColumns} from document d where ${inOrganization(actor, sql`d.resource_id`)}
-      order by d.updated_at desc offset ${offset} limit ${limit}`),
-  );
+// The documents the actor can read, last updated first. Pages start after a cursor rather than at an offset: walking
+// the index from the cursor, RLS checks the rows of the page and not every row before it
+export const listDocuments = (actor: Actor, { limit = 50, after }: { limit?: number; after?: string } = {}) =>
+  asRole(actor, (tx) => {
+    const [updatedAt, id] = after ? after.split("|") : [];
+    const start = updatedAt && id ? sql`and (d.updated_at, d.id) < (${updatedAt}::timestamp, ${id}::uuid)` : sql``;
+    return rows<DocumentRow & { cursor: string }>(tx, sql`
+      select ${documentColumns}, d.updated_at::text || '|' || d.id as cursor
+      from document d where ${inOrganization(actor, sql`d.resource_id`)} ${start}
+      order by d.updated_at desc, d.id desc limit ${limit}`);
+  });
 
-// Folders and documents whose name matches, among those RLS shows the actor
+// How much the actor can read in the organization. Like `search` below, RLS checks the readable documents in one join
+export const countReadable = (actor: Actor) =>
+  asRole(actor, async (tx) => {
+    const [counted] = await rows<{ folders: number; documents: number }>(tx, sql`
+      select
+        (select count(*)::int from folder where org_id = ${actor.org.id}) as folders,
+        (select count(*)::int from (select resource_id from document offset 0) d where ${inOrganization(actor, sql`d.resource_id`)}) as documents`);
+    return counted!;
+  });
+
+// Folders and documents whose name matches, among those RLS shows the actor.
+// Postgres checks RLS before any filter that is not leakproof, like ilike, and row by row when there are other
+// filters: `offset 0` keeps the readable documents a subquery of their own, which it checks in one join, then filters
 export const search = (actor: Actor, query: string, limit = 50) =>
   asRole(actor, async (tx) => ({
     folders: await rows<FolderRow>(tx, sql`
       select ${folderColumns} from folder f where f.org_id = ${actor.org.id} and f.name ilike ${like(query)} order by f.name limit ${limit}`),
     documents: await rows<DocumentRow>(tx, sql`
-      select ${documentColumns} from document d
+      select ${documentColumns}
+      from (select id, title, content, folder_id, resource_id, updated_at from document offset 0) d
       where (d.title ilike ${like(query)} or d.content ilike ${like(query)}) and ${inOrganization(actor, sql`d.resource_id`)}
       order by d.title ilike ${like(query)} desc, d.updated_at desc limit ${limit}`),
   }));

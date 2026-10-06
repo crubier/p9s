@@ -1,15 +1,16 @@
 import { ItemList } from "@/components/item-list";
 import { PageBody, PageHeader } from "@/components/page-header";
-import { listDocuments, listShared, listSpaces } from "@/src/service";
+import { countReadable, listDocuments, listShared, listSpaces } from "@/src/service";
 import { requireActor } from "@/src/session";
 
 export default async function OrganizationHome({ params }: { params: Promise<{ org: string }> }) {
   const { org: slug } = await params;
   const actor = await requireActor(slug);
-  const [spaces, { folders: sharedFolders, documents: sharedDocuments }, documents] = await Promise.all([
+  const [spaces, { folders: sharedFolders, documents: sharedDocuments }, documents, readable] = await Promise.all([
     listSpaces(actor),
     listShared(actor),
     listDocuments(actor, { limit: 8 }),
+    countReadable(actor),
   ]);
 
   return (
@@ -17,7 +18,12 @@ export default async function OrganizationHome({ params }: { params: Promise<{ o
       <PageHeader path={[{ label: actor.org.name }]} />
       <PageBody className="flex flex-col gap-8 p-6">
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold">Spaces</h2>
+          <div>
+            <h2 className="font-semibold">Spaces</h2>
+            <p className="text-muted-foreground text-sm">
+              You can read {readable.documents.toLocaleString("en")} documents in {readable.folders.toLocaleString("en")} folders.
+            </p>
+          </div>
           <ItemList
             orgSlug={slug}
             items={spaces.map((space) => ({ kind: "folder", ...space }))}

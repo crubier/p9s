@@ -21,7 +21,7 @@ type Person = keyof typeof PEOPLE;
 
 // A demo organization, built with the same functions as the app, each one acting as the person who would do it,
 // then, with `mockUsers`, the larger mock organizations of src/mock
-export const seed = async ({ mockUsers = 0, log }: { mockUsers?: number; log?: (message: string) => void } = {}) => {
+export const seed = async ({ mockUsers = 0, documentsPerMember, log }: { mockUsers?: number; documentsPerMember?: number; log?: (message: string) => void } = {}) => {
   const userIds = {} as Record<Person, string>;
   for (const [key, person] of Object.entries(PEOPLE) as [Person, (typeof PEOPLE)[Person]][]) {
     const { user: created } = await auth.api.signUpEmail({ body: { ...person, password: PASSWORD } });
@@ -89,19 +89,23 @@ export const seed = async ({ mockUsers = 0, log }: { mockUsers?: number; log?: (
   await service.createDocument(bobAlone, (await service.listSpaces(bobAlone))[0]!.id, "Ideas", "A to-do app, but with permissions.");
 
   const apiKey = await service.createApiKey(bob!, "CI");
-  const mock = mockUsers > 0 ? await seedMock({ users: mockUsers, log }) : [];
+  const mock = mockUsers > 0 ? await seedMock({ users: mockUsers, documentsPerMember, log }) : [];
   return { org, apiKey, actors: { alice, bob: bob!, carol: carol!, dave: dave!, erin: erin! } satisfies Record<Person, Actor>, mock };
 };
 
-// bun run db:seed [--users 3000]
+// bun run db:seed [--users 3000] [--documents-per-member 55]
 if (import.meta.main) {
-  const flag = process.argv.indexOf("--users");
-  const mockUsers = flag >= 0 ? Number(process.argv[flag + 1]) : DEFAULT_MOCK_USERS;
+  const option = (name: string) => {
+    const flag = process.argv.indexOf(name);
+    return flag >= 0 ? Number(process.argv[flag + 1]) : undefined;
+  };
+  const mockUsers = option("--users") ?? DEFAULT_MOCK_USERS;
+  const documentsPerMember = option("--documents-per-member");
   const [existing] = await db.select().from(user).where(eq(user.email, PEOPLE.alice.email));
   if (existing) {
     console.log("Already seeded. Drop and recreate the database to start again.");
   } else {
-    const { org, apiKey, mock } = await seed({ mockUsers, log: (message) => console.log(`  ${message}`) });
+    const { org, apiKey, mock } = await seed({ mockUsers, documentsPerMember, log: (message) => console.log(`  ${message}`) });
     console.log(`\nSeeded the ${org.name} organization. Sign in as any of these, with the password ${PASSWORD}:`);
     for (const person of Object.values(PEOPLE)) console.log(`  ${person.email.padEnd(20)} ${person.name}`);
     console.log(`\nAPI key of Bob: ${apiKey}`);

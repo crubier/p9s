@@ -15,11 +15,11 @@ export DATABASE_URL=postgresql://postgres@localhost:5432/p9s_example
 export BETTER_AUTH_SECRET=$(openssl rand -base64 32)
 export BETTER_AUTH_URL=http://localhost:3000
 bun run db:migrate   # Drizzle migrations, then migrations/p9s.sql and migrations/audit.sql
-bun run db:seed      # Acme, then 3000 mock users in Globex and Initech, in about 10 seconds
+bun run db:seed      # Acme, then 3000 mock users in Globex and Initech, in under a minute
 bun run dev
 ```
 
-`bun run db:seed --users 300` seeds fewer mock users, `--users 0` none.
+`bun run db:seed --users 300` seeds fewer mock users, `--users 0` none, and `--documents-per-member 10` fewer documents.
 
 Then open http://localhost:3000 and sign in, with the password `password1234`, as one of the Acme accounts listed on the sign-in page:
 
@@ -41,14 +41,15 @@ The seed also creates `user0001@example.test` to `user3000@example.test`, all wi
 - The others are in a department, by their number: at Globex, `user0011` is in Engineering, `user0012` in Product, `user0013` in Design. Each department has a space its team edits, and that the next department's team can view. The first of each department in every 200 members (100 at Initech) leads it, with full access to its space and a seat in Leadership.
 - Members are also in squads of 6 to 16, each with a project space. Half of these spaces are visible to everyone.
 
-Spaces hold about 1000 folders and 6000 documents at Globex, with comments and shares. Then [`src/mock/generate.ts`](./src/mock/generate.ts) plays a month of activity through the same functions as the app: edits, comments, moves, shares, team changes, impersonations and API calls, which fill the audit log. The data is the same on every run.
+Spaces hold about 4400 folders, nested up to 5 deep, and 132,000 documents at Globex, with comments and shares: a member of a department reads about 100,000 of them. The database takes about 400MB. Then [`src/mock/generate.ts`](./src/mock/generate.ts) plays a month of activity through the same functions as the app: edits, comments, moves, shares, team changes, impersonations and API calls, which fill the audit log. The data is the same on every run.
 
 ### The API
 
 The seed prints an API key of Bob's. Every 20th mock member also has a key: `p9s_globex_user0001` for `user0001` at Globex.
 
 ```bash
-curl -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/documents?limit=50&offset=0"
+curl -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/documents?limit=50"
+curl -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/documents?limit=50&after=$NEXT"  # the next of the previous page
 curl -H "Authorization: Bearer $KEY" -H "content-type: application/json" \
   -d '{"folderId": "...", "title": "From the API"}' http://localhost:3000/api/v1/documents
 ```

@@ -181,7 +181,7 @@ export const document = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("document_folder_id_idx").on(table.folderId), index("document_updated_at_idx").on(table.updatedAt)],
+  (table) => [index("document_folder_id_idx").on(table.folderId), index("document_updated_at_idx").on(table.updatedAt, table.id)],
 );
 
 // A resource leaf: comments are not in the graph, they have the permissions of their document

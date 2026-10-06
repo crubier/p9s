@@ -2,13 +2,12 @@
 
 import { IconArrowsMove, IconDots, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { deleteDocument, deleteFolder, listMoveTargets, moveDocument, moveFolder, renameFolder } from "@/app/o/[org]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { can } from "@/lib/permissions";
 import { useAction } from "./use-action";
 
@@ -82,7 +81,7 @@ export function ItemActions({ orgSlug, kind, id, name, permission, parentHref }:
       <Dialog open={dialog !== undefined} onOpenChange={(open) => !open && close()}>
         <DialogContent>
           <form
-            className="grid gap-4"
+            className="grid min-w-0 gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               submit();
@@ -102,24 +101,7 @@ export function ItemActions({ orgSlug, kind, id, name, permission, parentHref }:
             </DialogHeader>
             {dialog === "rename" && <Input autoFocus required value={value} onChange={(event) => setValue(event.target.value)} />}
             {dialog === "move" && (
-              <Select
-                value={value || null}
-                items={(targets ?? []).map((target) => ({ value: target.id, label: target.label }))}
-                onValueChange={(next) => setValue(next ?? "")}
-              >
-                <SelectTrigger className="w-full" disabled={!targets}>
-                  <SelectValue placeholder={targets ? "Choose a folder" : "Loading folders…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(targets ?? [])
-                    .filter((target) => target.id !== id)
-                    .map((target) => (
-                      <SelectItem key={target.id} value={target.id}>
-                        {target.label}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <FolderPicker targets={targets?.filter((target) => target.id !== id)} value={value} onChange={setValue} />
             )}
             <DialogFooter>
               <Button type="submit" variant={dialog === "delete" ? "destructive" : "default"} disabled={pending || (dialog === "move" && !value)}>
@@ -130,5 +112,48 @@ export function ItemActions({ orgSlug, kind, id, name, permission, parentHref }:
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+const SHOWN = 100;
+
+// There can be thousands of folders to choose from: filter them as you type, and show the first matches
+function FolderPicker({ targets, value, onChange }: { targets?: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
+  const [query, setQuery] = useState("");
+  const matching = useMemo(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return (targets ?? []).filter((target) => words.every((word) => target.label.toLowerCase().includes(word)));
+  }, [targets, query]);
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <Input
+        autoFocus
+        placeholder={targets ? `Search ${targets.length.toLocaleString("en")} folders` : "Loading folders…"}
+        aria-label="Search folders"
+        disabled={!targets}
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {targets && (
+        <ul aria-label="Folders" className="max-h-64 overflow-y-auto rounded-md border p-1">
+          {matching.slice(0, SHOWN).map((target) => (
+            <li key={target.id}>
+              <button
+                type="button"
+                className="hover:bg-accent aria-pressed:bg-accent aria-pressed:font-medium w-full truncate rounded-sm px-2 py-1.5 text-left text-sm"
+                aria-pressed={target.id === value}
+                onClick={() => onChange(target.id)}
+              >
+                {target.label}
+              </button>
+            </li>
+          ))}
+          {matching.length === 0 && <li className="text-muted-foreground px-2 py-1.5 text-sm">No folder matches.</li>}
+          {matching.length > SHOWN && (
+            <li className="text-muted-foreground px-2 py-1.5 text-sm">{(matching.length - SHOWN).toLocaleString("en")} more, type to narrow down.</li>
+          )}
+        </ul>
+      )}
+    </div>
   );
 }

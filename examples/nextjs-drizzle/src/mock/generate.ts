@@ -16,6 +16,8 @@ import { MOCK_PASSWORD, mockEmail, mockMember, mockName, mockOrganizations, type
 
 export interface MockOptions {
   users: number;
+  // Documents in each organization, for each of its members
+  documentsPerMember?: number;
   // Actions played through the app after the bulk insert, in each organization
   actions?: number;
   log?: (message: string) => void;
@@ -112,7 +114,14 @@ const COMMENTS = [
 ];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+export const DOCUMENTS_PER_MEMBER = 55;
+const DOCUMENTS_PER_FOLDER = 30;
+const MAX_CHILDREN = 12;
+const MAX_DEPTH = 5;
+
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const FOLDER_NAMES = [...new Set([...SUBFOLDERS, ...MONTHS, ...SUBJECTS.map(capitalize)])];
 
 const fill = (random: Random, template: string, context: { team: string; people: Person[] }) =>
   template
@@ -147,7 +156,7 @@ interface Space {
   documents: { id: string; folderId: string; title: string; content: string }[];
 }
 
-export const seedMock = async ({ users, actions = Math.round(users / 15), log = () => {} }: MockOptions) => {
+export const seedMock = async ({ users, documentsPerMember = DOCUMENTS_PER_MEMBER, actions = Math.round(users / 15), log = () => {} }: MockOptions) => {
   const started = Date.now();
   const random = createRandom(42);
   const password = await hashPassword(MOCK_PASSWORD);
@@ -161,12 +170,16 @@ export const seedMock = async ({ users, actions = Math.round(users / 15), log = 
   log(`${users} users`);
 
   const organizations = [];
-  for (const org of mockOrganizations(users)) organizations.push(await seedOrganization(org, random, actions, log));
+  for (const org of mockOrganizations(users)) organizations.push(await seedOrganization(org, random, { documentsPerMember, actions, log }));
   log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s`);
   return organizations;
 };
 
-const seedOrganization = async (definition: MockOrganization, random: Random, actions: number, log: (message: string) => void) => {
+const seedOrganization = async (
+  definition: MockOrganization,
+  random: Random,
+  { documentsPerMember, actions, log }: { documentsPerMember: number; actions: number; log: (message: string) => void },
+) => {
   const started = Date.now();
   const created = await service.createOrganization(mockUserId(definition.first), definition.name);
   const orgInfo = { id: created.id, name: created.name, slug: created.slug, resourceId: created.resourceId!, roleId: created.roleId! };
@@ -221,25 +234,39 @@ const seedOrganization = async (definition: MockOrganization, random: Random, ac
     ...definition.squads.map((name) => ({ name: `Project ${name}`, folderId: randomUUID(), theme: "Project", writers: squads.get(`${name} squad`)!, folders: [], documents: [] })),
   ];
 
-  // Folders, a few levels deep, inserted level by level since a folder's parent must exist
+  // How many documents each space gets: most are in the spaces everyone reads, a wiki that grew over the years
+  const budget = people.length * documentsPerMember;
+  const shareOf = (space: Space) =>
+    ({ General: 0.6, Company: 0.15, Leadership: 0.02 })[space.name] ??
+    (space.theme === "Project" ? 0.08 / definition.squads.length : 0.15 / definition.departments.length);
+  const documentCount = new Map(spaces.map((space) => [space, Math.max(5, Math.round(budget * shareOf(space)))]));
+
+  // Folders, about one for every DOCUMENTS_PER_FOLDER documents, a few levels deep. They are inserted level by level
+  // since a folder's parent must exist
   for (const space of spaces) {
     space.folders.push({ id: space.folderId, name: space.name, parentId: null, depth: 0 });
+    const wanted = Math.max(4, Math.round(documentCount.get(space)! / DOCUMENTS_PER_FOLDER));
+    // Folders that can still get children, with the names their children have
+    const open: { id: string; depth: number; names: Set<string> }[] = [];
     for (const name of random.sample(THEMES[space.theme] ?? THEMES.Project!, random.int(4, 8))) {
       const top = { id: randomUUID(), name, parentId: space.folderId, depth: 1 };
       space.folders.push(top);
-      for (const childName of random.sample(SUBFOLDERS, random.int(1, 6))) {
-        const child = { id: randomUUID(), name: childName, parentId: top.id, depth: 2 };
-        space.folders.push(child);
-        if (random.chance(0.5)) {
-          for (const grandchildName of random.sample(SUBFOLDERS.filter((other) => other !== childName), random.int(1, 3))) {
-            space.folders.push({ id: randomUUID(), name: grandchildName, parentId: child.id, depth: 3 });
-          }
-        }
-      }
+      open.push({ ...top, names: new Set() });
+    }
+    while (space.folders.length <= wanted && open.length) {
+      const index = Math.floor(random.next() * open.length);
+      const parent = open[index]!;
+      const name = random.pick(FOLDER_NAMES);
+      if (parent.names.has(name)) continue;
+      parent.names.add(name);
+      if (parent.names.size >= MAX_CHILDREN) open.splice(index, 1);
+      const child = { id: randomUUID(), name, parentId: parent.id, depth: parent.depth + 1 };
+      space.folders.push(child);
+      if (child.depth < MAX_DEPTH) open.push({ ...child, names: new Set() });
     }
   }
   const allFolders = spaces.flatMap((space) => space.folders);
-  for (const depth of [0, 1, 2, 3]) {
+  for (const depth of range(0, MAX_DEPTH)) {
     const level = allFolders.filter((row) => row.depth === depth && row.id !== general!.id);
     await inChunks(level, 1000, (chunk) =>
       db.insert(folder).values(chunk.map((row) => ({ id: row.id, orgId: created.id, parentId: row.parentId, name: row.name, createdAt: sometime(random, 200, 390) }))),
@@ -252,20 +279,20 @@ const seedOrganization = async (definition: MockOrganization, random: Random, ac
   for (const space of spaces) {
     if (!space.writers.length) continue;
     const context = { team: space.name, people: space.writers };
-    for (const container of space.folders) {
-      for (let count = random.int(1, container.depth === 0 ? 4 : 10); count > 0; count--) {
-        const id = randomUUID();
-        const createdAt = 35 + random.next() * 345;
-        const row = { id, folderId: container.id, title: title(random), content: content(random, context) };
-        space.documents.push(row);
-        documentRows.push({ ...row, createdBy: random.pick(space.writers).memberId, createdAt: daysAgo(createdAt), updatedAt: sometime(random, 31, createdAt) });
-        for (let comments = Math.floor(random.next() ** 2 * 5); comments > 0; comments--) {
-          commentRows.push({ documentId: id, memberId: random.pick(space.writers).memberId, body: random.pick(COMMENTS), createdAt: sometime(random, 31, createdAt) });
-        }
+    // A few documents at the top of the space, the others anywhere in its folders
+    const inside = space.folders.slice(1);
+    for (let count = documentCount.get(space)!, top = random.int(1, 4); count > 0; count--, top--) {
+      const id = randomUUID();
+      const createdAt = 35 + random.next() * 345;
+      const row = { id, folderId: top > 0 ? space.folderId : random.pick(inside).id, title: title(random), content: content(random, context) };
+      space.documents.push(row);
+      documentRows.push({ ...row, createdBy: random.pick(space.writers).memberId, createdAt: daysAgo(createdAt), updatedAt: sometime(random, 31, createdAt) });
+      for (let comments = Math.floor(random.next() ** 3 * 4); comments > 0; comments--) {
+        commentRows.push({ documentId: id, memberId: random.pick(space.writers).memberId, body: random.pick(COMMENTS), createdAt: sometime(random, 31, createdAt) });
       }
     }
   }
-  await inChunks(documentRows, 1000, (chunk) => db.insert(document).values(chunk));
+  await inChunks(documentRows, 2000, (chunk) => db.insert(document).values(chunk));
   await inChunks(commentRows, 2000, (chunk) => db.insert(comment).values(chunk));
 
   // Shares
