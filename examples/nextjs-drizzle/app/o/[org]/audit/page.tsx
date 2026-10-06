@@ -70,12 +70,12 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           to admins only. Changes made with an API key, or by an admin acting as a member, say so.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge asChild variant={category ? "outline" : "default"}>
-            <Link href={filter({ category: undefined, page: 1 })}>Everything</Link>
+          <Badge variant={category ? "outline" : "default"} render={<Link href={filter({ category: undefined, page: 1 })} />}>
+            Everything
           </Badge>
           {(Object.entries(AUDIT_CATEGORIES) as [AuditCategory, string][]).map(([key, label]) => (
-            <Badge key={key} asChild variant={category === key ? "default" : "outline"}>
-              <Link href={filter({ category: key, page: 1 })}>{label}</Link>
+            <Badge key={key} variant={category === key ? "default" : "outline"} render={<Link href={filter({ category: key, page: 1 })} />}>
+              {label}
             </Badge>
           ))}
           {memberId && (

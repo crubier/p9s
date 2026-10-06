@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -52,11 +53,9 @@ export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreat
   const base = `/o/${org.slug}`;
   const link = (href: string, label: string, Icon: typeof IconHome) => (
     <SidebarMenuItem key={href}>
-      <SidebarMenuButton asChild isActive={pathname === href}>
-        <Link href={href}>
-          <Icon />
-          <span>{label}</span>
-        </Link>
+      <SidebarMenuButton isActive={pathname === href} render={<Link href={href} />}>
+        <Icon />
+        <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -67,9 +66,8 @@ export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreat
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg">
-                  <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
+              <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
+                <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
                     <IconBinaryTree className="size-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
@@ -77,20 +75,19 @@ export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreat
                     <span className="text-muted-foreground truncate text-xs">p9s example</span>
                   </div>
                   <IconChevronDown className="ml-auto" />
-                </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56" align="start">
-                <DropdownMenuLabel className="text-muted-foreground text-xs">Organizations</DropdownMenuLabel>
-                {organizations.map((other) => (
-                  <DropdownMenuItem key={other.id} asChild>
-                    <Link href={`/o/${other.slug}`}>{other.name}</Link>
-                  </DropdownMenuItem>
-                ))}
+              <DropdownMenuContent className="min-w-56" align="start">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-muted-foreground text-xs">Organizations</DropdownMenuLabel>
+                  {organizations.map((other) => (
+                    <DropdownMenuItem key={other.id} render={<Link href={`/o/${other.slug}`} />}>
+                      {other.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/onboarding">
-                    <IconPlus /> New organization
-                  </Link>
+                <DropdownMenuItem render={<Link href="/onboarding" />}>
+                  <IconPlus /> New organization
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -131,19 +128,17 @@ export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreat
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg">
-                  <div className="bg-muted flex size-8 items-center justify-center rounded-lg text-xs font-medium">
+              <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
+                <div className="bg-muted flex size-8 items-center justify-center rounded-lg text-xs font-medium">
                     {user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
                     <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                   </div>
-                  {isAdmin && <IconLock className="text-muted-foreground ml-auto size-4" aria-label="Admin" />}
-                </SidebarMenuButton>
+                {isAdmin && <IconLock className="text-muted-foreground ml-auto size-4" aria-label="Admin" />}
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56" align="end" side="top">
+              <DropdownMenuContent className="min-w-56" align="end" side="top">
                 <DropdownMenuItem
                   onClick={async () => {
                     await authClient.signOut();

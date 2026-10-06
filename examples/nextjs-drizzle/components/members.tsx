@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -80,10 +81,8 @@ export function MemberTable({ orgSlug, members, teams, isAdmin, currentMemberId 
             {isAdmin && (
               <TableCell>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label={`Manage ${member.name}`} disabled={pending}>
-                      <IconDots />
-                    </Button>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Manage ${member.name}`} disabled={pending} />}>
+                    <IconDots />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {member.id !== currentMemberId && (
@@ -96,25 +95,22 @@ export function MemberTable({ orgSlug, members, teams, isAdmin, currentMemberId 
                         </DropdownMenuItem>
                       </>
                     )}
-                    <DropdownMenuItem asChild>
-                      <Link href={`/o/${orgSlug}/audit?member=${member.id}`}>
-                        <IconHistory /> Activity
-                      </Link>
+                    <DropdownMenuItem render={<Link href={`/o/${orgSlug}/audit?member=${member.id}`} />}>
+                      <IconHistory /> Activity
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Teams</DropdownMenuLabel>
-                    {teams.map((team) => {
-                      const isMember = member.teamIds.includes(team.id);
-                      return (
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Teams</DropdownMenuLabel>
+                      {teams.map((team) => (
                         <DropdownMenuCheckboxItem
                           key={team.id}
-                          checked={isMember}
+                          checked={member.teamIds.includes(team.id)}
                           onCheckedChange={(checked) => run(() => setTeamMembership(orgSlug, team.id, member.id, checked))}
                         >
                           {team.name}
                         </DropdownMenuCheckboxItem>
-                      );
-                    })}
+                      ))}
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" disabled={member.id === currentMemberId} onClick={() => run(() => removeMember(orgSlug, member.id), "Member removed")}>
                       <IconTrash /> Remove from organization

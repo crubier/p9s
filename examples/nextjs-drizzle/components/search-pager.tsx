@@ -1,6 +1,6 @@
 import { IconChevronLeft, IconChevronRight, IconSearch } from "@tabler/icons-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 // Plain links and GET forms: the page reads `q` and `page` from its search params
@@ -24,20 +24,24 @@ export function Pager({ page, pageSize, total, hasMore, href }: { page: number; 
           {total === 0 ? "None" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total.toLocaleString("en")}`}
         </span>
       )}
-      <Button asChild variant="outline" size="icon-sm" aria-label="Previous page" className={page <= 1 ? "pointer-events-none opacity-50" : ""}>
-        <Link href={href(page - 1)}>
-          <IconChevronLeft />
-        </Link>
-      </Button>
+      <Link
+        href={href(page - 1)}
+        aria-label="Previous page"
+        className={buttonVariants({ variant: "outline", size: "icon-sm", className: page <= 1 ? "pointer-events-none opacity-50" : "" })}
+      >
+        <IconChevronLeft />
+      </Link>
       <span>
         Page {page}
         {total !== undefined && ` of ${last}`}
       </span>
-      <Button asChild variant="outline" size="icon-sm" aria-label="Next page" className={page >= last ? "pointer-events-none opacity-50" : ""}>
-        <Link href={href(page + 1)}>
-          <IconChevronRight />
-        </Link>
-      </Button>
+      <Link
+        href={href(page + 1)}
+        aria-label="Next page"
+        className={buttonVariants({ variant: "outline", size: "icon-sm", className: page >= last ? "pointer-events-none opacity-50" : "" })}
+      >
+        <IconChevronRight />
+      </Link>
     </div>
   );
 }

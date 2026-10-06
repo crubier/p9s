@@ -58,10 +58,8 @@ export function ItemActions({ orgSlug, kind, id, name, permission, parentHref }:
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label="More actions">
-            <IconDots />
-          </Button>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="More actions" />}>
+          <IconDots />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canEdit && kind === "folder" && (
@@ -104,7 +102,11 @@ export function ItemActions({ orgSlug, kind, id, name, permission, parentHref }:
             </DialogHeader>
             {dialog === "rename" && <Input autoFocus required value={value} onChange={(event) => setValue(event.target.value)} />}
             {dialog === "move" && (
-              <Select value={value} onValueChange={setValue}>
+              <Select
+                value={value || null}
+                items={(targets ?? []).map((target) => ({ value: target.id, label: target.label }))}
+                onValueChange={(next) => setValue(next ?? "")}
+              >
                 <SelectTrigger className="w-full" disabled={!targets}>
                   <SelectValue placeholder={targets ? "Choose a folder" : "Loading folders…"} />
                 </SelectTrigger>

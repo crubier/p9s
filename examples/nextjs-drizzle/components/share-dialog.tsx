@@ -100,10 +100,11 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
   const { pending, run } = useAction();
   const grantable = (Object.keys(ACCESS_LEVELS) as AccessLevel[]).filter((key) => includes(permission, ACCESS_LEVELS[key].permission));
   const sharers = [...new Set(access.filter((row) => can(row.permission, "share")).map((row) => row.name))];
+  const levelLabels = Object.fromEntries(Object.entries(ACCESS_LEVELS).map(([key, { label }]) => [key, label]));
   const label = (row: AccessRow) => (row.level ? ACCESS_LEVELS[row.level].label : row.permission);
 
   const levelPicker = (value: AccessLevel, onChange: (level: AccessLevel) => void, props: { disabled?: boolean; ariaLabel: string; size?: "sm" }) => (
-    <Select value={value} onValueChange={(next) => onChange(next as AccessLevel)} disabled={props.disabled}>
+    <Select value={value} items={levelLabels} onValueChange={(next) => next && onChange(next)} disabled={props.disabled}>
       <SelectTrigger className="w-36" size={props.size} aria-label={props.ariaLabel}>
         <SelectValue />
       </SelectTrigger>
@@ -119,16 +120,10 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <IconShare /> {canShare ? "Share" : "Access"}
-        </Button>
+      <PopoverTrigger render={<Button variant="outline" size="sm" />}>
+        <IconShare /> {canShare ? "Share" : "Access"}
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="flex w-[min(34rem,calc(100vw-2rem))] flex-col gap-4"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
+      <PopoverContent align="end" className="flex w-[min(34rem,calc(100vw-2rem))] flex-col gap-4" initialFocus={false}>
         <div className="flex flex-col gap-1">
           <h2 className="font-semibold">{canShare ? `Share ${name}` : `Who has access to ${name}`}</h2>
           <p className="text-muted-foreground text-sm">

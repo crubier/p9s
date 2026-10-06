@@ -53,11 +53,11 @@ function NewItemForm({ orgSlug, kind, parentId, onDone }: { orgSlug: string; kin
   );
 }
 
-export function NewItemButton({ orgSlug, kind, parentId, children }: { orgSlug: string; kind: Kind; parentId: string | null; children: React.ReactNode }) {
+export function NewItemButton({ orgSlug, kind, parentId, children }: { orgSlug: string; kind: Kind; parentId: string | null; children: React.ReactElement }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger render={children} />
       <DialogContent>{open && <NewItemForm orgSlug={orgSlug} kind={kind} parentId={parentId} onDone={() => setOpen(false)} />}</DialogContent>
     </Dialog>
   );
@@ -69,16 +69,14 @@ export function AddMenu({ orgSlug, parentId }: { orgSlug: string; parentId: stri
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <IconPlus /> Add
-          </Button>
+        <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+          <IconPlus /> Add
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setKind("document")}>
+          <DropdownMenuItem onClick={() => setKind("document")}>
             <IconFilePlus /> Document
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setKind("folder")}>
+          <DropdownMenuItem onClick={() => setKind("folder")}>
             <IconFolderPlus /> Folder
           </DropdownMenuItem>
         </DropdownMenuContent>

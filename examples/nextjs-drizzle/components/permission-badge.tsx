@@ -9,10 +9,8 @@ export function PermissionBadge({ permission }: { permission: string | null }) {
   const level = levelOf(permission);
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant={level === "manager" ? "default" : "secondary"} className="cursor-default">
-          {level ? ACCESS_LEVELS[level].label : "No access"}
-        </Badge>
+      <TooltipTrigger render={<Badge variant={level === "manager" ? "default" : "secondary"} className="cursor-default" />}>
+        {level ? ACCESS_LEVELS[level].label : "No access"}
       </TooltipTrigger>
       <TooltipContent>
         <div className="font-mono">{permission ?? "null"}</div>

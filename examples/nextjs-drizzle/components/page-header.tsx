@@ -17,9 +17,7 @@ export function PageHeader({ path, children }: { path: { label: string; href?: s
               {index > 0 && <BreadcrumbSeparator />}
               <BreadcrumbItem>
                 {item.href ? (
-                  <BreadcrumbLink asChild>
-                    <Link href={item.href}>{item.label}</Link>
-                  </BreadcrumbLink>
+                  <BreadcrumbLink render={<Link href={item.href} />}>{item.label}</BreadcrumbLink>
                 ) : (
                   <BreadcrumbPage>{item.label}</BreadcrumbPage>
                 )}
