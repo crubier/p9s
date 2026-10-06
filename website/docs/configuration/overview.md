@@ -130,6 +130,7 @@ Each table entry defines how a database table integrates with the permission sys
 | `roleParent`     | `object \| object[]` | Column naming each row's parent role, or several, see below         |
 | `roleLeaf`       | `boolean` | Rows are not nodes and act with the permissions of their parent, see below    |
 | `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
+| `softDelete`     | `string`  | Nullable column, like `deleted_at`, that soft deletes a row when set, see below |
 | `permission`     | `object`  | For each user role, the bit checked for each operation, and optionally the `manageAccess` bit that lets them see who has access to a row, see [seeing the access of others](./security-model#seeing-the-access-of-others), and the `share` bit that lets them share it, see [sharing](./security-model#sharing) |
 
 #### Parent columns
@@ -195,6 +196,29 @@ A role leaf row still has a role id, from the same sequence as the role nodes, b
 
 Making a role node table a role leaf table removes its rows from the graph, like for resources. Policies only call `current_role_node` when the config has role leaf tables.
 
+#### Soft delete
+
+`softDelete: "deleted_at"` soft deletes a row when its `deleted_at` column is set, on node and leaf tables of both trees. The column is yours, of any type, and p9s only looks at whether it is null:
+
+```typescript
+{
+  name: "document",
+  isResource: true,
+  resourceId: "resource_id",
+  resourceParent: { column: "folder_id", table: "folder", key: "id" },
+  softDelete: "deleted_at",
+  permission: {
+    authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
+  },
+}
+```
+
+A soft deleted node leaves the graph: its edges, in both directions, and its assignments move to `resource_edge_deleted` (or `role_edge_deleted`) and `assignment_edge_deleted`, and the caches drop what went through them. Deleting a folder hides everything below it, and costs the graph what deleting it for good would: only its own edges move, the rows below keep theirs, and the caches drop the rows that went through it. A deleted role, like a team, stops giving its members its permissions, and a deleted API key has none. Setting the column back to null brings back the edges and assignments whose other end is not deleted, so restoring a folder brings back what was below it, and a document deleted on its own stays deleted. A row inserted or moved under a deleted row waits with it. Edges and assignments that would link a deleted row are rejected, and deleting a row for good forgets what it had aside.
+
+Users soft delete a row by setting the column, which needs the `delete` bit on it. Reads cost the same as without soft delete: with 100,000 rows and 100 of them deleted, counting what a user reads takes 108 ms against 104, and soft deleting, or restoring, a row takes 3 ms. Deleted rows stay readable by users who would have the `select` bit once they are restored, and those with the `delete` bit can delete them for good. As they are out of the graph, users cannot update them: they restore them with `resource_restore(resource_id)`, see [soft deleted rows](./security-model#soft-deleted-rows). Leaf rows never leave the graph, they only need the `delete` bit of their parent to be soft deleted, and keep their permissions while deleted. Applications filter deleted rows out of their queries, like `where deleted_at is null`.
+
+Rows written while the triggers were disabled are sorted out by `resource_trigger_enable()`, which every migration calls: adding `softDelete` to a table whose column is already set moves those rows out of the graph, and removing it from every table of a tree brings them back and drops the tables aside.
+
 ## Validation
 
 Configuration is validated at runtime using Zod schemas. Key validations include:
@@ -204,6 +228,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - Permission users in tables must exist in `engine.users`
 - A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind. Several parents need a column each
 - A `resourceLeaf` table needs `isResource` and a `resourceParent`, a `roleLeaf` table needs `isRole` and a `roleParent`, and neither can be the parent table of another table of the same kind
+- `softDelete` needs a resource or role table
 
 ```typescript
 import { validateCompleteConfig } from "@p9s/core";

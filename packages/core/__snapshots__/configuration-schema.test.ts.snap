@@ -328,6 +328,12 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "edgeDeleteTriggerFunction": {
       "type": "string",
     },
+    "edgeDeleted": {
+      "type": "string",
+    },
+    "edgeDeletedPkey": {
+      "type": "string",
+    },
     "edgeGuardDeleteTrigger": {
       "type": "string",
     },
@@ -391,6 +397,12 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "nodeInsertTriggerFunction": {
       "type": "string",
     },
+    "nodeRestoreFunction": {
+      "type": "string",
+    },
+    "nodeSoftDeleteFunction": {
+      "type": "string",
+    },
     "nodeUpdateFunction": {
       "type": "string",
     },
@@ -441,6 +453,10 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "nodeInsertFunction",
     "nodeUpdateFunction",
     "nodeDeleteFunction",
+    "edgeDeleted",
+    "edgeDeletedPkey",
+    "nodeSoftDeleteFunction",
+    "nodeRestoreFunction",
     "parentFkey",
     "childFkey",
     "edgeParentIdIndex",
@@ -544,6 +560,12 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "edgeDeleteTriggerFunction": {
       "type": "string",
     },
+    "edgeDeleted": {
+      "type": "string",
+    },
+    "edgeDeletedPkey": {
+      "type": "string",
+    },
     "edgeInsertTrigger": {
       "type": "string",
     },
@@ -605,6 +627,8 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "roleFkey",
     "edgeResourceIdIndex",
     "edgeRoleIdIndex",
+    "edgeDeleted",
+    "edgeDeletedPkey",
     "permission",
     "edgeCache",
     "edgeCachePkey",
@@ -711,6 +735,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeInsertTrigger": {
           "type": "string",
         },
@@ -772,6 +802,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "roleFkey",
         "edgeResourceIdIndex",
         "edgeRoleIdIndex",
+        "edgeDeleted",
+        "edgeDeletedPkey",
         "permission",
         "edgeCache",
         "edgeCachePkey",
@@ -808,6 +840,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "currentAssignmentView": {
       "type": "string",
     },
+    "currentDeletedView": {
+      "type": "string",
+    },
     "currentResourceEdgeView": {
       "type": "string",
     },
@@ -815,6 +850,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
       "type": "string",
     },
     "currentRoleView": {
+      "type": "string",
+    },
+    "deletedPermissionFunction": {
       "type": "string",
     },
     "orBitmap": {
@@ -877,6 +915,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeGuardDeleteTrigger": {
           "type": "string",
         },
@@ -940,6 +984,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeInsertTriggerFunction": {
           "type": "string",
         },
+        "nodeRestoreFunction": {
+          "type": "string",
+        },
+        "nodeSoftDeleteFunction": {
+          "type": "string",
+        },
         "nodeUpdateFunction": {
           "type": "string",
         },
@@ -990,6 +1040,10 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeInsertFunction",
         "nodeUpdateFunction",
         "nodeDeleteFunction",
+        "edgeDeleted",
+        "edgeDeletedPkey",
+        "nodeSoftDeleteFunction",
+        "nodeRestoreFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -1022,6 +1076,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "disableTriggerFunction",
       ],
       "type": "object",
+    },
+    "restoreFunction": {
+      "type": "string",
     },
     "role": {
       "additionalProperties": false,
@@ -1077,6 +1134,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeGuardDeleteTrigger": {
           "type": "string",
         },
@@ -1140,6 +1203,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeInsertTriggerFunction": {
           "type": "string",
         },
+        "nodeRestoreFunction": {
+          "type": "string",
+        },
+        "nodeSoftDeleteFunction": {
+          "type": "string",
+        },
         "nodeUpdateFunction": {
           "type": "string",
         },
@@ -1190,6 +1259,10 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeInsertFunction",
         "nodeUpdateFunction",
         "nodeDeleteFunction",
+        "edgeDeleted",
+        "edgeDeletedPkey",
+        "nodeSoftDeleteFunction",
+        "nodeRestoreFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -1260,6 +1333,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "roleAccessView",
     "shareFunction",
     "unshareFunction",
+    "currentDeletedView",
+    "deletedPermissionFunction",
+    "restoreFunction",
   ],
   "type": "object",
   "~standard": {
@@ -1634,6 +1710,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeInsertTrigger": {
           "type": "string",
         },
@@ -1695,6 +1777,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "roleFkey",
         "edgeResourceIdIndex",
         "edgeRoleIdIndex",
+        "edgeDeleted",
+        "edgeDeletedPkey",
         "permission",
         "edgeCache",
         "edgeCachePkey",
@@ -1743,6 +1827,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "currentAssignmentView": {
       "type": "string",
     },
+    "currentDeletedView": {
+      "type": "string",
+    },
     "currentResourceEdgeView": {
       "type": "string",
     },
@@ -1753,6 +1840,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
       "type": "string",
     },
     "delete": {
+      "type": "string",
+    },
+    "deletedPermissionFunction": {
       "type": "string",
     },
     "disable": {
@@ -1869,6 +1959,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeGuardDeleteTrigger": {
           "type": "string",
         },
@@ -1932,6 +2028,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeInsertTriggerFunction": {
           "type": "string",
         },
+        "nodeRestoreFunction": {
+          "type": "string",
+        },
+        "nodeSoftDeleteFunction": {
+          "type": "string",
+        },
         "nodeUpdateFunction": {
           "type": "string",
         },
@@ -1982,6 +2084,10 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeInsertFunction",
         "nodeUpdateFunction",
         "nodeDeleteFunction",
+        "edgeDeleted",
+        "edgeDeletedPkey",
+        "nodeSoftDeleteFunction",
+        "nodeRestoreFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -2014,6 +2120,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "disableTriggerFunction",
       ],
       "type": "object",
+    },
+    "restoreFunction": {
+      "type": "string",
     },
     "reverse": {
       "type": "string",
@@ -2072,6 +2181,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgeDeleteTriggerFunction": {
           "type": "string",
         },
+        "edgeDeleted": {
+          "type": "string",
+        },
+        "edgeDeletedPkey": {
+          "type": "string",
+        },
         "edgeGuardDeleteTrigger": {
           "type": "string",
         },
@@ -2135,6 +2250,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeInsertTriggerFunction": {
           "type": "string",
         },
+        "nodeRestoreFunction": {
+          "type": "string",
+        },
+        "nodeSoftDeleteFunction": {
+          "type": "string",
+        },
         "nodeUpdateFunction": {
           "type": "string",
         },
@@ -2185,6 +2306,10 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeInsertFunction",
         "nodeUpdateFunction",
         "nodeDeleteFunction",
+        "edgeDeleted",
+        "edgeDeletedPkey",
+        "nodeSoftDeleteFunction",
+        "nodeRestoreFunction",
         "parentFkey",
         "childFkey",
         "edgeParentIdIndex",
@@ -2448,6 +2573,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "roleAccessView",
     "shareFunction",
     "unshareFunction",
+    "currentDeletedView",
+    "deletedPermissionFunction",
+    "restoreFunction",
     "tables",
   ],
   "type": "object",
@@ -2622,6 +2750,9 @@ exports[`Configuration JSON Schemas tableConfigSchema 1`] = `
     "schema": {
       "type": "string",
     },
+    "softDelete": {
+      "type": "string",
+    },
   },
   "required": [
     "schema",
@@ -2758,6 +2889,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgeDeleteTriggerFunction": {
               "type": "string",
             },
+            "edgeDeleted": {
+              "type": "string",
+            },
+            "edgeDeletedPkey": {
+              "type": "string",
+            },
             "edgeInsertTrigger": {
               "type": "string",
             },
@@ -2819,6 +2956,8 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "roleFkey",
             "edgeResourceIdIndex",
             "edgeRoleIdIndex",
+            "edgeDeleted",
+            "edgeDeletedPkey",
             "permission",
             "edgeCache",
             "edgeCachePkey",
@@ -2867,6 +3006,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "currentAssignmentView": {
           "type": "string",
         },
+        "currentDeletedView": {
+          "type": "string",
+        },
         "currentResourceEdgeView": {
           "type": "string",
         },
@@ -2877,6 +3019,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
           "type": "string",
         },
         "delete": {
+          "type": "string",
+        },
+        "deletedPermissionFunction": {
           "type": "string",
         },
         "disable": {
@@ -2993,6 +3138,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgeDeleteTriggerFunction": {
               "type": "string",
             },
+            "edgeDeleted": {
+              "type": "string",
+            },
+            "edgeDeletedPkey": {
+              "type": "string",
+            },
             "edgeGuardDeleteTrigger": {
               "type": "string",
             },
@@ -3056,6 +3207,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeInsertTriggerFunction": {
               "type": "string",
             },
+            "nodeRestoreFunction": {
+              "type": "string",
+            },
+            "nodeSoftDeleteFunction": {
+              "type": "string",
+            },
             "nodeUpdateFunction": {
               "type": "string",
             },
@@ -3106,6 +3263,10 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeInsertFunction",
             "nodeUpdateFunction",
             "nodeDeleteFunction",
+            "edgeDeleted",
+            "edgeDeletedPkey",
+            "nodeSoftDeleteFunction",
+            "nodeRestoreFunction",
             "parentFkey",
             "childFkey",
             "edgeParentIdIndex",
@@ -3138,6 +3299,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "disableTriggerFunction",
           ],
           "type": "object",
+        },
+        "restoreFunction": {
+          "type": "string",
         },
         "reverse": {
           "type": "string",
@@ -3196,6 +3360,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgeDeleteTriggerFunction": {
               "type": "string",
             },
+            "edgeDeleted": {
+              "type": "string",
+            },
+            "edgeDeletedPkey": {
+              "type": "string",
+            },
             "edgeGuardDeleteTrigger": {
               "type": "string",
             },
@@ -3259,6 +3429,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeInsertTriggerFunction": {
               "type": "string",
             },
+            "nodeRestoreFunction": {
+              "type": "string",
+            },
+            "nodeSoftDeleteFunction": {
+              "type": "string",
+            },
             "nodeUpdateFunction": {
               "type": "string",
             },
@@ -3309,6 +3485,10 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeInsertFunction",
             "nodeUpdateFunction",
             "nodeDeleteFunction",
+            "edgeDeleted",
+            "edgeDeletedPkey",
+            "nodeSoftDeleteFunction",
+            "nodeRestoreFunction",
             "parentFkey",
             "childFkey",
             "edgeParentIdIndex",
@@ -3745,6 +3925,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeInsertTrigger": {
                   "type": "string",
                 },
@@ -3806,6 +3992,8 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "roleFkey",
                 "edgeResourceIdIndex",
                 "edgeRoleIdIndex",
+                "edgeDeleted",
+                "edgeDeletedPkey",
                 "permission",
                 "edgeCache",
                 "edgeCachePkey",
@@ -3854,6 +4042,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "currentAssignmentView": {
               "type": "string",
             },
+            "currentDeletedView": {
+              "type": "string",
+            },
             "currentResourceEdgeView": {
               "type": "string",
             },
@@ -3864,6 +4055,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
               "type": "string",
             },
             "delete": {
+              "type": "string",
+            },
+            "deletedPermissionFunction": {
               "type": "string",
             },
             "disable": {
@@ -3980,6 +4174,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeGuardDeleteTrigger": {
                   "type": "string",
                 },
@@ -4043,6 +4243,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeInsertTriggerFunction": {
                   "type": "string",
                 },
+                "nodeRestoreFunction": {
+                  "type": "string",
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeUpdateFunction": {
                   "type": "string",
                 },
@@ -4093,6 +4299,10 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeInsertFunction",
                 "nodeUpdateFunction",
                 "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -4125,6 +4335,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "disableTriggerFunction",
               ],
               "type": "object",
+            },
+            "restoreFunction": {
+              "type": "string",
             },
             "reverse": {
               "type": "string",
@@ -4183,6 +4396,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeGuardDeleteTrigger": {
                   "type": "string",
                 },
@@ -4246,6 +4465,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeInsertTriggerFunction": {
                   "type": "string",
                 },
+                "nodeRestoreFunction": {
+                  "type": "string",
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeUpdateFunction": {
                   "type": "string",
                 },
@@ -4296,6 +4521,10 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeInsertFunction",
                 "nodeUpdateFunction",
                 "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -4752,6 +4981,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
           "schema": {
             "type": "string",
           },
+          "softDelete": {
+            "type": "string",
+          },
         },
         "required": [
           "schema",
@@ -4901,6 +5133,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeInsertTrigger": {
                   "type": "string",
                 },
@@ -4962,6 +5200,8 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "roleFkey",
                 "edgeResourceIdIndex",
                 "edgeRoleIdIndex",
+                "edgeDeleted",
+                "edgeDeletedPkey",
                 "permission",
                 "edgeCache",
                 "edgeCachePkey",
@@ -5010,6 +5250,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "currentAssignmentView": {
               "type": "string",
             },
+            "currentDeletedView": {
+              "type": "string",
+            },
             "currentResourceEdgeView": {
               "type": "string",
             },
@@ -5020,6 +5263,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               "type": "string",
             },
             "delete": {
+              "type": "string",
+            },
+            "deletedPermissionFunction": {
               "type": "string",
             },
             "disable": {
@@ -5136,6 +5382,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeGuardDeleteTrigger": {
                   "type": "string",
                 },
@@ -5199,6 +5451,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeInsertTriggerFunction": {
                   "type": "string",
                 },
+                "nodeRestoreFunction": {
+                  "type": "string",
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeUpdateFunction": {
                   "type": "string",
                 },
@@ -5249,6 +5507,10 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeInsertFunction",
                 "nodeUpdateFunction",
                 "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -5281,6 +5543,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "disableTriggerFunction",
               ],
               "type": "object",
+            },
+            "restoreFunction": {
+              "type": "string",
             },
             "reverse": {
               "type": "string",
@@ -5339,6 +5604,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgeDeleteTriggerFunction": {
                   "type": "string",
                 },
+                "edgeDeleted": {
+                  "type": "string",
+                },
+                "edgeDeletedPkey": {
+                  "type": "string",
+                },
                 "edgeGuardDeleteTrigger": {
                   "type": "string",
                 },
@@ -5402,6 +5673,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeInsertTriggerFunction": {
                   "type": "string",
                 },
+                "nodeRestoreFunction": {
+                  "type": "string",
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string",
+                },
                 "nodeUpdateFunction": {
                   "type": "string",
                 },
@@ -5452,6 +5729,10 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeInsertFunction",
                 "nodeUpdateFunction",
                 "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
                 "parentFkey",
                 "childFkey",
                 "edgeParentIdIndex",
@@ -5893,6 +6174,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             ],
           },
           "schema": {
+            "type": "string",
+          },
+          "softDelete": {
             "type": "string",
           },
         },

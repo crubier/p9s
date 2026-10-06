@@ -155,6 +155,10 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     nodeInsertFunction: `${prefix}${name}_${node}_${insert}`,
     nodeUpdateFunction: `${prefix}${name}_${node}_${update}`,
     nodeDeleteFunction: `${prefix}${name}_${node}_${deletez}`,
+    edgeDeleted: `${prefix}${name}_${edge}_deleted`,
+    edgeDeletedPkey: `${prefix}${name}_${edge}_deleted_${pkey}`,
+    nodeSoftDeleteFunction: `${prefix}${name}_${node}_soft_${deletez}`,
+    nodeRestoreFunction: `${prefix}${name}_${node}_restore`,
     parentFkey: `${prefix}${name}_${edge}_${parent}_${fkey}`,
     childFkey: `${prefix}${name}_${edge}_${child}_${fkey}`,
     edgeParentIdIndex: `${prefix}${name}_${edge}_${parent}_${id}_${index}`,
@@ -220,6 +224,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       roleFkey: `${prefix}${assignment.name}_${edge}_${role.name}_${fkey}`,
       edgeResourceIdIndex: `${prefix}${assignment.name}_${edge}_${resource.name}_${resource.id}_${index}`,
       edgeRoleIdIndex: `${prefix}${assignment.name}_${edge}_${role.name}_${role.id}_${index}`,
+      edgeDeleted: `${prefix}${assignment.name}_${edge}_deleted`,
+      edgeDeletedPkey: `${prefix}${assignment.name}_${edge}_deleted_${pkey}`,
       permission: `${permission}`,
       edgeCache: `${prefix}${assignment.name}_${edge}_${cache}`,
       edgeCachePkey: `${prefix}${assignment.name}_${edge}_${cache}_${pkey}`,
@@ -262,6 +268,9 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     roleAccessView: `${prefix}${resource.name}_${role.name}_access`,
     shareFunction: `${prefix}${resource.name}_share`,
     unshareFunction: `${prefix}${resource.name}_unshare`,
+    currentDeletedView: `${prefix}current_deleted_${resource.name}`,
+    deletedPermissionFunction: `${prefix}${resource.name}_deleted_permission`,
+    restoreFunction: `${prefix}${resource.name}_restore`,
   }
 }
 
@@ -300,7 +309,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   ]);
 
   return {
-    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, roleLeaf, ...customNames }) => {
+    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, roleLeaf, softDelete, ...customNames }) => {
 
       const result = {
         schema: `${tableSchema ?? schema}`,

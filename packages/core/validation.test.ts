@@ -546,6 +546,18 @@ describe("Configuration Validation", () => {
       ])).toEqual([]);
     });
 
+    test("[valid] soft delete on node and leaf tables", () => {
+      expect(errorsOf([
+        table("page", { softDelete: "deleted_at" }),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" }, softDelete: "deleted_at" }),
+      ])).toEqual([]);
+    });
+
+    test("[invalid] soft delete on a table that is neither a resource nor a role table", () => {
+      expect(errorsOf([table("audit", { isResource: false, softDelete: "deleted_at" })])
+        .some(e => e.includes("Soft delete") && e.includes("tables.0.softDelete"))).toBe(true);
+    });
+
     test("[invalid] several parents in the same column", () => {
       expect(errorsOf([table("folder", { resourceParent: [{ column: "parent_id" }, { column: "parent_id", table: "folder", key: "id" }] })])
         .some(e => e.includes("need a column each") && e.includes("tables.0.resourceParent"))).toBe(true);

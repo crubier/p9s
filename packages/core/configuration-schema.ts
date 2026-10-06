@@ -81,6 +81,11 @@ export const derivedResourceOrRoleNamingConfigSchema = z.object({
   nodeInsertFunction: z.string(),
   nodeUpdateFunction: z.string(),
   nodeDeleteFunction: z.string(),
+  // The edges of soft deleted rows, kept out of the graph until their rows are restored
+  edgeDeleted: z.string(),
+  edgeDeletedPkey: z.string(),
+  nodeSoftDeleteFunction: z.string(),
+  nodeRestoreFunction: z.string(),
   parentFkey: z.string(),
   childFkey: z.string(),
   edgeParentIdIndex: z.string(),
@@ -123,6 +128,9 @@ export const assignmentNamingConfigSchema = z.object({
   roleFkey: z.string(),
   edgeResourceIdIndex: z.string(),
   edgeRoleIdIndex: z.string(),
+  // The assignments of soft deleted rows, kept out of the graph until their rows are restored
+  edgeDeleted: z.string(),
+  edgeDeletedPkey: z.string(),
   permission: z.string(),
   edgeCache: z.string(),
   edgeCachePkey: z.string(),
@@ -180,6 +188,10 @@ export const derivedNamingConfigSchema = z.object({
   // Users with the share bit on a resource write its assignments through these, or the assignment table itself
   shareFunction: z.string(),
   unshareFunction: z.string(),
+  // Soft deleted resources: what the current user would have on them, and the function that restores them
+  currentDeletedView: z.string(),
+  deletedPermissionFunction: z.string(),
+  restoreFunction: z.string(),
 });
 
 // Table naming config entry schema. The fkey names are only used to upgrade from node tables.
@@ -257,6 +269,9 @@ export const tableConfigSchema = z.object({
   // permissions of their parent. Nothing can be a child of a leaf row, share with it on its own, or assign it a resource.
   roleLeaf: z.boolean().optional(),
   permission: z.record(z.string(), permissionPerOperationSchema),
+  // A row whose column of this name is not null is soft deleted. Nodes leave the graph with their edges and
+  // assignments until the column is null again, leaf rows are hidden from users.
+  softDelete: z.string().optional(),
 });
 
 // Engine config base schema (without refinements, for partial/optional use)
@@ -383,6 +398,13 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
           });
         }
       }
+    }
+    if (table.softDelete !== undefined && !table.isResource && !table.isRole) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Soft delete needs ${table.name} to be a resource or role table`,
+        path: ["tables", tableIndex, "softDelete"],
+      });
     }
     for (const [kind, parentKey, flag, leafKey] of [["resource", "resourceParent", "isResource", "resourceLeaf"], ["role", "roleParent", "isRole", "roleLeaf"]] as const) {
       if (table[leafKey] && !(table[flag] && parentsOf(table[parentKey]).length > 0)) {

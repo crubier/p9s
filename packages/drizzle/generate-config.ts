@@ -20,6 +20,7 @@ export interface DrizzleP9sOptions<User extends string> {
       roleFkey?: string;
       roleParent?: ParentsConfig;
       roleLeaf?: boolean;
+      softDelete?: string;
       permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> };
     };
   };
@@ -114,6 +115,9 @@ export function generateConfigurationFromDrizzleSchema<User extends string>(
     }
     if (tableOptions.roleLeaf) {
       tableConfig.roleLeaf = true;
+    }
+    if (tableOptions.softDelete) {
+      tableConfig.softDelete = tableOptions.softDelete;
     }
 
     if (tableOptions.permission) {

@@ -169,3 +169,20 @@ with check (role_id in (select role_id from team where org_id = current_org_id()
 ```
 
 Graph writers keep writing any assignment, through a policy that lets them do anything. The policies only exist when a table has a `share` bit: otherwise row level security stays off on `assignment_edge`, and users have no privilege on it. In the example app, with 180,000 documents, a member shares a document in 6 to 7 ms with `resource_share`, against 4 ms for the same assignment written by a graph writer: checking the share bit and the bits of the member adds 2 to 3 ms, most of the rest is the audit trigger of the example. The share bit is checked by a `security definer` function of p9s, so that the policies of the table of the resource do not apply: a user with the share bit but not the select bit can still share, and Postgres looks the one resource up rather than listing every row the user can read.
+
+## Soft deleted rows
+
+With `softDelete` on a table, see [soft delete](./overview#soft-delete), the policies of the table change for its rows:
+
+- **Soft deleting** a row is an update that sets the column, which needs the `delete` bit on the row, or on the parent of a leaf row, on top of the `update` bit. A user without a `delete` bit for the table cannot set it.
+- **Reading and deleting for good.** A soft deleted node has left the graph, so it gives no access. Users still read it if they would have the `select` bit once it is restored, and delete it for good with the `delete` bit, counted the same way: from the edges aside whose parent they reach, and from the assignments aside of the roles they act as. What is below a deleted folder has no access through it, and stays out of reach until the folder is restored.
+- **Restoring.** Users cannot update a deleted node, they call `resource_restore(resource_id)`, which sets the column back to null when they would have the `delete` bit of its table once it is restored, and returns false otherwise. Graph writers update the column directly.
+
+```sql
+-- The trash of the current user, with the bits each resource would have once restored
+select resource_id, permission from current_deleted_resource;
+-- Brings one back
+select resource_restore($1);
+```
+
+`current_deleted_resource` is a security barrier like the views of the current user. A resource under another deleted resource is not in it: it comes back with that one. The policies only check it for deleted rows, through a function that Postgres counts as one call per row, so reading live rows costs the same as without soft delete.

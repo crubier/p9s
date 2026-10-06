@@ -47,6 +47,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   ${createMigrationSharing(naming, completeConfig)}
 
+  ${createMigrationSoftDelete(naming, completeConfig)}
+
   ${createMigrationNodeViews(naming, completeConfig)}
 
 
@@ -188,6 +190,8 @@ interface Binding {
   triggers: Record<TriggerEvent, SQL>;
   // The parent of a row is in the first of these columns that it sets
   parents: Parent[];
+  // A row whose column of this name is not null is soft deleted
+  softDelete?: SQL;
   // On leaf tables: the column holding the resource (or role) id of the parent when the parent column holds a key, and
   // the trigger that keeps it
   leaf: { parentId: SQL, triggerFunction: SQL, trigger: SQL };
@@ -227,6 +231,7 @@ const toBinding = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>,
     leaf: kind === "resource"
       ? { parentId: tableNaming.resourceParentId, triggerFunction: tableNaming.resourceLeafTriggerFunction, trigger: tableNaming.resourceLeafTrigger }
       : { parentId: tableNaming.roleParentId, triggerFunction: tableNaming.roleLeafTriggerFunction, trigger: tableNaming.roleLeafTrigger },
+    softDelete: table.softDelete === undefined ? undefined : identifier(table.softDelete),
     parents: parentConfigs.map((parentConfig, index): Parent => {
       const parentTable = parentConfig.table === undefined ? undefined : config.tables.find(other => other.name === parentConfig.table);
       if (parentConfig.table !== undefined && !parentTable) {
@@ -248,6 +253,21 @@ const toBinding = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>,
 };
 
 const hasParent = (binding: Binding) => binding.parents.length > 0;
+
+// Soft deleted rows of node tables leave the graph: their edges and assignments wait in tables of their own
+const softDeleteBindings = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>) =>
+  getBindings(kind, naming, config).filter(binding => binding.softDelete);
+const usesSoftDelete = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>) => softDeleteBindings(kind, naming, config).length > 0;
+const usesAnySoftDelete = (naming: Naming<any>, config: CompleteConfig<any>) =>
+  usesSoftDelete("resource", naming, config) || usesSoftDelete("role", naming, config);
+// The ids of every soft deleted row of a tree
+const deletedIds = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>) =>
+  join(softDeleteBindings(kind, naming, config).map(binding => sql`select "the_deleted".${binding.id} from ${binding.table} as "the_deleted" where "the_deleted".${binding.softDelete!} is not null`), `\n    union all\n    `);
+// Whether a node is a soft deleted row, by an index lookup in each table that soft deletes
+const isDeletedNode = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>, value: SQL) => {
+  const tables = softDeleteBindings(kind, naming, config);
+  return tables.length === 0 ? sql`false` : sql`(${join(tables.map(binding => sql`exists (select from ${binding.table} as "the_deleted" where "the_deleted".${binding.id} = ${value} and "the_deleted".${binding.softDelete!} is not null)`), " or ")})`;
+};
 const coalesce = (values: SQL[]) => values.length === 1 ? values[0]! : sql`coalesce(${join(values, ", ")})`;
 // Whether a row sets one of its parent columns
 const setsParent = (binding: Binding, row: SQL) => sql`(${join(binding.parents.map(({ column }) => sql`${row}.${column} is not null`), " or ")})`;
@@ -533,7 +553,20 @@ alter table ${edgeCache} alter column ${parentId} set (n_distinct = 1);
 ` : sql``}
 -- Only p9s triggers write to the cache. Users see their own part of the graph through the views of the current user.
 ${setPrivileges(edgeCache, writers, [], users)}
+${usesSoftDelete(kind, naming, config) ? sql`
+-- The edges of soft deleted rows, in either direction, until both their rows are restored
+create table if not exists ${naming[kind].edgeDeleted} (
+  ${parentId} ${idType} not null,
+  ${childId} ${idType} not null,
+  ${permission} bit(${literal(size)}),
+  ${home} boolean not null default false,
+  constraint ${naming[kind].edgeDeletedPkey} primary key (${parentId}, ${childId})
+);
 
+create index if not exists ${identifier(`${nameOf(naming[kind].edgeDeleted)}_${nameOf(childId)}_index`)} on ${naming[kind].edgeDeleted} (${childId});
+
+${setPrivileges(naming[kind].edgeDeleted, writers, [], users)}
+` : sql``}
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(kind)} compute recursive permissions, towards parent
 -----------------------------------------------------------------------------------------------------------------------
@@ -631,7 +664,19 @@ create index if not exists ${edgeRoleIdIndex} on ${edge} (${roleId});
 
 -- Users who can share write it too, through its policies
 ${setPrivileges(edge, [], [...writers, ...sharers(config)], users)}
-`;
+${usesAnySoftDelete(naming, config) ? sql`
+-- The assignments of soft deleted rows, until both their rows are restored
+create table if not exists ${naming.assignment.edgeDeleted} (
+  ${resourceId} ${idType} not null,
+  ${roleId} ${idType} not null,
+  ${permission} bit(${literal(size)}),
+  constraint ${naming.assignment.edgeDeletedPkey} primary key (${resourceId}, ${roleId})
+);
+
+create index if not exists ${identifier(`${nameOf(naming.assignment.edgeDeleted)}_${nameOf(roleId)}_index`)} on ${naming.assignment.edgeDeleted} (${roleId});
+
+${setPrivileges(naming.assignment.edgeDeleted, writers, [], users)}
+` : sql``}`;
 }
 
 
@@ -880,12 +925,20 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
     ${selfRow("the_parent_self", sql`"the_edge".${parentId}`)}
     ${selfRow("the_child_self", sql`"the_edge".${childId}`)}
     where "the_parent_self".${parentId} is null or "the_child_self".${parentId} is null`;
+  const softDeletes = usesSoftDelete(kind, naming, config);
+  const deletedEdges = sql`from "p9s_new_rows" as "the_edge"
+    where ${isDeletedNode(kind, naming, config, sql`"the_edge".${parentId}`)} or ${isDeletedNode(kind, naming, config, sql`"the_edge".${childId}`)}`;
   const validateEdges = sql`
   if exists (select ${invalidEdges}) then
     raise exception 'p9s: the % edge % does not connect two rows of bound tables', ${textLiteral(kind)},
       (select format('%s -> %s', "the_edge".${parentId}, "the_edge".${childId}) ${invalidEdges} limit 1)
       using errcode = 'foreign_key_violation';
-  end if;`;
+  end if;${softDeletes ? sql`
+  if exists (select ${deletedEdges}) then
+    raise exception 'p9s: the % edge % links a soft deleted row, which has to be restored first', ${textLiteral(kind)},
+      (select format('%s -> %s', "the_edge".${parentId}, "the_edge".${childId}) ${deletedEdges} limit 1)
+      using errcode = 'foreign_key_violation';
+  end if;` : sql``}`;
 
   // The caches only follow paths of up to maxDepth edges. A path longer than that only exists if it goes through a new
   // edge: an edge with a path of length "above" its parent and one "below" its child, that share no node, makes a
@@ -970,6 +1023,71 @@ ${grantExecute(sql`${functionName} (${args})`, [])}
     join ${leaf.table} as "the_leaf" on "the_leaf".${leaf.id} = "the_row"."id"`),
   ], `\n    union all\n    `);
 
+  const { edgeDeleted, edgeDeletedPkey } = naming[kind];
+  const isDeleted = (value: SQL) => isDeletedNode(kind, naming, config, value);
+  const deletedRow = sql`(${isDeleted(sql`"the_row"."parent"`)} or ${isDeleted(sql`"the_row"."id"`)})`;
+  // The home edge of a soft deleted row, or of a row under one, waits with the other edges of that row
+  const insertHomeEdges = softDeletes ? sql`
+    insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
+    select "the_row"."parent", "the_row"."id", ${allBits}, true
+    from ${rows}
+    where "the_row"."parent" is not null and not ${deletedRow}
+    on conflict on constraint ${edgePkey} do nothing;
+    insert into ${edgeDeleted} (${parentId}, ${childId}, ${permission}, ${home})
+    select "the_row"."parent", "the_row"."id", ${allBits}, true
+    from ${rows}
+    where "the_row"."parent" is not null and ${deletedRow}
+    on conflict on constraint ${edgeDeletedPkey} do nothing;` : sql`
+    insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
+    select "the_row"."parent", "the_row"."id", ${allBits}, true
+    from ${rows}
+    where "the_row"."parent" is not null
+    on conflict on constraint ${edgePkey} do nothing;`;
+  const assignmentsDeleted = usesAnySoftDelete(naming, config);
+  // The triggers of the assignment table go with the resource tree, see triggersByTable
+  const reconcilesAssignments = assignmentsDeleted && kind === "resource";
+  const otherKind: Kind = kind === "resource" ? "role" : "resource";
+  const otherAssignmentId = kind === "resource" ? assignment.roleId : assignment.resourceId;
+  const edgeColumns = sql`${parentId}, ${childId}, ${permission}, ${home}`;
+  const assignmentColumns = sql`${assignment.resourceId}, ${assignment.roleId}, ${assignment.permission}`;
+  // A soft deleted row leaves the graph with its edges and assignments, which the triggers of the graph tables take
+  // out of the caches. They come back when both their ends are restored.
+  const softDeleteFunctions = softDeletes ? sql`
+${nodeFunction(naming[kind].nodeSoftDeleteFunction, idsArgument, sql`
+  ${lockGraph(config)}
+  with "the_moved" as (
+    delete from ${edge} as "the_edge"
+    where "the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids")
+    returning ${edgeColumns}
+  )
+  insert into ${edgeDeleted} (${edgeColumns}) select ${edgeColumns} from "the_moved"
+  on conflict on constraint ${edgeDeletedPkey} do nothing;
+  with "the_moved" as (
+    delete from ${assignment.edge} as "the_assignment"
+    where "the_assignment".${assignmentId} = any ("the_ids")
+    returning ${assignmentColumns}
+  )
+  insert into ${assignment.edgeDeleted} (${assignmentColumns}) select ${assignmentColumns} from "the_moved"
+  on conflict on constraint ${assignment.edgeDeletedPkey} do nothing;`)}
+${nodeFunction(naming[kind].nodeRestoreFunction, idsArgument, sql`
+  ${lockGraph(config)}
+  with "the_moved" as (
+    delete from ${edgeDeleted} as "the_edge"
+    where ("the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids"))
+    and not ${isDeleted(sql`"the_edge".${parentId}`)} and not ${isDeleted(sql`"the_edge".${childId}`)}
+    returning ${edgeColumns}
+  )
+  insert into ${edge} (${edgeColumns}) select ${edgeColumns} from "the_moved"
+  on conflict on constraint ${edgePkey} do nothing;
+  with "the_moved" as (
+    delete from ${assignment.edgeDeleted} as "the_assignment"
+    where "the_assignment".${assignmentId} = any ("the_ids")
+    and not ${isDeletedNode(otherKind, naming, config, sql`"the_assignment".${otherAssignmentId}`)}
+    returning ${assignmentColumns}
+  )
+  insert into ${assignment.edge} (${assignmentColumns}) select ${assignmentColumns} from "the_moved"
+  on conflict on constraint ${assignment.edgePkey} do nothing;`)}` : sql``;
+
   const nodeFunctions = sql`
 ${nodeFunction(naming[kind].nodeInsertFunction, idsAndParentsArguments, sql`
   if exists (${usedIds}) then
@@ -981,43 +1099,43 @@ ${nodeFunction(naming[kind].nodeInsertFunction, idsAndParentsArguments, sql`
   insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
   select "the_row"."id", "the_row"."id", ${allBits} from unnest("the_ids") as "the_row" ("id");
   if exists (select from unnest("the_parents") as "the_parent" ("id") where "the_parent"."id" is not null) then
-    ${lockGraph(config)}
-    insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
-    select "the_row"."parent", "the_row"."id", ${allBits}, true
-    from ${rows}
-    where "the_row"."parent" is not null
-    on conflict on constraint ${edgePkey} do nothing;
+    ${lockGraph(config)}${insertHomeEdges}
   end if;`)}
 -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
 -- gives way to that edge and the edge keeps its bits.
 ${nodeFunction(naming[kind].nodeUpdateFunction, idsAndParentsArguments, sql`
-  ${lockGraph(config)}
+  ${lockGraph(config)}${softDeletes ? sql`
+  delete from ${edgeDeleted} as "the_edge"
+  using ${rows}
+  where "the_edge".${childId} = "the_row"."id" and "the_edge".${home}
+  and "the_edge".${parentId} is distinct from "the_row"."parent";
+` : sql``}
   update ${edge} as "the_edge" set ${parentId} = "the_row"."parent"
   from ${rows}
   where "the_edge".${childId} = "the_row"."id" and "the_edge".${home}
-  and "the_row"."parent" is not null and "the_edge".${parentId} <> "the_row"."parent"
+  and "the_row"."parent" is not null and "the_edge".${parentId} <> "the_row"."parent"${softDeletes ? sql` and not ${deletedRow}` : sql``}
   and not exists (select from ${edge} as "the_other" where "the_other".${parentId} = "the_row"."parent" and "the_other".${childId} = "the_row"."id");
 
   delete from ${edge} as "the_edge"
   using ${rows}
   where "the_edge".${childId} = "the_row"."id" and "the_edge".${home}
   and "the_edge".${parentId} is distinct from "the_row"."parent";
-
-  insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
-  select "the_row"."parent", "the_row"."id", ${allBits}, true
-  from ${rows}
-  where "the_row"."parent" is not null
-  on conflict on constraint ${edgePkey} do nothing;`)}
+${insertHomeEdges}`)}
 -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
 ${nodeFunction(naming[kind].nodeDeleteFunction, idsArgument, sql`
   ${lockGraph(config)}
   delete from ${assignment.edge} as "the_assignment"
   where "the_assignment".${assignmentId} = any ("the_ids");
   delete from ${edge} as "the_edge"
-  where "the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids");
+  where "the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids");${assignmentsDeleted ? sql`
+  delete from ${assignment.edgeDeleted} as "the_assignment"
+  where "the_assignment".${assignmentId} = any ("the_ids");` : sql``}${softDeletes ? sql`
+  delete from ${edgeDeleted} as "the_edge"
+  where "the_edge".${parentId} = any ("the_ids") or "the_edge".${childId} = any ("the_ids");` : sql``}
   delete from ${edgeCache} as "the_self"
   using unnest("the_ids") as "the_row" ("id")
-  where "the_self".${parentId} = "the_row"."id" and "the_self".${childId} = "the_row"."id";`)}`;
+  where "the_self".${parentId} = "the_row"."id" and "the_self".${childId} = "the_row"."id";`)}
+${softDeleteFunctions}`;
 
   // The bound row is the node: its triggers hand the ids and parents of the changed rows to the node functions. One
   // function serves the three triggers, plpgsql plans its statements separately for each. `having` skips statements
@@ -1043,7 +1161,15 @@ begin
     if (select count(*) ${moved}) > 0 then${checkParentsFound(binding, sql`"p9s_new_rows"`)}
       perform ${naming[kind].nodeUpdateFunction}(array_agg("the_row".${id}), ${parentIds})
       ${moved};
-    end if;` : sql``}
+    end if;` : sql``}${binding.softDelete ? sql`
+    perform ${naming[kind].nodeSoftDeleteFunction}(array_agg("the_row".${id}))
+    from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using (${id})
+    where "the_row".${binding.softDelete} is not null and "the_old_row".${binding.softDelete} is null
+    having count(*) > 0;
+    perform ${naming[kind].nodeRestoreFunction}(array_agg("the_row".${id}))
+    from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using (${id})
+    where "the_row".${binding.softDelete} is null and "the_old_row".${binding.softDelete} is not null
+    having count(*) > 0;` : sql``}
   else
     perform ${naming[kind].nodeDeleteFunction}(array_agg("the_row".${id})) from "p9s_old_rows" as "the_row" having count(*) > 0;
   end if;
@@ -1216,8 +1342,32 @@ create or replace function ${enableTriggerFunction}()
 returns void as $$
 begin
   ${lockGraphStatement(config)}
-  ${toggleTriggers(sql`disable`)}
-  ${homeEdgeFixups}
+  ${toggleTriggers(sql`disable`)}${softDeletes ? sql`
+  insert into ${edge} (${edgeColumns}) select ${edgeColumns} from ${edgeDeleted}
+  on conflict on constraint ${edgePkey} do nothing;
+  delete from ${edgeDeleted};` : sql``}${reconcilesAssignments ? sql`
+  insert into ${assignment.edge} (${assignmentColumns}) select ${assignmentColumns} from ${assignment.edgeDeleted}
+  on conflict on constraint ${assignment.edgePkey} do nothing;
+  delete from ${assignment.edgeDeleted};` : sql``}
+  ${homeEdgeFixups}${softDeletes ? sql`
+  -- Soft deleted rows, including those written while the triggers were disabled, leave the graph again
+  with "the_moved" as (
+    delete from ${edge} as "the_edge"
+    where ${isIn(sql`"the_edge".${parentId}`, deletedIds(kind, naming, config))} or ${isIn(sql`"the_edge".${childId}`, deletedIds(kind, naming, config))}
+    returning ${edgeColumns}
+  )
+  insert into ${edgeDeleted} (${edgeColumns}) select ${edgeColumns} from "the_moved"
+  on conflict on constraint ${edgeDeletedPkey} do nothing;` : sql``}${reconcilesAssignments ? sql`
+  with "the_moved" as (
+    delete from ${assignment.edge} as "the_assignment"
+    where ${join([
+      ...(usesSoftDelete("resource", naming, config) ? [isIn(sql`"the_assignment".${assignment.resourceId}`, deletedIds("resource", naming, config))] : []),
+      ...(usesSoftDelete("role", naming, config) ? [isIn(sql`"the_assignment".${assignment.roleId}`, deletedIds("role", naming, config))] : []),
+    ], " or ")}
+    returning ${assignmentColumns}
+  )
+  insert into ${assignment.edgeDeleted} (${assignmentColumns}) select ${assignmentColumns} from "the_moved"
+  on conflict on constraint ${assignment.edgeDeletedPkey} do nothing;` : sql``}
   ${toggleTriggers(sql`enable`)}
   perform ${edgeCacheBackfill}();
 end;
@@ -1281,12 +1431,19 @@ drop trigger if exists ${modeNaming.combinedEdgeDeleteTrigger} on ${cache};`;
     ${selfRow("resource", "the_resource_self", sql`"the_assignment".${resourceId}`)}
     ${selfRow("role", "the_role_self", sql`"the_assignment".${roleId}`)}
     where "the_resource_self".${resource.parentId} is null or "the_role_self".${role.parentId} is null`;
+  const deletedAssignments = sql`from "p9s_new_rows" as "the_assignment"
+    where ${isDeletedNode("resource", naming, config, sql`"the_assignment".${resourceId}`)} or ${isDeletedNode("role", naming, config, sql`"the_assignment".${roleId}`)}`;
   const validateBody = sql`
   if exists (select ${invalidAssignments}) then
     raise exception 'p9s: the assignment of resource % to role % does not reference rows of bound tables',
       (select "the_assignment".${resourceId} ${invalidAssignments} limit 1), (select "the_assignment".${roleId} ${invalidAssignments} limit 1)
       using errcode = 'foreign_key_violation';
-  end if;`;
+  end if;${usesAnySoftDelete(naming, config) ? sql`
+  if exists (select ${deletedAssignments}) then
+    raise exception 'p9s: the assignment of resource % to role % links a soft deleted row, which has to be restored first',
+      (select "the_assignment".${resourceId} ${deletedAssignments} limit 1), (select "the_assignment".${roleId} ${deletedAssignments} limit 1)
+      using errcode = 'foreign_key_violation';
+  end if;` : sql``}`;
 
   const getCombinedCacheBlock = (resourceOrRole: "role" | "resource") => {
     const thingCombinedWith = naming[resourceOrRole];
@@ -1569,7 +1726,9 @@ begin
     -- Home edges can only be deleted with the triggers off. The bootstrap turns them back on.
     perform ${disableTriggerFunction}();
     delete from ${assignment.edge} as "the_assignment" using ${table} as "the_row" where "the_assignment".${kind === "resource" ? assignment.resourceId : assignment.roleId} = "the_row".${id};
-    delete from ${edge} as "the_edge" using ${table} as "the_row" where "the_edge".${childId} = "the_row".${id};
+    delete from ${edge} as "the_edge" using ${table} as "the_row" where "the_edge".${childId} = "the_row".${id};${usesSoftDelete(kind, naming, config) ? sql`
+    delete from ${naming[kind].edgeDeleted} as "the_edge" using ${table} as "the_row" where "the_edge".${childId} = "the_row".${id};` : sql``}${usesAnySoftDelete(naming, config) ? sql`
+    delete from ${assignment.edgeDeleted} as "the_assignment" using ${table} as "the_row" where "the_assignment".${kind === "resource" ? assignment.resourceId : assignment.roleId} = "the_row".${id};` : sql``}
   end if;
 end
 $$;`), `\n`)}
@@ -1611,7 +1770,7 @@ const currentRoleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>) => 
 const roleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>, roleId: SQL) => {
   const roleLeaves = getLeaves("role", naming, config);
   return roleLeaves.length === 0 ? roleId : sql`coalesce(${join(roleLeaves.map(leaf => sql`
-    (select ${parentOfLeaf(leaf, sql`"the_leaf"`)} from ${leaf.table} as "the_leaf" where "the_leaf".${leaf.id} = ${roleId}),`), ``)}
+    (select ${parentOfLeaf(leaf, sql`"the_leaf"`)} from ${leaf.table} as "the_leaf" where "the_leaf".${leaf.id} = ${roleId}${leaf.softDelete ? sql` and "the_leaf".${leaf.softDelete} is null` : sql``}),`), ``)}
     ${roleId}
   )`;
 };
@@ -1804,12 +1963,58 @@ from (${roleAccess}${join(roleLeaves.map(leaf => sql`
   union all
   select "the_node_access".${assignment.resourceId}, "the_leaf".${leaf.id}, "the_node_access".${assignment.permission}
   from (${roleAccess}) as "the_node_access"
-  join ${leaf.table} as "the_leaf" on ${parentOfLeaf(leaf, sql`"the_leaf"`)} = "the_node_access".${assignment.roleId}`), ``)}
+  join ${leaf.table} as "the_leaf" on ${parentOfLeaf(leaf, sql`"the_leaf"`)} = "the_node_access".${assignment.roleId}${leaf.softDelete ? sql` and "the_leaf".${leaf.softDelete} is null` : sql``}`), ``)}
 ) as "the_access"
 where ${managesAccess(sql`"the_access".${assignment.resourceId}`)};
 
 ${setPrivileges(roleAccessView, everyone, [])}
-`;
+${usesSoftDelete("resource", naming, config) ? sql`
+-- The soft deleted resources of the current user, with the bits it would have on them once restored: from the
+-- parents it reaches, and from the assignments of the roles it acts as. A resource under another deleted resource
+-- comes back with that one. An edge aside from a parent the user reaches, which is in the graph, is an edge to a
+-- deleted resource; an assignment aside can also be of a deleted role.
+create or replace view ${naming.currentDeletedView} with (security_barrier) as
+select "the_access".${assignment.resourceId}, ${orBitmap} ("the_access".${assignment.permission})::bit(${literal(size)}) as ${assignment.permission}
+from (
+  select "the_edge".${resource.childId} as ${assignment.resourceId}, ${bitmap(sql`"the_parent".${assignment.permission}`, sql`"the_edge".${resource.permission}`)} as ${assignment.permission}
+  from ${resource.edgeDeleted} as "the_edge"
+  join ${currentAccessView} as "the_parent" on "the_parent".${assignment.resourceId} = "the_edge".${resource.parentId}
+  union all
+  select "the_assignment".${assignment.resourceId}, ${bitmap(sql`"the_assignment".${assignment.permission}`, sql`"the_role".${role.permission}`)}
+  from ${assignment.edgeDeleted} as "the_assignment"
+  join ${currentRoleView} as "the_role" on "the_role".${assignment.roleId} = "the_assignment".${assignment.roleId}
+  where ${isDeletedNode("resource", naming, config, sql`"the_assignment".${assignment.resourceId}`)}
+) as "the_access"
+group by "the_access".${assignment.resourceId}
+having position(b'1' in ${orBitmap} ("the_access".${assignment.permission})) > 0;
+
+${setPrivileges(naming.currentDeletedView, everyone, [])}
+
+-- The same for one resource, looking up the bits of each parent rather than listing every resource the user reaches.
+-- As the owner, which reads the graph tables, for the current user only like the views. Policies call it for deleted rows only: in plpgsql, so that the planner counts it as one call per row rather than as
+-- its whole query, which would make the plans of every query on the table look costly.
+create or replace function ${naming.deletedPermissionFunction} ("the_resource_id" ${idType})
+  returns bit(${literal(size)})
+  as $$
+begin
+  return (
+    select ${orBitmap} ("the_access".${assignment.permission}) from (
+      select ${bitmap(sql`${naming.permissionFunction}("the_edge".${resource.parentId})`, sql`"the_edge".${resource.permission}`)} as ${assignment.permission}
+      from ${resource.edgeDeleted} as "the_edge"
+      where "the_edge".${resource.childId} = "the_resource_id"
+      union all
+      select ${bitmap(sql`"the_assignment".${assignment.permission}`, sql`"the_role".${role.permission}`)}
+      from ${assignment.edgeDeleted} as "the_assignment"
+      join ${currentRoleView} as "the_role" on "the_role".${assignment.roleId} = "the_assignment".${assignment.roleId}
+      where "the_assignment".${assignment.resourceId} = "the_resource_id"
+      and ${isDeletedNode("resource", naming, config, sql`"the_resource_id"`)}
+    ) as "the_access"
+  )::bit(${literal(size)});
+end
+$$ language plpgsql stable ${definer(naming)};
+
+${grantExecute(sql`${naming.deletedPermissionFunction} (${idType})`, everyone)}
+` : sql``}`;
 }
 
 export const createMigrationDataModelPolicies = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
@@ -1940,13 +2145,21 @@ with check (${accessCheck(parent, bit)}
         }
         const moveCheck = parent && !table.resourceLeaf && sql`
   and ${resource.parentValidateFunction}(${parent}, ${name}.${resourceId}, ${insertBit == null ? sql`null` : literal(insertBit)})`;
+        // Soft deleting a row needs the delete bit. A soft deleted node has left the graph: users who would have the
+        // bit once it is restored can still read it and delete it for good, and restore it through the restore function.
+        const softDelete = binding?.softDelete;
+        const deleteBit = userBits.delete;
+        const softDeleteCheck = softDelete && sql`
+  and (${name}.${softDelete} is null${deleteBit == null ? sql`` : sql` or ${accessCheck(table.resourceLeaf ? parent! : sql`${name}.${resourceId}`, deleteBit)}`})`;
+        const deletedCheck = softDelete && !table.resourceLeaf && (operation === "select" || operation === "delete") && sql`
+  or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
         return [sql`
 ${dropPolicy}
 create policy ${policyName} on ${schema}.${name} 
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
-using (${ownCheck}
+using (${ownCheck}${deletedCheck || sql``}
 )
-${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}
+${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
 )` : sql``};
 `];
       });
@@ -2109,6 +2322,96 @@ ${functions}
 `;
 };
 
+// Users restore the soft deleted resources they would have the delete bit on, which they cannot update themselves:
+// these rows have left the graph, so the policies give them no access. Tables of a config that stops soft deleting
+// get their edges and assignments back.
+export const createMigrationSoftDelete = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { assignment, currentDeletedView, restoreFunction } = naming;
+  const { type: idType } = getIdType(config);
+  const restoreOf = (user: string) => identifier(`${nameOf(restoreFunction)}_${user}`);
+  const restorable = (user: string) => softDeleteBindings("resource", naming, config).flatMap(binding => {
+    const bit = (config.tables.find(table => table.name === binding.tableName)?.permission as Record<string, { delete?: number }> | undefined)?.[user]?.delete;
+    return bit == null ? [] : [{ binding, bit }];
+  });
+  const restorers = config.engine.users.filter(user => restorable(user).length > 0);
+
+  const restoreFunctions = join(restorers.map(user => sql`
+-- Restores a resource of a table the user has the delete bit on, if the user would have that bit once it is restored.
+-- As the owner, which sees the row and is not checked by the policies.
+create or replace function ${restoreOf(user)} ("the_resource_id" ${idType})
+  returns boolean
+  as $$
+begin${join(restorable(user).map(({ binding, bit }) => sql`
+  update ${binding.table} as "the_row" set ${binding.softDelete!} = null
+  where "the_row".${binding.id} = "the_resource_id" and "the_row".${binding.softDelete!} is not null
+  and (${naming.deletedPermissionFunction}("the_resource_id") << ${literal(bit)})::bit = b'1';
+  if found then
+    return true;
+  end if;`), ``)}
+  return false;
+end
+$$ language plpgsql volatile ${definer(naming)};
+
+${grantExecute(sql`${restoreOf(user)} (${idType})`, [user])}
+`), `\n`);
+
+  const stale = join(config.engine.users.filter(user => !restorers.includes(user)).map(user => sql`
+drop function if exists ${restoreOf(user)} (${idType});`), ``);
+
+  const dispatch = restorers.length > 0 ? sql`
+-- Restores a soft deleted resource as the user roles of the current user allow. False when none does.
+create or replace function ${restoreFunction} ("the_resource_id" ${idType})
+  returns boolean
+  as $$
+begin${join(restorers.map(user => sql`
+  if pg_has_role(current_user, ${textLiteral(user)}, 'member') then
+    if ${restoreOf(user)}("the_resource_id") then
+      return true;
+    end if;
+  end if;`), ``)}
+  return false;
+end
+$$ language plpgsql volatile security invoker set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${restoreFunction} (${idType})`, restorers)}
+` : sql`
+drop function if exists ${restoreFunction} (${idType});`;
+
+  // The disable functions let the home edges back in, the bootstrap enables the triggers again
+  const unused = (table: SQL, target: SQL, columns: SQL, disable: SQL) => sql`
+do $$
+begin
+  if to_regclass(${textLiteral(compile(table).text)}) is not null then
+    perform ${disable}();
+    insert into ${target} (${columns})
+    select ${columns} from ${table}
+    on conflict do nothing;
+    drop table ${table};
+  end if;
+end
+$$;`;
+  const kinds = (["resource", "role"] as const);
+
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Soft delete
+-----------------------------------------------------------------------------------------------------------------------
+${usesSoftDelete("resource", naming, config) ? sql`` : sql`drop function if exists ${naming.deletedPermissionFunction} (${idType});
+drop view if exists ${currentDeletedView};`}
+${stale}
+${restoreFunctions}
+${dispatch}
+${join(kinds.filter(kind => !usesSoftDelete(kind, naming, config)).map(kind => {
+    const { edge, edgeDeleted, parentId, childId, permission, home, nodeSoftDeleteFunction, nodeRestoreFunction, disableTriggerFunction } = naming[kind];
+    return sql`
+drop function if exists ${nodeSoftDeleteFunction} (${idType}[]);
+drop function if exists ${nodeRestoreFunction} (${idType}[]);
+${unused(edgeDeleted, edge, sql`${parentId}, ${childId}, ${permission}, ${home}`, disableTriggerFunction)}`;
+  }), `\n`)}
+${usesAnySoftDelete(naming, config) ? sql`` : unused(assignment.edgeDeleted, assignment.edge, sql`${assignment.resourceId}, ${assignment.roleId}, ${assignment.permission}`, naming.resource.disableTriggerFunction)}
+`;
+};
+
 // The views of p9s are for reading
 const readOnly = "@behavior -insert -update -delete";
 
@@ -2153,18 +2456,20 @@ union all
     [naming.currentRoleView, [roleKey("role_id", "role")]],
     [naming.accessView, [resourceKey("resource_id", "resource"), roleKey("role_id", "role"), resourceKey("assigned_resource_id", "assignedResource")]],
     [naming.roleAccessView, [resourceKey("resource_id", "resource"), roleKey("role_id", "role")]],
+    [naming.currentDeletedView, [resourceKey("resource_id", "resource")]],
   ] as [SQL, string[]][]).map(([view, keys]) => [view, [readOnly, ...keys]]);
   // Every table, view and function p9s names is internal, except the views and functions users call
   const visible = new Set([nodeView("resource"), nodeView("role"), ...viewKeys.map(([view]) => view),
-    naming.permissionFunction, naming.shareFunction, naming.unshareFunction].map(nameOf));
+    naming.permissionFunction, naming.shareFunction, naming.unshareFunction, naming.restoreFunction].map(nameOf));
   const namesIn = (names: object, skip: string[]) => Object.entries(names)
     .filter(([key, value]) => !skip.includes(key) && (value as { type?: string } | null)?.type === "IDENTIFIER").map(([, value]) => nameOf(value as SQL));
   const internal = [...new Set([
     ...(["resource", "role", "assignment"] as const).flatMap(kind => namesIn(naming[kind], ["name", "id"])),
     ...Object.values(naming.tables).flatMap(table => namesIn(table, ["name", "schema"])),
-    nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction),
+    nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction), nameOf(naming.deletedPermissionFunction),
     ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
     ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
+    ...config.engine.users.map(user => `${nameOf(naming.restoreFunction)}_${user}`),
   ])].filter(name => !visible.has(name));
   // PostGraphile skips overloaded functions, like resource_permission: it reads the permissions of the current user on
   // each row through these, as a permission field of each resource type
