@@ -7,13 +7,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useApi, useAction, useOrganization } from "@/lib/api";
 import { DeleteDocument, DeleteFolder, MoveFolder, MoveTargetsQuery, RenameFolder, UpdateDocument } from "@/lib/operations";
-import { can } from "@/lib/permissions";
+import { can, type Flags } from "@/lib/permissions";
 
 export interface ItemActionsProps {
   kind: "folder" | "document";
   id: string;
   name: string;
-  permission: string | null;
+  permission: Flags | null;
   // Where to go once deleted
   parentHref: string;
 }

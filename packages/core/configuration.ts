@@ -268,6 +268,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     truncateGuardTrigger: `${triggerPrefix}05_${prefix}${truncate}_${guard}_${trigger}`,
     currentRoleNodeFunction: `${prefix}current_${role.name}_${node}`,
     permissionFunction: `${prefix}${resource.name}_${permission}`,
+    permissionFlags: `${prefix}${permission}_flags`,
     currentAccessView: `${prefix}current_${resource.name}_access`,
     currentAssignmentView: `${prefix}current_${assignment.name}`,
     currentResourceEdgeView: `${prefix}current_${resource.name}_${edge}`,

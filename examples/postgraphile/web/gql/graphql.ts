@@ -12,11 +12,13 @@ export type DocumentPatch = {
   title?: string | null | undefined;
 };
 
-export type FolderItemFragment = { rowId: string, name: string, permission: string | null };
+export type PermissionFragment = { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null };
 
-export type DocumentItemFragment = { rowId: string, title: string, permission: string | null, updatedAt: string };
+export type FolderItemFragment = { rowId: string, name: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null };
 
-export type AccessItemFragment = { roleId: string | null, kind: string | null, name: string | null, detail: string | null, permission: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null };
+export type DocumentItemFragment = { rowId: string, title: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null };
+
+export type AccessItemFragment = { roleId: string | null, kind: string | null, name: string | null, detail: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null };
 
 export type SignInQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -40,14 +42,14 @@ export type OrganizationLayoutQueryVariables = Exact<{
 }>;
 
 
-export type OrganizationLayoutQuery = { viewer: { name: string | null, email: string | null } | null, myOrganizations: { nodes: Array<{ rowId: string, name: string, slug: string } | null> } | null, currentMember: { rowId: string, name: string | null } | null, currentImpersonation: { adminName: string | null, readOnly: boolean | null } | null, organizationBySlug: { rowId: string, name: string, slug: string, permission: string | null, spaces: { nodes: Array<{ rowId: string, name: string } | null> } } | null };
+export type OrganizationLayoutQuery = { viewer: { name: string | null, email: string | null } | null, myOrganizations: { nodes: Array<{ rowId: string, name: string, slug: string } | null> } | null, currentMember: { rowId: string, name: string | null } | null, currentImpersonation: { adminName: string | null, readOnly: boolean | null } | null, organizationBySlug: { rowId: string, name: string, slug: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null, spaces: { nodes: Array<{ rowId: string, name: string } | null> } } | null };
 
 export type OrganizationHomeQueryVariables = Exact<{
   slug: string;
 }>;
 
 
-export type OrganizationHomeQuery = { organizationBySlug: { spaces: { nodes: Array<{ rowId: string, name: string, permission: string | null } | null> }, sharedFolders: { nodes: Array<{ rowId: string, name: string, permission: string | null } | null> }, sharedDocuments: { nodes: Array<{ rowId: string, title: string, permission: string | null, updatedAt: string } | null> }, folders: { totalCount: number }, documents: { totalCount: number } } | null };
+export type OrganizationHomeQuery = { organizationBySlug: { spaces: { nodes: Array<{ rowId: string, name: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, sharedFolders: { nodes: Array<{ rowId: string, name: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, sharedDocuments: { nodes: Array<{ rowId: string, title: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, folders: { totalCount: number }, documents: { totalCount: number } } | null };
 
 export type RecentDocumentsQueryVariables = Exact<{
   slug: string;
@@ -55,21 +57,21 @@ export type RecentDocumentsQueryVariables = Exact<{
 }>;
 
 
-export type RecentDocumentsQuery = { organizationBySlug: { documents: { nodes: Array<{ rowId: string, title: string, permission: string | null, updatedAt: string } | null> } } | null };
+export type RecentDocumentsQuery = { organizationBySlug: { documents: { nodes: Array<{ rowId: string, title: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> } } | null };
 
 export type FolderQueryVariables = Exact<{
   id: string;
 }>;
 
 
-export type FolderQuery = { folderByRowId: { rowId: string, name: string, resourceId: string, permission: string | null, path: { nodes: Array<{ rowId: string, name: string } | null> }, children: { nodes: Array<{ rowId: string, name: string, permission: string | null } | null> }, documents: { nodes: Array<{ rowId: string, title: string, permission: string | null, updatedAt: string } | null> }, access: { nodes: Array<{ roleId: string | null, kind: string | null, name: string | null, detail: string | null, permission: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null } | null> } } | null };
+export type FolderQuery = { folderByRowId: { rowId: string, name: string, resourceId: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null, path: { nodes: Array<{ rowId: string, name: string } | null> }, children: { nodes: Array<{ rowId: string, name: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, documents: { nodes: Array<{ rowId: string, title: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, access: { nodes: Array<{ roleId: string | null, kind: string | null, name: string | null, detail: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> } } | null };
 
 export type DocumentQueryVariables = Exact<{
   id: string;
 }>;
 
 
-export type DocumentQuery = { documentByRowId: { rowId: string, title: string, content: string, resourceId: string, permission: string | null, updatedAt: string, author: { name: string | null } | null, path: { nodes: Array<{ rowId: string, name: string } | null> }, comments: { nodes: Array<{ rowId: string, body: string, createdAt: string, author: { name: string | null } | null } | null> }, access: { nodes: Array<{ roleId: string | null, kind: string | null, name: string | null, detail: string | null, permission: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null } | null> } } | null };
+export type DocumentQuery = { documentByRowId: { rowId: string, title: string, content: string, resourceId: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null, author: { name: string | null } | null, path: { nodes: Array<{ rowId: string, name: string } | null> }, comments: { nodes: Array<{ rowId: string, body: string, createdAt: string, author: { name: string | null } | null } | null> }, access: { nodes: Array<{ roleId: string | null, kind: string | null, name: string | null, detail: string | null, direct: boolean | null, fromName: string | null, fromFolderId: string | null, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> } } | null };
 
 export type SearchQueryVariables = Exact<{
   slug: string;
@@ -77,7 +79,7 @@ export type SearchQueryVariables = Exact<{
 }>;
 
 
-export type SearchQuery = { organizationBySlug: { searchFolders: { nodes: Array<{ rowId: string, name: string, permission: string | null } | null> }, searchDocuments: { nodes: Array<{ rowId: string, title: string, permission: string | null, updatedAt: string } | null> } } | null };
+export type SearchQuery = { organizationBySlug: { searchFolders: { nodes: Array<{ rowId: string, name: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> }, searchDocuments: { nodes: Array<{ rowId: string, title: string, updatedAt: string, permission: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> } } | null };
 
 export type MoveTargetsQueryVariables = Exact<{
   slug: string;
@@ -254,7 +256,7 @@ export type AccessOverviewQueryVariables = Exact<{
 }>;
 
 
-export type AccessOverviewQuery = { organizationBySlug: { spaces: { nodes: Array<{ rowId: string, name: string } | null> }, members: { totalCount: number, nodes: Array<{ rowId: string, name: string | null, email: string | null, spacePermissions: Array<string | null> | null } | null> } } | null };
+export type AccessOverviewQuery = { organizationBySlug: { spaces: { nodes: Array<{ rowId: string, name: string } | null> }, members: { totalCount: number, nodes: Array<{ rowId: string, name: string | null, email: string | null, spacePermissions: Array<{ bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null> | null } | null> } } | null };
 
 export type AuditQueryVariables = Exact<{
   slug: string;
@@ -265,7 +267,7 @@ export type AuditQueryVariables = Exact<{
 }>;
 
 
-export type AuditQuery = { organizationBySlug: { auditEvents: { nodes: Array<{ rowId: string, createdAt: string, actorMemberId: string | null, actorName: string | null, apiKeyName: string | null, impersonatorName: string | null, action: string, subjectKind: string, subjectId: string | null, subjectName: string | null, detail: string | null, permission: string | null } | null> } } | null };
+export type AuditQuery = { organizationBySlug: { auditEvents: { nodes: Array<{ rowId: string, createdAt: string, actorMemberId: string | null, actorName: string | null, apiKeyName: string | null, impersonatorName: string | null, action: string, subjectKind: string, subjectId: string | null, subjectName: string | null, detail: string | null, granted: { bitmap: string | null, read: boolean | null, create: boolean | null, edit: boolean | null, delete: boolean | null, comment: boolean | null, share: boolean | null, directory: boolean | null, admin: boolean | null } | null } | null> } } | null };
 
 export type ApiKeysQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -304,33 +306,82 @@ export class TypedDocumentString<TResult, TVariables>
     return this.value;
   }
 }
+export const PermissionFragmentDoc = new TypedDocumentString(`
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+    `, {"fragmentName":"Permission"}) as unknown as TypedDocumentString<PermissionFragment, unknown>;
 export const FolderItemFragmentDoc = new TypedDocumentString(`
     fragment FolderItem on Folder {
   rowId
   name
-  permission
+  permission {
+    ...Permission
+  }
 }
-    `, {"fragmentName":"FolderItem"}) as unknown as TypedDocumentString<FolderItemFragment, unknown>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`, {"fragmentName":"FolderItem"}) as unknown as TypedDocumentString<FolderItemFragment, unknown>;
 export const DocumentItemFragmentDoc = new TypedDocumentString(`
     fragment DocumentItem on Document {
   rowId
   title
-  permission
+  permission {
+    ...Permission
+  }
   updatedAt
 }
-    `, {"fragmentName":"DocumentItem"}) as unknown as TypedDocumentString<DocumentItemFragment, unknown>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`, {"fragmentName":"DocumentItem"}) as unknown as TypedDocumentString<DocumentItemFragment, unknown>;
 export const AccessItemFragmentDoc = new TypedDocumentString(`
     fragment AccessItem on AccessEntry {
   roleId
   kind
   name
   detail
-  permission
+  permission {
+    ...Permission
+  }
   direct
   fromName
   fromFolderId
 }
-    `, {"fragmentName":"AccessItem"}) as unknown as TypedDocumentString<AccessItemFragment, unknown>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`, {"fragmentName":"AccessItem"}) as unknown as TypedDocumentString<AccessItemFragment, unknown>;
 export const SignInDocument = new TypedDocumentString(`
     query SignIn {
   viewer {
@@ -392,7 +443,9 @@ export const OrganizationLayoutDocument = new TypedDocumentString(`
     rowId
     name
     slug
-    permission
+    permission {
+      ...Permission
+    }
     spaces {
       nodes {
         rowId
@@ -401,7 +454,17 @@ export const OrganizationLayoutDocument = new TypedDocumentString(`
     }
   }
 }
-    `) as unknown as TypedDocumentString<OrganizationLayoutQuery, OrganizationLayoutQueryVariables>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`) as unknown as TypedDocumentString<OrganizationLayoutQuery, OrganizationLayoutQueryVariables>;
 export const OrganizationHomeDocument = new TypedDocumentString(`
     query OrganizationHome($slug: String!) {
   organizationBySlug(slug: $slug) {
@@ -428,15 +491,30 @@ export const OrganizationHomeDocument = new TypedDocumentString(`
     }
   }
 }
-    fragment FolderItem on Folder {
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+fragment FolderItem on Folder {
   rowId
   name
-  permission
+  permission {
+    ...Permission
+  }
 }
 fragment DocumentItem on Document {
   rowId
   title
-  permission
+  permission {
+    ...Permission
+  }
   updatedAt
 }`) as unknown as TypedDocumentString<OrganizationHomeQuery, OrganizationHomeQueryVariables>;
 export const RecentDocumentsDocument = new TypedDocumentString(`
@@ -449,10 +527,23 @@ export const RecentDocumentsDocument = new TypedDocumentString(`
     }
   }
 }
-    fragment DocumentItem on Document {
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+fragment DocumentItem on Document {
   rowId
   title
-  permission
+  permission {
+    ...Permission
+  }
   updatedAt
 }`) as unknown as TypedDocumentString<RecentDocumentsQuery, RecentDocumentsQueryVariables>;
 export const FolderDocument = new TypedDocumentString(`
@@ -461,7 +552,9 @@ export const FolderDocument = new TypedDocumentString(`
     rowId
     name
     resourceId
-    permission
+    permission {
+      ...Permission
+    }
     path {
       nodes {
         rowId
@@ -485,15 +578,30 @@ export const FolderDocument = new TypedDocumentString(`
     }
   }
 }
-    fragment FolderItem on Folder {
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+fragment FolderItem on Folder {
   rowId
   name
-  permission
+  permission {
+    ...Permission
+  }
 }
 fragment DocumentItem on Document {
   rowId
   title
-  permission
+  permission {
+    ...Permission
+  }
   updatedAt
 }
 fragment AccessItem on AccessEntry {
@@ -501,7 +609,9 @@ fragment AccessItem on AccessEntry {
   kind
   name
   detail
-  permission
+  permission {
+    ...Permission
+  }
   direct
   fromName
   fromFolderId
@@ -513,7 +623,9 @@ export const DocumentDocument = new TypedDocumentString(`
     title
     content
     resourceId
-    permission
+    permission {
+      ...Permission
+    }
     updatedAt
     author {
       name
@@ -541,12 +653,25 @@ export const DocumentDocument = new TypedDocumentString(`
     }
   }
 }
-    fragment AccessItem on AccessEntry {
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+fragment AccessItem on AccessEntry {
   roleId
   kind
   name
   detail
-  permission
+  permission {
+    ...Permission
+  }
   direct
   fromName
   fromFolderId
@@ -566,15 +691,30 @@ export const SearchDocument = new TypedDocumentString(`
     }
   }
 }
-    fragment FolderItem on Folder {
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}
+fragment FolderItem on Folder {
   rowId
   name
-  permission
+  permission {
+    ...Permission
+  }
 }
 fragment DocumentItem on Document {
   rowId
   title
-  permission
+  permission {
+    ...Permission
+  }
   updatedAt
 }`) as unknown as TypedDocumentString<SearchQuery, SearchQueryVariables>;
 export const MoveTargetsDocument = new TypedDocumentString(`
@@ -794,12 +934,24 @@ export const AccessOverviewDocument = new TypedDocumentString(`
         rowId
         name
         email
-        spacePermissions
+        spacePermissions {
+          ...Permission
+        }
       }
     }
   }
 }
-    `) as unknown as TypedDocumentString<AccessOverviewQuery, AccessOverviewQueryVariables>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`) as unknown as TypedDocumentString<AccessOverviewQuery, AccessOverviewQueryVariables>;
 export const AuditDocument = new TypedDocumentString(`
     query Audit($slug: String!, $category: String, $memberId: UUID, $first: Int!, $offset: Int!) {
   organizationBySlug(slug: $slug) {
@@ -821,12 +973,24 @@ export const AuditDocument = new TypedDocumentString(`
         subjectId
         subjectName
         detail
-        permission
+        granted {
+          ...Permission
+        }
       }
     }
   }
 }
-    `) as unknown as TypedDocumentString<AuditQuery, AuditQueryVariables>;
+    fragment Permission on PermissionFlag {
+  bitmap
+  read
+  create
+  edit
+  delete
+  comment
+  share
+  directory
+  admin
+}`) as unknown as TypedDocumentString<AuditQuery, AuditQueryVariables>;
 export const ApiKeysDocument = new TypedDocumentString(`
     query ApiKeys {
   myApiKeys {

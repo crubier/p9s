@@ -1,19 +1,20 @@
 import { IconFileText, IconFolder } from "@tabler/icons-react";
 import { Link } from "react-router";
 import { parseTime } from "@/lib/time";
+import type { Flags } from "@/lib/permissions";
 import { PermissionBadge } from "./permission-badge";
 
 export interface Item {
   kind: "folder" | "document";
   rowId: string;
   name: string;
-  permission?: string | null;
+  permission?: Flags | null;
   updatedAt?: string;
 }
 
-export const folderItem = (folder: { rowId: string; name: string; permission?: string | null }): Item => ({ kind: "folder", ...folder });
+export const folderItem = (folder: { rowId: string; name: string; permission?: Flags | null }): Item => ({ kind: "folder", ...folder });
 
-export const documentItem = (document: { rowId: string; title: string; permission?: string | null; updatedAt?: string }): Item => ({
+export const documentItem = (document: { rowId: string; title: string; permission?: Flags | null; updatedAt?: string }): Item => ({
   kind: "document",
   rowId: document.rowId,
   name: document.title,

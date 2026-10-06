@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ACCESS_LEVELS, capabilities, levelOf } from "@/lib/permissions";
+import { ACCESS_LEVELS, capabilities, levelOf, type Flags } from "@/lib/permissions";
 
-// The access a member has, with the bitmap returned by `resource_permission` on hover
-export function PermissionBadge({ permission }: { permission: string | null }) {
+// The access a member has, with its bitmap on hover
+export function PermissionBadge({ permission }: { permission: Flags | null }) {
   const level = levelOf(permission);
   return (
     <Tooltip>
@@ -11,7 +11,7 @@ export function PermissionBadge({ permission }: { permission: string | null }) {
         {level ? ACCESS_LEVELS[level].label : "No access"}
       </TooltipTrigger>
       <TooltipContent>
-        <div className="font-mono">{permission ?? "null"}</div>
+        <div className="font-mono">{permission?.bitmap ?? "null"}</div>
         <div>{capabilities(permission).join(", ") || "nothing"}</div>
       </TooltipContent>
     </Tooltip>

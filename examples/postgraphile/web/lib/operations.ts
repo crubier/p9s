@@ -4,10 +4,26 @@ import { graphql } from "@/gql";
 // nothing here filters what the member may see, the database does
 
 graphql(`
+  fragment Permission on PermissionFlag {
+    bitmap
+    read
+    create
+    edit
+    delete
+    comment
+    share
+    directory
+    admin
+  }
+`);
+
+graphql(`
   fragment FolderItem on Folder {
     rowId
     name
-    permission
+    permission {
+      ...Permission
+    }
   }
 `);
 
@@ -15,7 +31,9 @@ graphql(`
   fragment DocumentItem on Document {
     rowId
     title
-    permission
+    permission {
+      ...Permission
+    }
     updatedAt
   }
 `);
@@ -26,7 +44,9 @@ graphql(`
     kind
     name
     detail
-    permission
+    permission {
+      ...Permission
+    }
     direct
     fromName
     fromFolderId
@@ -99,7 +119,9 @@ export const OrganizationLayoutQuery = graphql(`
       rowId
       name
       slug
-      permission
+      permission {
+        ...Permission
+      }
       spaces {
         nodes {
           rowId
@@ -159,7 +181,9 @@ export const FolderQuery = graphql(`
       rowId
       name
       resourceId
-      permission
+      permission {
+        ...Permission
+      }
       path {
         nodes {
           rowId
@@ -192,7 +216,9 @@ export const DocumentQuery = graphql(`
       title
       content
       resourceId
-      permission
+      permission {
+        ...Permission
+      }
       updatedAt
       author {
         name
@@ -480,7 +506,9 @@ export const AccessOverviewQuery = graphql(`
           rowId
           name
           email
-          spacePermissions
+          spacePermissions {
+            ...Permission
+          }
         }
       }
     }
@@ -503,7 +531,9 @@ export const AuditQuery = graphql(`
           subjectId
           subjectName
           detail
-          permission
+          granted {
+            ...Permission
+          }
         }
       }
     }

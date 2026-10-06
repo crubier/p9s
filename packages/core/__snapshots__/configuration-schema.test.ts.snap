@@ -906,6 +906,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "orBitmap": {
       "type": "string",
     },
+    "permissionFlags": {
+      "type": "string",
+    },
     "permissionFunction": {
       "type": "string",
     },
@@ -1373,6 +1376,7 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
     "permissionFunction",
+    "permissionFlags",
     "currentAccessView",
     "currentAssignmentView",
     "currentResourceEdgeView",
@@ -1957,6 +1961,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
       "type": "string",
     },
     "permission": {
+      "type": "string",
+    },
+    "permissionFlags": {
       "type": "string",
     },
     "permissionFunction": {
@@ -2637,6 +2644,7 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
     "permissionFunction",
+    "permissionFlags",
     "currentAccessView",
     "currentAssignmentView",
     "currentResourceEdgeView",
@@ -3194,6 +3202,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
           "type": "string",
         },
         "permission": {
+          "type": "string",
+        },
+        "permissionFlags": {
           "type": "string",
         },
         "permissionFunction": {
@@ -3839,6 +3850,15 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "bitmap": {
           "additionalProperties": false,
           "properties": {
+            "names": {
+              "additionalProperties": {
+                "type": "number",
+              },
+              "propertyNames": {
+                "type": "string",
+              },
+              "type": "object",
+            },
             "size": {
               "type": "number",
             },
@@ -4263,6 +4283,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
               "type": "string",
             },
             "permission": {
+              "type": "string",
+            },
+            "permissionFlags": {
               "type": "string",
             },
             "permissionFunction": {
@@ -4908,6 +4931,15 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "bitmap": {
               "additionalProperties": false,
               "properties": {
+                "names": {
+                  "additionalProperties": {
+                    "type": "number",
+                  },
+                  "propertyNames": {
+                    "type": "string",
+                  },
+                  "type": "object",
+                },
                 "size": {
                   "type": "number",
                 },
@@ -5540,6 +5572,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "permission": {
               "type": "string",
             },
+            "permissionFlags": {
+              "type": "string",
+            },
             "permissionFunction": {
               "type": "string",
             },
@@ -6183,6 +6218,15 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "bitmap": {
               "additionalProperties": false,
               "properties": {
+                "names": {
+                  "additionalProperties": {
+                    "type": "number",
+                  },
+                  "propertyNames": {
+                    "type": "string",
+                  },
+                  "type": "object",
+                },
                 "size": {
                   "type": "number",
                 },

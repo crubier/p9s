@@ -26,29 +26,32 @@ export const bitmap = (...capabilities: Capability[]) => {
   return bits.join("");
 };
 
-// What a permission bitmap, as returned by `resource_permission`, allows
-export const can = (permission: string | null | undefined, capability: Capability) => permission?.[BIT[capability]] === "1";
+// A permission field of GraphQL, from `permission_flags` of p9s: a boolean per capability, and the bitmap
+export type Flags = { bitmap?: string | null } & { [capability in Capability]?: boolean | null };
 
-export const capabilities = (permission: string | null | undefined) =>
+export const can = (permission: Flags | null | undefined, capability: Capability) => permission?.[capability] === true;
+
+export const capabilities = (permission: Flags | null | undefined) =>
   (Object.keys(BIT) as Capability[]).filter((capability) => can(permission, capability));
 
-// Every bit of `requested` is in `granted`
-export const includes = (granted: string | null | undefined, requested: string) =>
-  [...requested].every((bit, index) => bit === "0" || granted?.[index] === "1");
+export const includes = (granted: Flags | null | undefined, requested: readonly Capability[]) =>
+  requested.every((capability) => can(granted, capability));
 
-// Access levels offered when sharing a folder or a document
+const level = <const C extends Capability[]>(label: string, ...capabilities: C) => ({ label, capabilities, permission: bitmap(...capabilities) });
+
+// Access levels offered when sharing a folder or a document. Sharing takes the bitmap
 export const ACCESS_LEVELS = {
-  viewer: { label: "Can view", permission: bitmap("read") },
-  commenter: { label: "Can comment", permission: bitmap("read", "comment") },
-  editor: { label: "Can edit", permission: bitmap("read", "create", "edit", "delete", "comment") },
-  manager: { label: "Full access", permission: bitmap("read", "create", "edit", "delete", "comment", "share") },
-} as const;
+  viewer: level("Can view", "read"),
+  commenter: level("Can comment", "read", "comment"),
+  editor: level("Can edit", "read", "create", "edit", "delete", "comment"),
+  manager: level("Full access", "read", "create", "edit", "delete", "comment", "share"),
+};
 
 export type AccessLevel = keyof typeof ACCESS_LEVELS;
 
-// The highest level whose bits are all in `permission`
-export const levelOf = (permission: string | null | undefined): AccessLevel | undefined =>
-  (Object.keys(ACCESS_LEVELS) as AccessLevel[]).reverse().find((level) => includes(permission, ACCESS_LEVELS[level].permission));
+// The highest level whose capabilities are all in `permission`
+export const levelOf = (permission: Flags | null | undefined): AccessLevel | undefined =>
+  (Object.keys(ACCESS_LEVELS) as AccessLevel[]).reverse().find((level) => includes(permission, ACCESS_LEVELS[level].capabilities));
 
 // Assigned on the organization when it is created
 export const EVERYONE_IN_ORGANIZATION = bitmap("directory");

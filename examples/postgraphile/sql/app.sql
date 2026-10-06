@@ -451,11 +451,17 @@ $$;
 -- Who has access to a resource, and where it comes from: the resource itself, a folder above it, or the organization.
 -- Anyone who can read the resource reads the assignments that reach it, through the resource_access view of p9s. A
 -- folder above that the member cannot see has no name
-do $$ begin create type access_entry as (role_id uuid, kind text, name text, detail text, permission text, direct boolean, from_name text, from_folder_id uuid); exception when duplicate_object then null; end $$;
+-- Entries had the bitmap as text before permission_flags: the type and its functions, below, are created again
+do $$ begin
+  if (select format_type(atttypid, atttypmod) from pg_attribute where attrelid = to_regclass('access_entry') and attname = 'permission') = 'text' then
+    drop type access_entry cascade;
+  end if;
+end $$;
+do $$ begin create type access_entry as (role_id uuid, kind text, name text, detail text, permission permission_flags, direct boolean, from_name text, from_folder_id uuid); exception when duplicate_object then null; end $$;
 
 create or replace function resource_access_entries(resource_id uuid, org_id uuid) returns setof access_entry
 language sql stable as $$
-  select a.role_id, p.kind, p.name, p.detail, a.permission::text, a.assigned_resource_id = resource_access_entries.resource_id,
+  select a.role_id, p.kind, p.name, p.detail, permission_flags(a.permission), a.assigned_resource_id = resource_access_entries.resource_id,
     case when a.assigned_resource_id <> resource_access_entries.resource_id then coalesce(f.name, src.name) end,
     case when a.assigned_resource_id <> resource_access_entries.resource_id then f.id end
   from organization o
@@ -480,9 +486,14 @@ $$;
 -- What a member can do in every space, for the access overview, which only admins see. `resource_permission(resource_id,
 -- role_id)` gives the bits of another role to those with the manageAccess bit on the resource, the read bit here: admins
 -- read every space. Ordered like organization_spaces
-create or replace function member_space_permissions(m member) returns text[]
+do $$ begin
+  if (select prorettype from pg_proc where oid = to_regprocedure('member_space_permissions(member)')) = 'text[]'::regtype then
+    drop function member_space_permissions(member);
+  end if;
+end $$;
+create or replace function member_space_permissions(m member) returns permission_flags[]
 language sql stable as $$
-  select coalesce(array_agg(nullif(resource_permission(f.resource_id, m.role_id) & b'11111100', b'00000000')::text order by f.name, f.id), '{}')
+  select coalesce(array_agg(permission_flags(nullif(resource_permission(f.resource_id, m.role_id) & b'11111100', b'00000000')) order by f.name, f.id), '{}')
   from folder f
   where f.org_id = m.org_id and f.parent_id is null
     and bit_on(resource_permission((select o.resource_id from organization o where o.id = m.org_id)), 7)
@@ -512,6 +523,13 @@ language sql stable as $$
     end
   order by e.created_at desc, e.id
 $$;
+
+-- The access a share gave, as flags
+create or replace function audit_event_granted(e audit_event) returns permission_flags
+language sql stable as $$
+  select permission_flags(e.permission::bit(8))
+$$;
+comment on function audit_event_granted(audit_event) is null;
 
 -- Impersonation. An admin views the organization as one of its members, with the member's role id: RLS shows exactly
 -- what the member sees. Viewing is read only, enforced by Postgres. Acting allows changes, which the audit log records
@@ -609,7 +627,7 @@ begin
       'organization_shared_documents', 'organization_search_folders', 'organization_search_documents', 'organization_move_targets',
       'folder_path', 'document_path', 'create_folder', 'move_folder', 'create_document', 'organization_principals', 'share_resource',
       'unshare_resource', 'resource_access_entries', 'folder_access', 'document_access', 'member_space_permissions', 'demo_accounts',
-      'organization_audit_events', 'record_impersonation', 'start_impersonation', 'stop_impersonation', 'my_api_keys', 'api_key_hash',
+      'organization_audit_events', 'audit_event_granted', 'record_impersonation', 'start_impersonation', 'stop_impersonation', 'my_api_keys', 'api_key_hash',
       'create_api_key', 'revoke_api_key'
     )
   loop
@@ -642,6 +660,7 @@ comment on column comment.created_at is '@behavior -insert';
 comment on column comment.resource_parent_id is '@behavior -*';
 comment on table audit_event is '@behavior -insert -update -delete';
 comment on column audit_event.resource_parent_id is '@behavior -*';
+comment on column audit_event.permission is '@behavior -*';
 comment on table "user" is '@behavior -*';
 comment on table session is '@behavior -*';
 comment on table account is '@behavior -*';

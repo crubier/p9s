@@ -92,6 +92,11 @@ query MyOrganizations {
     nodes {
       name
       slug
+      permission {
+        bitmap
+        directory
+        admin
+      }
     }
   }
 }

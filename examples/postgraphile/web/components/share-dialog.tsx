@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { AccessItemFragment } from "@/gql/graphql";
 import { useApi, useAction, useOrganization } from "@/lib/api";
 import { PrincipalsQuery, ShareResource, UnshareResource } from "@/lib/operations";
-import { ACCESS_LEVELS, can, capabilities, includes, levelOf, type AccessLevel } from "@/lib/permissions";
+import { ACCESS_LEVELS, can, capabilities, includes, levelOf, type AccessLevel, type Flags } from "@/lib/permissions";
 import { PermissionBadge } from "./permission-badge";
 
 const ICONS = { everyone: IconWorld, team: IconUsers, member: IconUser };
@@ -25,8 +25,8 @@ interface Principal {
 export interface ShareDialogProps {
   resourceId: string;
   name: string;
-  // The bitmap of the current member on the resource
-  permission: string | null;
+  // What the current member can do on the resource
+  permission: Flags | null;
   access: (AccessItemFragment | null)[];
 }
 
@@ -102,7 +102,7 @@ export function ShareDialog({ resourceId, name, permission, access: entries }: S
   const [level, setLevel] = useState<AccessLevel>("viewer");
   const { pending, run } = useAction();
   const access = entries.flatMap((entry) => (entry?.roleId && entry.permission ? [{ ...entry, roleId: entry.roleId, permission: entry.permission, kind: entry.kind as Kind, level: levelOf(entry.permission) }] : []));
-  const grantable = (Object.keys(ACCESS_LEVELS) as AccessLevel[]).filter((key) => includes(permission, ACCESS_LEVELS[key].permission));
+  const grantable = (Object.keys(ACCESS_LEVELS) as AccessLevel[]).filter((key) => includes(permission, ACCESS_LEVELS[key].capabilities));
   const sharers = [...new Set(access.filter((row) => can(row.permission, "share")).map((row) => row.name))];
   const levelLabels = Object.fromEntries(Object.entries(ACCESS_LEVELS).map(([key, { label }]) => [key, label]));
   const share = (roleId: string, next: AccessLevel, success: string) => run((send) => send(ShareResource, { resourceId, roleId, level: next }), success);
@@ -187,19 +187,19 @@ export function ShareDialog({ resourceId, name, permission, access: entries }: S
                 </div>
                 {editable && row.level ? (
                   levelPicker(row.level, (next) => share(row.roleId, next, "Access changed"), {
-                    disabled: pending || !includes(permission, row.permission),
+                    disabled: pending || !includes(permission, capabilities(row.permission)),
                     ariaLabel: `Access of ${row.name}`,
                     size: "sm",
                   })
                 ) : (
-                  <span className="text-sm">{row.level ? ACCESS_LEVELS[row.level].label : row.permission}</span>
+                  <span className="text-sm">{row.level ? ACCESS_LEVELS[row.level].label : row.permission.bitmap}</span>
                 )}
                 {editable && (
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Remove ${row.name}`}
-                    disabled={pending || !includes(permission, row.permission)}
+                    disabled={pending || !includes(permission, capabilities(row.permission))}
                     onClick={() => run((send) => send(UnshareResource, { resourceId, roleId: row.roleId }), "Access removed")}
                   >
                     <IconTrash />

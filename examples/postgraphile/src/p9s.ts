@@ -19,7 +19,8 @@ export const p9sConfig = {
     combineAssignmentsWith: "role" as const,
     // Only shared resources have the rows of what is below them
     resourceCache: "assigned" as const,
-    permission: { bitmap: { size: BITMAP_SIZE }, maxDepth: { resource: 16, role: 8 } },
+    // Named bits give permission_flags, a boolean per bit, which the permission fields of GraphQL return
+    permission: { bitmap: { size: BITMAP_SIZE, names: BIT }, maxDepth: { resource: 16, role: 8 } },
     // Keys of the node views and of the views of p9s, internal objects hidden from GraphQL, and a permission field on
     // every resource table
     postgraphile: true,

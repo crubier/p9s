@@ -181,6 +181,8 @@ export const derivedNamingConfigSchema = z.object({
   currentRoleNodeFunction: z.string(),
   // The permission bitmap of a role on a resource, for application code
   permissionFunction: z.string(),
+  // With bit names: the type of a bitmap with a boolean per name, and the function that converts one
+  permissionFlags: z.string(),
   // The part of the graph users can see, instead of the graph tables: every way the current user reaches a resource
   // with the bits along it, which the policies check, the resources assigned to the current user, the edges between
   // resources it reaches, and the roles it acts as
@@ -305,6 +307,9 @@ export const engineConfigBaseSchema = z.object({
   permission: z.object({
     bitmap: z.object({
       size: z.number(),
+      // Names of bits, by their position counted from the left: `{ read: 0, edit: 2 }`. With names, the
+      // permission_flags type and function give a bitmap as a boolean per name, and so do the PostGraphile fields
+      names: z.record(z.string(), z.number()).optional(),
     }),
     maxDepth: z.object({
       resource: z.number(),
@@ -337,6 +342,20 @@ export const engineConfigSchema = engineConfigBaseSchema.superRefine((data, ctx)
       path: ["permission", "bitmap", "size"],
     });
   }
+  // Bit names become the attributes of a composite type, next to its bitmap attribute
+  const positions = new Map<number, string>();
+  Object.entries(data.permission.bitmap.names ?? {}).forEach(([name, position]) => {
+    const path = ["permission", "bitmap", "names", name];
+    if (!/^[a-z][a-z0-9_]*$/.test(name) || name === "bitmap") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Bit name "${name}" must be a lowercase identifier other than "bitmap"`, path });
+    }
+    if (!Number.isInteger(position) || position < 0 || position >= data.permission.bitmap.size) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Bit "${name}" must be a position from 0 to ${data.permission.bitmap.size - 1}`, path });
+    } else if (positions.has(position)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Bits "${positions.get(position)}" and "${name}" have the same position ${position}`, path });
+    }
+    positions.set(position, name);
+  });
   // Validate maxDepth values are positive
   if (data.permission.maxDepth.resource < 1) {
     ctx.addIssue({

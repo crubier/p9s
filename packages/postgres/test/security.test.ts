@@ -465,6 +465,52 @@ describe('permission graph privileges', () => {
       const [functions] = await context.runTestQuery(sql`select "proname" from pg_proc where "proname" like '%\_permission' and "proname" <> 'resource_permission'`);
       expect(functions).toEqual([]);
     });
+
+    test('with bit names, permissions are a boolean per name, and the permission fields of PostGraphile too', async () => {
+      await setupBlogTables(context);
+      const base = blogMigrationConfig(context);
+      const named = (names?: Record<string, number>) =>
+        ({ ...base, engine: { ...base.engine, postgraphile: true, permission: { ...base.engine.permission, bitmap: { ...base.engine.permission.bitmap, names } } } });
+      // The fields returned bitmaps before the names, so the migration creates them again
+      await context.exec(createMigration(named()));
+      await context.exec(createMigration(named({ read: 0, write: 1, remove: 3 })));
+      await context.exec(createMigration(named({ read: 0, write: 1, remove: 3 })));
+      await context.exec(sql`select setval('resource_id_seq', 1000000); select setval('role_id_seq', 1000000);`);
+      await seedGraph(context);
+      const user = context.database_user_username;
+      await context.exec(sql`grant select on "resource_group" to ${identifier(user)}`);
+      expect(await as(context, user, sql`select ("permission_flags"(b'1010')).*`)).toEqual([{ bitmap: "1010", read: true, write: false, remove: false }]);
+      expect(await as(context, user, sql`select "permission_flags"(null) is null as "none"`)).toEqual([{ none: true }]);
+      expect(await as(context, user, sql`select ("blog_post_permission"("p")).* from "blog_post" "p"`, raw("1")))
+        .toEqual([{ bitmap: "1111", read: true, write: true, remove: true }]);
+      if (await version() >= 150000) {
+        expect(await as(context, user, sql`select ("resource_node_permission"("n")).read from "resource_node" "n"`, raw("1"))).toEqual([{ read: true }]);
+      }
+      // The views users read have the flags as a field, in place of their bitmap column
+      expect(await as(context, user, sql`
+        select count(*) > 0 as "some", bool_and(("current_resource_access_permission"("a")).bitmap = "a"."permission") as "same"
+        from "current_resource_access" "a"`, raw("1"))).toEqual([{ some: true, same: true }]);
+      const viewColumnComment = sql`select col_description('resource_access'::regclass, (select "attnum" from pg_attribute where "attrelid" = 'resource_access'::regclass and "attname" = 'permission')) as "c"`;
+      expect((await context.runTestQuery(viewColumnComment))[0][0].c).toBe("@behavior -*");
+      // GraphQL has the type, from the fields, and not the conversion
+      const [[conversion]] = await context.runTestQuery(sql`select obj_description('permission_flags(bit)'::regprocedure, 'pg_proc') as "c"`);
+      expect(conversion.c).toBe("@behavior -*");
+
+      // Other names make another type
+      await context.exec(createMigration(named({ read: 0, share: 2 })));
+      expect(await as(context, user, sql`select ("blog_post_permission"("p")).* from "blog_post" "p"`, raw("1")))
+        .toEqual([{ bitmap: "1111", read: true, share: true }]);
+      // A column of the type is the application's: the migration does not drop it
+      await context.exec(sql`create table "saved_flags" ("flags" "permission_flags")`);
+      await expect(context.exec(createMigration(named({ read: 0 })))).rejects.toThrow();
+      await context.exec(sql`drop table "saved_flags"`);
+      // Without names, bitmaps again
+      await context.exec(createMigration(named()));
+      expect(await as(context, user, sql`select "blog_post_permission"("p") as "permission" from "blog_post" "p"`, raw("1"))).toEqual([{ permission: "1111" }]);
+      const [[type]] = await context.runTestQuery(sql`select to_regtype('permission_flags') as "t", to_regproc('resource_access_permission') as "f"`);
+      expect(type).toEqual({ t: null, f: null });
+      expect((await context.runTestQuery(viewColumnComment))[0][0].c).toBeNull();
+    });
   });
 
   describe('delegated sharing', () => {

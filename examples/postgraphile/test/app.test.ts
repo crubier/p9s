@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { AddressInfo } from "node:net";
 import { Client } from "pg";
-import { ACCESS_LEVELS, CONTENT_BITS, levelOf } from "../lib/permissions";
+import { ACCESS_LEVELS, BIT, CONTENT_BITS, capabilities, levelOf, type Flags } from "../lib/permissions";
 import type { Identity } from "../src/identity";
 import { MOCK_PASSWORD, mockEmail, mockMember, mockOrganizations } from "../src/mock/people";
 
@@ -54,8 +54,10 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     await admin(`drop database if exists ${databaseName} with (force)`);
   });
 
+  // The permission fields have a boolean per bit, and the bitmap
+  const FLAGS = "{ bitmap read create edit delete comment share directory admin }";
   // What a permission allows on the content: everyone also has the directory bit, from the organization
-  const content = (permission: string) => [...permission].map((bit, i) => (bit === "1" && CONTENT_BITS[i] === "1" ? "1" : "0")).join("");
+  const content = (permission: Flags | null) => capabilities(permission).filter((capability) => CONTENT_BITS[BIT[capability]] === "1");
   const ask = <T = any,>(as: Identity, source: string, variables?: Record<string, unknown>) => gql.graphql<T>(as, source, variables);
   // The message of the error a request fails with
   const refused = (request: Promise<unknown>) =>
@@ -67,8 +69,8 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
   const slug = () => seeded.org.slug;
 
   const spaces = async (as: Identity) =>
-    (await ask(as, `query ($slug: String!) { organizationBySlug(slug: $slug) { spaces { nodes { rowId resourceId name permission } } } }`, { slug: slug() }))
-      .organizationBySlug.spaces.nodes as { rowId: string; resourceId: string; name: string; permission: string }[];
+    (await ask(as, `query ($slug: String!) { organizationBySlug(slug: $slug) { spaces { nodes { rowId resourceId name permission ${FLAGS} } } } }`, { slug: slug() }))
+      .organizationBySlug.spaces.nodes as { rowId: string; resourceId: string; name: string; permission: Flags }[];
   const shared = async (as: Identity) => {
     const { organizationBySlug } = await ask(as, `query ($slug: String!) { organizationBySlug(slug: $slug) {
       sharedFolders { nodes { name } } sharedDocuments { nodes { title } } } }`, { slug: slug() });
@@ -104,10 +106,10 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     });
   const auditEvents = async (as: Identity, filter: { category?: string; memberId?: string } = {}) =>
     (await ask(as, `query ($slug: String!, $category: String, $memberId: UUID) { organizationBySlug(slug: $slug) {
-      auditEvents(category: $category, memberId: $memberId) { nodes { actorName impersonatorName apiKeyName action subjectKind subjectId subjectName detail permission } } } }`, {
+      auditEvents(category: $category, memberId: $memberId) { nodes { actorName impersonatorName apiKeyName action subjectKind subjectId subjectName detail granted ${FLAGS} } } } }`, {
       slug: slug(),
       ...filter,
-    })).organizationBySlug.auditEvents.nodes as Record<string, string | null>[];
+    })).organizationBySlug.auditEvents.nodes as Record<string, unknown>[];
 
   test("each person sees the spaces assigned to them, their teams, or everyone", async () => {
     const { alice, bob, carol, dave, erin } = people;
@@ -135,7 +137,7 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     const { bob, carol } = people;
     const hiring = await documentTitled("Engineering hiring plan");
     // Bob can comment on the hiring plan, not edit it
-    expect(content((await ask(bob, `query ($id: UUID!) { documentByRowId(rowId: $id) { permission } }`, { id: hiring.rowId })).documentByRowId.permission)).toBe("10001000");
+    expect(content((await ask(bob, `query ($id: UUID!) { documentByRowId(rowId: $id) { permission ${FLAGS} } }`, { id: hiring.rowId })).documentByRowId.permission)).toEqual(ACCESS_LEVELS.commenter.capabilities);
     await ask(bob, `mutation ($id: UUID!) { createComment(input: { comment: { documentId: $id, body: "One more thing" } }) { comment { rowId } } }`, { id: hiring.rowId });
     expect(
       await refused(ask(bob, `mutation ($id: UUID!) { updateDocumentByRowId(input: { rowId: $id, documentPatch: { content: "Hire Bob's friends" } }) { document { rowId } } }`, { id: hiring.rowId })),
@@ -145,7 +147,7 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     expect(await refused(createDocument(carol, rfcs.rowId, "Carol's RFC"))).toBe("You don't have permission to do that.");
     // Bob writes in Engineering
     const created = await createDocument(bob, rfcs.rowId, "RFC 13: Soft delete");
-    expect(content((await ask(bob, `query ($id: UUID!) { documentByRowId(rowId: $id) { permission } }`, { id: created })).documentByRowId.permission)).toBe(ACCESS_LEVELS.editor.permission);
+    expect(content((await ask(bob, `query ($id: UUID!) { documentByRowId(rowId: $id) { permission ${FLAGS} } }`, { id: created })).documentByRowId.permission)).toEqual(ACCESS_LEVELS.editor.capabilities);
   });
 
   test("only admins create spaces, invite members and manage teams", async () => {
@@ -200,8 +202,8 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     // Who has access, direct first, then from above. Everyone at Acme only has the directory bit there, so it is not
     // listed, and RLS hides the name of the Engineering space from Erin
     const access = async (as: Identity) =>
-      (await ask(as, `query ($id: UUID!) { folderByRowId(rowId: $id) { access { nodes { name permission direct fromName fromFolderId } } } }`, { id: runbooks.rowId }))
-        .folderByRowId.access.nodes as { name: string; permission: string; direct: boolean; fromName: string | null; fromFolderId: string | null }[];
+      (await ask(as, `query ($id: UUID!) { folderByRowId(rowId: $id) { access { nodes { name permission ${FLAGS} direct fromName fromFolderId } } } }`, { id: runbooks.rowId }))
+        .folderByRowId.access.nodes as { name: string; permission: Flags; direct: boolean; fromName: string | null; fromFolderId: string | null }[];
     expect((await access(erin)).map((row) => [row.name, levelOf(row.permission), row.direct ? "direct" : row.fromName])).toEqual([
       ["Dave Sales", "commenter", "direct"],
       ["Erin Contractor", "manager", "direct"],
@@ -215,7 +217,7 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
 
     // Sharing again changes the access given, down as well as up
     await share(erin, runbooks.resourceId, daveMember.roleId, "viewer");
-    expect(content((await access(erin)).find((row) => row.name === "Dave Sales")!.permission)).toBe(ACCESS_LEVELS.viewer.permission);
+    expect(content((await access(erin)).find((row) => row.name === "Dave Sales")!.permission)).toEqual(ACCESS_LEVELS.viewer.capabilities);
     const unshare = (as: Identity, resourceId: string, roleId: string) =>
       ask(as, `mutation ($resourceId: UUID!, $roleId: UUID!) { unshareResource(input: { resourceId: $resourceId, roleId: $roleId }) { result } }`, { resourceId, roleId });
     expect(await refused(unshare(erin, engineering.resourceId, (await team("Engineering")).roleId))).toBe("You cannot change who has access to this.");
@@ -284,16 +286,16 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     const { alice, bob } = people;
     const matrix = async (as: Identity) => {
       const { organizationBySlug } = await ask(as, `query ($slug: String!) { organizationBySlug(slug: $slug) {
-        spaces { nodes { name } } members(query: "") { nodes { name spacePermissions } } } }`, { slug: slug() });
+        spaces { nodes { name } } members(query: "") { nodes { name spacePermissions ${FLAGS} } } } }`, { slug: slug() });
       const names = organizationBySlug.spaces.nodes.map((row: { name: string }) => row.name);
       return (person: string, space: string) =>
         organizationBySlug.members.nodes.find((row: { name: string }) => row.name === person)!.spacePermissions?.[names.indexOf(space)] ?? null;
     };
     const cell = await matrix(alice);
-    expect(cell("Bob Builder", "Engineering")).toBe("11111000");
-    expect(cell("Bob Builder", "Design")).toBe("10000000");
+    expect(capabilities(cell("Bob Builder", "Engineering"))).toEqual(ACCESS_LEVELS.editor.capabilities);
+    expect(cell("Bob Builder", "Design")).toMatchObject({ bitmap: "10000000", read: true, comment: false });
     expect(cell("Dave Sales", "Leadership")).toBeNull();
-    expect(cell("Alice Admin", "Leadership")).toBe("11111100");
+    expect(capabilities(cell("Alice Admin", "Leadership"))).toEqual(ACCESS_LEVELS.manager.capabilities);
     expect((await matrix(bob))("Alice Admin", "General")).toBeNull();
   });
 
@@ -337,7 +339,7 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     const { alice, bob, carol } = people;
     const sharing = await auditEvents(alice, { category: "sharing" });
     const erinOnRunbooks = sharing.filter((event) => event.subjectName === "Runbooks" && event.detail === "Erin Contractor").reverse();
-    expect(erinOnRunbooks[0]).toMatchObject({ actorName: "Alice Admin", action: "shared", subjectKind: "folder", permission: ACCESS_LEVELS.editor.permission });
+    expect(erinOnRunbooks[0]).toMatchObject({ actorName: "Alice Admin", action: "shared", subjectKind: "folder", granted: { bitmap: ACCESS_LEVELS.editor.permission, edit: true, share: false } });
     expect(erinOnRunbooks.slice(1).map((event) => event.action)).toContain("changed access to");
     const peopleEvents = await auditEvents(alice, { category: "people" });
     expect(peopleEvents.find((event) => event.action === "added to" && event.subjectName === "Design")).toMatchObject({ detail: "Carol Designer" });
@@ -385,13 +387,13 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
     const [globex] = mockOrganizations(MOCK_USERS);
     const member = (n: number) => identity.memberIdentity(`mock-${String(n).padStart(4, "0")}`, "globex");
     const spacesOf = async (as: Identity) =>
-      (await ask(as, `{ organizationBySlug(slug: "globex") { spaces { nodes { name permission } } } }`)).organizationBySlug.spaces.nodes as { name: string; permission: string }[];
+      (await ask(as, `{ organizationBySlug(slug: "globex") { spaces { nodes { name permission ${FLAGS} } } } }`)).organizationBySlug.spaces.nodes as { name: string; permission: Flags }[];
     // user0013 is the 12th member of Globex: in Design, whose team can also view Product
     expect(mockMember(globex!, 13)).toMatchObject({ department: "Design", admin: false, lead: false, guest: false });
     const designer = await member(13);
     const designerSpaces = await spacesOf(designer);
-    expect(content(designerSpaces.find((space) => space.name === "Design")!.permission)).toBe(ACCESS_LEVELS.editor.permission);
-    expect(content(designerSpaces.find((space) => space.name === "Product")!.permission)).toBe(ACCESS_LEVELS.viewer.permission);
+    expect(content(designerSpaces.find((space) => space.name === "Design")!.permission)).toEqual(ACCESS_LEVELS.editor.capabilities);
+    expect(content(designerSpaces.find((space) => space.name === "Product")!.permission)).toEqual(ACCESS_LEVELS.viewer.capabilities);
     expect(designerSpaces.map((space) => space.name)).not.toContain("Leadership");
     // user0025 is a guest: only what everyone sees and what was shared with them
     const guest = await spacesOf(await member(25));

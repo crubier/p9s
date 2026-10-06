@@ -29,22 +29,22 @@ GraphiQL, on `/graphiql`, sends the session cookie of the app: it asks as whoeve
 
 ```graphql
 {
-  currentMember { name permission }
+  currentMember { name permission { directory admin } }
   organizationBySlug(slug: "acme") {
-    spaces { nodes { name permission } }
-    sharedDocuments { nodes { title permission } }
+    spaces { nodes { name permission { read edit share } } }
+    sharedDocuments { nodes { title permission { bitmap read comment } } }
     searchDocuments(query: "plan") { totalCount nodes { title path { nodes { name } } } }
   }
 }
 ```
 
-`permission` is the bitmap of `resource_permission` for the member on each row, see the [permission bits](../nextjs-drizzle/README.md#permission-bits). Who has access to a folder, and where it was given, for whoever can read it:
+`permission` is what the member can do on each row, from `resource_permission`: a boolean per [permission bit](../nextjs-drizzle/README.md#permission-bits), and the `bitmap`. The bits are named in [`src/p9s.ts`](./src/p9s.ts), and p9s makes the fields. Who has access to a folder, and where it was given, for whoever can read it:
 
 ```graphql
 query ($id: UUID!) {
   folderByRowId(rowId: $id) {
     name
-    access { nodes { name kind permission direct fromName } }
+    access { nodes { name kind permission { bitmap edit share } direct fromName } }
   }
 }
 ```

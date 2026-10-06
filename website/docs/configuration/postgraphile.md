@@ -34,6 +34,22 @@ const config = {
 
 - **A `permission` field on each resource table.** PostGraphile skips functions with overloads, and `resource_permission` has two, so the migration adds `<table>_permission(row)` for each resource table, and `resource_node_permission(node)`. PostGraphile serves each as a `permission` field of its type, with the bits of the current user on the row: `allFolders { nodes { name permission } }`. A table with a `permission` column of its own clashes with that field.
 
+- **A boolean per bit, with bit names.** Name the bits in `engine.permission.bitmap.names`, and the `permission` fields return their names rather than a bitmap:
+
+  ```ts
+  permission: { bitmap: { size: 8, names: { read: 0, create: 1, edit: 2, delete: 3, comment: 4, share: 5, directory: 6, admin: 7 } } },
+  ```
+
+  ```graphql
+  {
+    allFolders {
+      nodes { name permission { bitmap read edit share } }
+    }
+  }
+  ```
+
+  The migration creates the composite type `permission_flags`, with the `bitmap` and a boolean per name, and `permission_flags(bit)`, which converts a bitmap, for SQL: `select (permission_flags(resource_permission(id))).edit`. The views of p9s get the same field, in place of their `permission` column. Positions count from the left, as everywhere in p9s. The type changes with the names: the migration drops and creates it again with the functions of p9s that return it, and stops if a table, a view or a function of the application uses it. Without names, the fields return the bitmap.
+
 - **The internal objects hidden.** Edge tables, caches, the views of each bit, triggers and helper functions get `@behavior -*`: the API has none of them. Edges and assignments are written by graph writers, not through the API, except through `resource_share` and `resource_unshare`, which stay: users with the `share` bit call them as `resourceShare` and `resourceUnshare` mutations, see [sharing](./security-model#sharing). [Searches](./overview#searches) stay too, as query fields like `documentSearch(theValue)`, while their functions for each user role are hidden. They search everything the user reads: an app with organizations can hide them too, and search one organization through a function of its own, as the example does with `searchDocuments`.
 
 ## What it needs

@@ -3,13 +3,14 @@ import { createContext, useContext, useState } from "react";
 import { toast } from "sonner";
 import type { TypedDocumentString } from "@/gql/graphql";
 import { request, type RequestOptions } from "./graphql";
+import type { Flags } from "./permissions";
 
 // The organization of the page, from the URL, with what the layout read about it
 export interface Organization {
   rowId: string;
   name: string;
   slug: string;
-  permission: string | null;
+  permission: Flags | null;
   // The member requests act as: the signed-in user, or the member an admin impersonates
   member: { rowId: string; name: string };
   impersonation: { adminName: string; readOnly: boolean } | null;

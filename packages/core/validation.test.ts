@@ -102,6 +102,23 @@ describe("Configuration Validation", () => {
       }
     });
 
+    const withNames = (names: Record<string, number>) => validateCompleteConfig({
+      ...validCompleteConfig,
+      engine: { ...validCompleteConfig.engine, permission: { ...validCompleteConfig.engine.permission, bitmap: { size: 8, names } } },
+    });
+
+    test("[valid] config with bit names", () => {
+      expect(withNames({ read: 0, edit: 2, share_with_others: 7 }).success).toBe(true);
+    });
+
+    test("[invalid] bit names outside the bitmap, shared positions, or that are not identifiers", () => {
+      for (const names of <Record<string, number>[]>[{ read: 8 }, { read: -1 }, { read: 0.5 }, { read: 0, view: 0 }, { Read: 0 }, { "can read": 0 }, { bitmap: 0 }]) {
+        const result = withNames(names);
+        expect(result.success).toBe(false);
+        if (!result.success) expect(getValidationErrors(result).join("\n")).toContain("permission.bitmap.names");
+      }
+    });
+
     test("[invalid] config with bitmap size too large", () => {
       const result = validateCompleteConfig({
         ...validCompleteConfig,

@@ -189,12 +189,14 @@ create trigger audit_trigger after insert or update or delete on assignment_edge
 drop trigger if exists audit_trigger on role_edge;
 create trigger audit_trigger after insert or delete on role_edge for each row execute function audit_role_edge_trigger();
 
--- Only triggers and the functions of sql/app.sql write the log, and GraphQL serves none of these
+-- Only triggers and the functions of sql/app.sql write the log, and GraphQL serves none of these, except the granted
+-- field of events
 do $$
 declare
   the_function regprocedure;
 begin
-  for the_function in select p.oid::regprocedure from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname like 'audit\_%' loop
+  for the_function in select p.oid::regprocedure from pg_proc p
+    where p.pronamespace = 'public'::regnamespace and p.proname like 'audit\_%' and p.proname <> 'audit_event_granted' loop
     execute format('revoke execute on function %s from public', the_function);
     execute format('comment on function %s is %L', the_function, '@behavior -*');
   end loop;

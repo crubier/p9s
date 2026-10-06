@@ -45,6 +45,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   ${createMigrationDataModelPolicies(naming, completeConfig)}
 
+  ${createMigrationPermissionFlags(naming, completeConfig)}
+
   ${createMigrationSharing(naming, completeConfig)}
 
   ${createMigrationSoftDelete(naming, completeConfig)}
@@ -2601,6 +2603,88 @@ ${usesAnySoftDelete(naming, config) ? sql`` : unused(assignment.edgeDeleted, ass
 `;
 };
 
+// The bit names of the config, in the order of their positions
+const bitNames = (config: CompleteConfig<any>) =>
+  Object.entries(config.engine.permission.bitmap.names ?? {}).sort(([, a], [, b]) => a - b);
+
+// The functions of p9s that return the permission flags: the conversion, and the permission fields of PostGraphile
+const permissionFlagsFunctions = (naming: Naming<any>, config: CompleteConfig<any>) => [
+  nameOf(naming.permissionFlags),
+  ...getBindings("resource", naming, config).map(binding => `${binding.tableName}_permission`),
+  `${nameOf(naming.resource.node)}_permission`,
+  ...viewPermissionColumns(naming).map(([view]) => `${nameOf(view)}_permission`),
+];
+
+// The views users read, with their bitmap column
+const viewPermissionColumns = (naming: Naming<any>): [SQL, SQL][] => [
+  [naming.currentAccessView, naming.assignment.permission],
+  [naming.currentAssignmentView, naming.assignment.permission],
+  [naming.currentResourceEdgeView, naming.resource.permission],
+  [naming.currentRoleView, naming.role.permission],
+  [naming.accessView, naming.assignment.permission],
+  [naming.roleAccessView, naming.assignment.permission],
+  [naming.currentDeletedView, naming.assignment.permission],
+];
+
+// With bit names, a type with the bitmap and a boolean per name, and the function that converts a bitmap to it. It is
+// created again when the names or the size change, after the functions of p9s that return it; objects of the
+// application that use it, like a column of that type, stop the migration
+export const createMigrationPermissionFlags = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { everyone } = getRoles(config);
+  const size = config.engine.permission.bitmap.size;
+  const flags = naming.permissionFlags;
+  const names = bitNames(config);
+  const typeName = textLiteral(compile(flags).text);
+  const dropDependents = sql`
+    for "the_function" in select "oid"::regprocedure from pg_proc
+      where "prorettype" = to_regtype(${typeName}) and "proname" = any (${roleArray(permissionFlagsFunctions(naming, config))}) loop
+      execute format('drop function %s', "the_function");
+    end loop;
+    drop type ${flags};`;
+  if (names.length === 0) return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Permission flags
+-----------------------------------------------------------------------------------------------------------------------
+do $$
+declare
+  "the_function" regprocedure;
+begin
+  if to_regtype(${typeName}) is not null then${dropDependents}
+  end if;
+end
+$$;
+`;
+  const attributes = [`bitmap bit(${size})`, ...names.map(([name]) => `${name} boolean`)];
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Permission flags
+-----------------------------------------------------------------------------------------------------------------------
+do $$
+declare
+  "the_function" regprocedure;
+begin
+  if to_regtype(${typeName}) is not null and (
+    select array_agg("attname"::text || ' ' || format_type("atttypid", "atttypmod") order by "attnum") from pg_attribute
+    where "attrelid" = (select "typrelid" from pg_type where "oid" = to_regtype(${typeName})) and "attnum" > 0 and not "attisdropped"
+  ) is distinct from ${roleArray(attributes)} then${dropDependents}
+  end if;
+  if to_regtype(${typeName}) is null then
+    create type ${flags} as ("bitmap" bit(${literal(size)}), ${join(names.map(([name]) => sql`${identifier(name)} boolean`), ", ")});
+  end if;
+end
+$$;
+
+-- A bitmap with a boolean per bit name: permission_flags(resource_permission(resource_id))
+create or replace function ${flags} ("the_bitmap" bit(${literal(size)}))
+  returns ${flags}
+  as $$
+  select "the_bitmap", ${join(names.map(([name, position]) => sql`get_bit("the_bitmap", ${literal(position)}) = 1 as ${identifier(name)}`), ", ")}
+$$ language sql immutable strict parallel safe;
+
+${grantExecute(sql`${flags} (bit)`, everyone)}
+`;
+};
+
 // The views of p9s are for reading
 const readOnly = "@behavior -insert -update -delete";
 
@@ -2658,21 +2742,36 @@ union all
     // The lookups of the parents after the first, named after their column
     ...(["resource", "role"] as const).flatMap(kind => getBindings(kind, naming, config).flatMap(binding => binding.parents.map(parent => nameOf(parent.function)))),
     nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction), nameOf(naming.deletedPermissionFunction),
+    // The conversion of bitmaps, for SQL: the API has its result in the permission fields
+    nameOf(naming.permissionFlags),
     ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
     ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
     ...config.engine.users.map(user => `${nameOf(naming.restoreFunction)}_${user}`),
     ...config.tables.flatMap(table => Object.keys(table.search ?? {}).flatMap(key => config.engine.users.map(user => `${table.name}_${key}_${user}`))),
   ])].filter(name => !visible.has(name));
   // PostGraphile skips overloaded functions, like resource_permission: it reads the permissions of the current user on
-  // each row through these, as a permission field of each resource type
+  // each row through these, as a permission field of each resource type. With bit names, the field has a boolean per
+  // name, and the bitmap
   const size = config.engine.permission.bitmap.size;
+  const withFlags = bitNames(config).length > 0;
+  const returned = withFlags ? naming.permissionFlags : sql`bit(${literal(size)})`;
+  const permissionOf = (id: SQL) => withFlags ? sql`${naming.permissionFlags}(${naming.permissionFunction}(${id}))` : sql`${naming.permissionFunction}(${id})`;
+  // A function cannot change its return type, as when bit names are added or removed
+  const dropIfReturnsOther = (field: SQL, argument: SQL) => sql`
+do $$
+begin
+  if exists (select from pg_proc where "oid" = to_regprocedure(${textLiteral(`${compile(field).text}(${compile(argument).text})`)}) and "prorettype" <> ${textLiteral(withFlags ? compile(naming.permissionFlags).text : "bit")}::regtype) then
+    drop function ${field} (${argument});
+  end if;
+end
+$$;`;
   const permissionFields = getBindings("resource", naming, config).map(binding => {
     const field = identifier(`${binding.tableName}_permission`);
-    return smartComments ? sql`
+    return smartComments ? sql`${dropIfReturnsOther(field, binding.table)}
 create or replace function ${field} ("the_row" ${binding.table})
-  returns bit(${literal(size)})
+  returns ${returned}
   as $$
-  select ${naming.permissionFunction}("the_row".${binding.id})
+  select ${permissionOf(sql`"the_row".${binding.id}`)}
 $$ language sql stable set search_path = ${naming.schema}, pg_temp;
 
 ${grantExecute(sql`${field} (${binding.table})`, everyone)}
@@ -2682,10 +2781,33 @@ drop function if exists ${field} (${binding.table});`;
   const nodePermissionField = identifier(`${nameOf(nodeView("resource"))}_permission`);
   const nodePermission = compile(sql`
 create or replace function ${nodePermissionField} ("the_row" ${nodeView("resource")})
-  returns bit(${literal(size)})
+  returns ${returned}
   as $p9s$
-  select ${naming.permissionFunction}("the_row"."id")
+  select ${permissionOf(sql`"the_row"."id"`)}
 $p9s$ language sql stable set search_path = ${naming.schema}, pg_temp`).text;
+  const nodePermissionSignature = textLiteral(`${compile(nodePermissionField).text}(${compile(nodeView("resource")).text})`);
+  // With bit names, the bitmap columns of the views users read are hidden, for a permission field with the flags
+  const viewPermissions = viewPermissionColumns(naming).map(([view, column]) => {
+    const field = identifier(`${nameOf(view)}_permission`);
+    const signature = textLiteral(`${compile(field).text}(${compile(view).text})`);
+    const create = compile(sql`
+create or replace function ${field} ("the_row" ${view})
+  returns ${naming.permissionFlags}
+  as $p9s$
+  select ${naming.permissionFlags}("the_row".${column})
+$p9s$ language sql stable set search_path = ${naming.schema}, pg_temp`).text;
+    return sql`
+  if to_regclass(${textLiteral(compile(view).text)}) is not null then${smartComments && withFlags ? sql`
+    execute ${textLiteral(create)};
+    revoke execute on function ${field} (${view}) from public;${join(everyone.map(role => sql`
+    grant execute on function ${field} (${view}) to ${identifier(role)};`), ``)}
+    comment on column ${view}.${column} is '@behavior -*';` : sql`
+    if to_regprocedure(${signature}) is not null then
+      execute ${textLiteral(`drop function ${compile(field).text} (${compile(view).text})`)};
+    end if;${smartComments ? sql`
+    comment on column ${view}.${column} is null;` : sql``}`}
+  end if;`;
+  });
 
   const comments = smartComments ? sql`
 -- Smart comments for PostGraphile. Internal objects are hidden from the GraphQL schema, whatever their privileges
@@ -2725,13 +2847,16 @@ do $$
 begin
   if current_setting('server_version_num')::int >= 150000 then${join(views, ``)}${smartComments ? sql`${join(viewKeys.map(([view, keys]) => sql`
     perform pg_temp.p9s_comment_relation(${textLiteral(compile(view).text)}, ${textLiteral(keys.join("\n"))});`), ``)}${getBindings("resource", naming, config).length > 0 ? sql`
+    if exists (select from pg_proc where "oid" = to_regprocedure(${nodePermissionSignature}) and "prorettype" <> ${textLiteral(withFlags ? compile(naming.permissionFlags).text : "bit")}::regtype) then
+      execute ${textLiteral(`drop function ${compile(nodePermissionField).text} (${compile(nodeView("resource")).text})`)};
+    end if;
     execute ${textLiteral(nodePermission)};
     revoke execute on function ${nodePermissionField} (${nodeView("resource")}) from public;${join(everyone.map(role => sql`
     grant execute on function ${nodePermissionField} (${nodeView("resource")}) to ${identifier(role)};`), ``)}` : sql``}` : sql`
     if to_regclass(${textLiteral(compile(nodeView("resource")).text)}) is not null then
       drop function if exists ${nodePermissionField} (${nodeView("resource")});
     end if;`}
-  end if;
+  end if;${join(viewPermissions, ``)}
 end
 $$;
 `;

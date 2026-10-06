@@ -185,7 +185,7 @@ function Subject({ slug, event }: { slug: string; event: AuditRow }) {
 // "renamed document Budget plan (was Draft)", "shared folder Runbooks with Erin: Can edit"
 function Description({ slug, event }: { slug: string; event: AuditRow }) {
   const kind = KINDS[event.subjectKind] ?? event.subjectKind;
-  const level = levelOf(event.permission);
+  const level = levelOf(event.granted);
   const subject = <Subject slug={slug} event={event} />;
   switch (event.action) {
     case "commented":
@@ -213,7 +213,7 @@ function Description({ slug, event }: { slug: string; event: AuditRow }) {
       return (
         <>
           {event.action === "shared" ? "shared" : "changed access to"} {kind} {subject} {event.action === "shared" ? "with" : "for"}{" "}
-          <span className="font-medium">{event.detail}</span>: {level ? ACCESS_LEVELS[level].label : event.permission}
+          <span className="font-medium">{event.detail}</span>: {level ? ACCESS_LEVELS[level].label : event.granted?.bitmap}
         </>
       );
     case "removed access to":

@@ -82,6 +82,7 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `users`                           | `string[]`                       | Roles that query business tables through RLS                             |
 | `graphWriters`                    | `string[]`                       | Roles allowed to modify edges and assignments (default: none)            |
 | `permission.bitmap.size`          | `number`                         | Size of permission bitmap (4-1024)                                       |
+| `permission.bitmap.names`         | `Record<string, number>`         | Names of bit positions: `permission_flags(bit)` gives a boolean per name, and the PostGraphile `permission` fields too, see [PostGraphile](./postgraphile.md) (default: none) |
 | `permission.maxDepth.resource`    | `number`                         | Most edges on a path of the resource tree (1-128), longer paths are rejected |
 | `permission.maxDepth.role`        | `number`                         | Most edges on a path of the role tree (1-128), longer paths are rejected |
 | `naming.triggerPrefix`            | `string`                         | Put before the names of p9s triggers, to order them with yours (default: none) |
