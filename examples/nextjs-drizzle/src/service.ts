@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { ACCESS_LEVELS, ADMINS, BIT, CONTENT_BITS, EVERYONE_IN_ORGANIZATION, can, includes, levelOf, type AccessLevel } from "../lib/permissions";
-import { ForbiddenError, NotFoundError, asRole, db, readGraph, rows, switchToGraphWriter, type Identity, type Tx } from "./db";
+import { ForbiddenError, NotFoundError, asRole, db, pageRows, readGraph, rows, switchToGraphWriter, type Identity, type Tx } from "./db";
 import { apiKey, auditEvent, comment, document, folder, member, organization, team, user } from "./schema";
 
 // Everything a request does in an organization, it does as an actor: a member, or an API key of a member.
@@ -337,7 +337,7 @@ export const listDocuments = (actor: Actor, { limit = 50, after }: { limit?: num
   asRole(actor, (tx) => {
     const [updatedAt, id] = after ? after.split("|") : [];
     const start = updatedAt && id ? sql`and (d.updated_at, d.id) < (${updatedAt}::timestamp, ${id}::uuid)` : sql``;
-    return rows<DocumentRow & { cursor: string }>(tx, sql`
+    return pageRows<DocumentRow & { cursor: string }>(tx, sql`
       select ${documentColumns}, d.updated_at::text || '|' || d.id as cursor
       from document d where d.org_id = ${actor.org.id} ${start}
       order by d.updated_at desc, d.id desc limit ${limit}`);

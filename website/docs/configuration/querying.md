@@ -76,7 +76,32 @@ order by updated_at desc, id desc
 limit 50;
 ```
 
-That page took 0.07 to 0.16 s. Postgres expects the index to return every row of the table, not the 50 the limit keeps, so it still lists what the user can read once, about 35 ms for 110,000 readable resources: a first page costs about that much whatever its size.
+That page took 0.07 to 0.16 s. Postgres expects the index to return every row of the table, not the 50 the limit keeps, so it still lists what the user can read once: a first page costs about what the user can read, whatever its size.
+
+### First pages
+
+Postgres does not let a query choose how a policy runs, so the select policies of p9s read a setting. With `p9s.check_rows` on, they check the ancestors of each row the scan returns, and never list:
+
+```sql
+begin;
+select set_config('p9s.check_rows', 'on', true);
+select id, title, updated_at from document order by updated_at desc, id desc limit 50;
+commit;
+```
+
+Checking costs 5 to 10 µs for each row the scan walks, listing about 1 µs for each resource the user can read. A page walks rows until it has enough readable ones, about its size divided by the share of the rows the user can read. So turn the setting on for statements that stop early, like a page under a `limit`, when the user can read much of what the scan walks, and leave it off for those that read every row, like a count:
+
+| Postgres 18                                                   | Off    | `p9s.check_rows` on |
+| ------------------------------------------------------------- | ------ | ------------------- |
+| First page of 50, for a user who reads 100,000 posts of 100,000 | 12 ms  | 0.3 ms              |
+| Count of those posts                                          | 23 ms  | 170 ms              |
+| First page of 50, for a user who reads 200 posts of 5,600 (benchmarks) | 2.6 ms | 33 ms      |
+
+An application rarely knows the share of rows a user can read beforehand. Since a check only costs time while it goes, a short `statement_timeout` bounds it: in a savepoint, run the page with the setting on and a timeout of a few milliseconds, and if Postgres cancels it, roll back to the savepoint and run it again with the setting off. A user who reads few rows then pays the timeout on top of a listing that is cheap for them. Rolling back to the savepoint also restores both settings, which a read does not need to keep. The [example app](https://github.com/crubier/p9s/blob/main/examples/nextjs-drizzle/src/db.ts) does this in `pageRows`.
+
+The setting changes how a policy checks rows, not which rows it lets through, so a user setting it only changes how fast their reads are. It is read once per statement. Off, the policy runs as before, at the same speed.
+
+Postgres estimates a `case` at the cost of all its branches, so the estimates of every read through RLS double. With JIT on, which Postgres built with LLVM enables by default from a cost of 100,000, the count above compiles more and takes 160 to 200 ms instead of 100 to 150 ms. It took 23 ms without JIT. In a small database, JIT compiled a count of 7 documents for longer than 10 ms, so a page under a timeout always ran twice. Turn JIT off for the application: with `alter role ... set jit = off` for the role it logs in as, or with `set_config('jit', 'off', true)` in its transactions.
 
 ## What was shared with the user
 

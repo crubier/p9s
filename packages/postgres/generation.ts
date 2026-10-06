@@ -2128,7 +2128,8 @@ ${join(config.tables.flatMap(table => {
         const parent = binding && hasParent(binding) ? (table.resourceLeaf ? parentOfLeaf(binding, name) : parentOfInPolicy(binding, name)) : undefined;
         // A leaf row has the permissions of its parent. Moving one needs the bit on both parents, since the new row
         // cannot be told apart from an update that keeps its parent.
-        const ownCheck = accessCheck(table.resourceLeaf ? parent! : sql`${name}.${resourceId}`, bit);
+        const target = table.resourceLeaf ? parent! : sql`${name}.${resourceId}`;
+        const ownCheck = accessCheck(target, bit);
         // A new row has no permissions of its own yet: it gets them from its parent, so only a row with a parent can
         // be inserted, by users allowed to insert under that parent
         if (operation === "insert") {
@@ -2153,11 +2154,19 @@ with check (${accessCheck(parent, bit)}
   and (${name}.${softDelete} is null${deleteBit == null ? sql`` : sql` or ${accessCheck(table.resourceLeaf ? parent! : sql`${name}.${resourceId}`, deleteBit)}`})`;
         const deletedCheck = softDelete && !table.resourceLeaf && (operation === "select" || operation === "delete") && sql`
   or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
+        // Postgres checks a policy row by row, or lists once every resource the user has the bit on and looks rows up
+        // in that list, whichever it expects to be cheaper for the rows the scan returns. Under a limit, it still
+        // expects every row of the scan, and lists. With p9s.check_rows on, reads check the ancestors of the rows they
+        // return instead: offset 0 keeps the check from being turned into a list.
+        const selectCheck = operation === "select" && sql`
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = ${target} offset 0
+  ) else ${ownCheck} end`;
         return [sql`
 ${dropPolicy}
 create policy ${policyName} on ${schema}.${name} 
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
-using (${ownCheck}${deletedCheck || sql``}
+using (${selectCheck || ownCheck}${deletedCheck || sql``}
 )
 ${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
 )` : sql``};

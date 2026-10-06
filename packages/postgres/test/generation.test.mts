@@ -2464,7 +2464,10 @@ test('Default Migration', () => {
     create policy "blog_post_user1_select_policy" on "public"."blog_post" 
     as permissive for select to "user1" 
     using (
-      exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id")
+      case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+        select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id" offset 0
+      ) else 
+      exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id") end
     )
     ;
 

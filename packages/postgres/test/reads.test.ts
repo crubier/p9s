@@ -87,6 +87,25 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         expect(offset.postsRead).toBeGreaterThan(5000);
       }, { timeout: 60000 });
 
+      // Under a limit, Postgres still plans the policy for every row of the scan, and lists the readable resources
+      // first. With p9s.check_rows on, it checks the ancestors of the rows the page reads.
+      test('with p9s.check_rows on, a first page checks the rows it reads rather than listing every readable resource', async () => {
+        await load(combineAssignmentsWith);
+        const page = sql`select "id" from "blog_post" order by "id" limit 50`;
+        const checkRows = sql`set local p9s.check_rows = 'on';`;
+        expect(await plan(page)).toContain("hashed SubPlan");
+        // Both checks are planned: the one for each row runs for the 50 rows, the list never
+        const checked = (await asRole2(sql`${checkRows} explain (analyze, costs off, timing off) ${page}`)).rows.map(row => row["QUERY PLAN"]).join("\n");
+        const [eachRow, list] = checked.split(/\n\s+SubPlan \d+\n/).slice(1);
+        expect(eachRow?.split("\n")[0]).toMatch(/loops=50\)/);
+        expect(list?.split("\n")[0]).toContain("never executed");
+        expect((await asRole2(sql`${checkRows} ${page}`)).rows).toEqual((await asRole2(page)).rows);
+        const count = sql`select count(*)::int as "n" from "blog_post"`;
+        expect((await asRole2(sql`${checkRows} ${count}`)).rows).toEqual((await asRole2(count)).rows);
+        const { postsRead } = await asRole2(sql`${checkRows} ${page}`);
+        expect(postsRead).toBeLessThan(200);
+      }, { timeout: 60000 });
+
       // A bit on a resource is on every edge of a path from an assignment, so it is also on the path to the parent.
       // A row readable under a parent that is not was assigned itself, or reached through another edge.
       test('rows readable under a parent that is not come from the assignments of the user', async () => {

@@ -33,7 +33,8 @@ export interface Identity {
 // Runs `fn` in a transaction as app_user, on behalf of a member or an API key: every query goes through RLS.
 // Settings made with `set_config(..., true)` only last until the end of the transaction, so a pooled connection
 // never keeps the identity of a previous request. When an admin views as someone, Postgres refuses every write of
-// the transaction, and when they act as someone, the audit triggers record who they are
+// the transaction, and when they act as someone, the audit triggers record who they are. Policies are estimated
+// at the cost of what they may read, so with JIT, Postgres would compile even small reads for longer than they run
 export const asRole = async <T>(identity: Identity | string, fn: (tx: Tx) => Promise<T>) => {
   const { roleId, impersonator } = typeof identity === "string" ? { roleId: identity, impersonator: undefined } : identity;
   try {
@@ -41,7 +42,7 @@ export const asRole = async <T>(identity: Identity | string, fn: (tx: Tx) => Pro
       async (tx) => {
         await tx.execute(sql`
           select set_config('role', 'app_user', true), set_config('app.role_id', ${roleId}, true),
-            set_config('app.impersonator_member_id', ${impersonator?.memberId ?? ""}, true)`);
+            set_config('app.impersonator_member_id', ${impersonator?.memberId ?? ""}, true), set_config('jit', 'off', true)`);
         return fn(tx);
       },
       { accessMode: impersonator?.readOnly ? "read only" : "read write" },
@@ -69,6 +70,24 @@ export const readGraph = async <T>(tx: Tx, query: ReturnType<typeof sql>) => {
 };
 
 export const rows = async <T>(tx: Tx | Db, query: ReturnType<typeof sql>) => (await tx.execute(query)).rows as T[];
+
+// For reads that stop early, like a page. The policies list once every resource the user can read, then look rows up
+// in that list. With p9s.check_rows on, they check the ancestors of each row the scan walks instead, about the size
+// of the page divided by the share of rows the user can read: a user who reads few would walk most of the table, so
+// past `timeout` the read runs again, listing. Rolling back to the savepoint also restores both settings.
+export const pageRows = async <T>(tx: Tx, query: ReturnType<typeof sql>, timeout = "10ms") => {
+  await tx.execute(sql`savepoint page_rows`);
+  try {
+    await tx.execute(sql`select set_config('p9s.check_rows', 'on', true), set_config('statement_timeout', ${timeout}, true)`);
+    return await rows<T>(tx, query);
+  } catch (error) {
+    if (databaseError(error)?.code !== "57014") throw error;
+    await tx.execute(sql`rollback to savepoint page_rows`);
+    return rows<T>(tx, query);
+  } finally {
+    await tx.execute(sql`rollback to savepoint page_rows`);
+  }
+};
 
 // Turns the errors raised by RLS and p9s into messages for the user
 export const describeError = (error: unknown): string => {

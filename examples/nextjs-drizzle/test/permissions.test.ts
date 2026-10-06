@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { sql } from "drizzle-orm";
 import { Client } from "pg";
 import { ACCESS_LEVELS } from "../lib/permissions";
 import { MOCK_PASSWORD, mockEmail, mockMember, mockOrganizations } from "../src/mock/people";
@@ -166,6 +167,29 @@ describe.skipIf(!rootUrl)("example app", () => {
     const [key] = await service.listApiKeys(bob);
     await service.revokeApiKey(bob, key!.id);
     expect(await service.actorFromApiKey(seeded.apiKey)).toBeUndefined();
+  });
+
+  test("a page checks rows one by one, and lists what the member can read when that takes too long", async () => {
+    const { alice } = seeded.actors;
+    const settings = sql`select current_setting('p9s.check_rows', true) as "checkRows", current_setting('statement_timeout') as timeout`;
+    const read = (query: ReturnType<typeof sql>, timeout?: string) =>
+      db.asRole(alice.roleId, async (tx) => ({
+        before: await db.rows(tx, settings),
+        found: await db.pageRows<{ checkRows: string | null; id: string }>(tx, query, timeout),
+        after: await db.rows(tx, settings),
+      }));
+    const page = (sleep: number) => sql`
+      select current_setting('p9s.check_rows', true) as "checkRows", d.id from document d, pg_sleep(${sleep})
+      where d.org_id = ${alice.org.id} order by d.updated_at desc, d.id desc limit 5`;
+    const ids = (await service.listDocuments(alice, { limit: 5 })).map((row) => row.id);
+    expect(ids.length).toBe(5);
+    const checked = await read(page(0));
+    expect(checked.found.map((row) => row.id)).toEqual(ids);
+    expect(checked.found.every((row) => row.checkRows === "on")).toBe(true);
+    const listed = await read(page(0.05), "10ms");
+    expect(listed.found.map((row) => row.id)).toEqual(ids);
+    expect(listed.found.some((row) => row.checkRows === "on")).toBe(false);
+    for (const { before, after } of [checked, listed]) expect(after).toEqual(before);
   });
 
   test("admins see what everyone can do in every space", async () => {

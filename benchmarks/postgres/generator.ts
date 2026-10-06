@@ -664,10 +664,14 @@ export async function runPostgresBenchmark(context: Context, {
 
   // Reads, as the application database role going through RLS. The baseline replaces the policies of node tables only.
   // Reads as an api key have the permissions of its user.
-  const readScenarios: Array<{ name: string, table: string, statement: () => SQL, counts?: boolean, baseline?: false, asKey?: true }> = [
+  const readScenarios: Array<{ name: string, table: string, statement: () => SQL, counts?: boolean, baseline?: false, asKey?: true, checkRows?: true }> = [
     { name: "point lookup (object)", table: "post", statement: () => objectPointLookup() },
     { name: "first page of 50 (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" limit 50` },
     { name: "count visible (object)", table: "post", statement: () => sql`select count(*)::integer as "count" from "post"`, counts: true },
+    // With p9s.check_rows on, a read checks the ancestors of each row it returns instead of listing what the user can
+    // read: a first page reads a page of rows, a count checks every readable row
+    { name: "first page of 50 with p9s.check_rows (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" limit 50`, baseline: false, checkRows: true },
+    { name: "count visible with p9s.check_rows (object)", table: "post", statement: () => sql`select count(*)::integer as "count" from "post"`, counts: true, baseline: false, checkRows: true },
     { name: "count visible (folder)", table: "folder", statement: () => sql`select count(*)::integer as "count" from "folder"`, counts: true },
     // What an application asks to show the actions a user can take
     { name: "permissions of an object", table: "post", statement: () => sql`select "resource_permission"(${pickPost()})`, baseline: false },
@@ -705,6 +709,7 @@ export async function runPostgresBenchmark(context: Context, {
 
   const measureReads = async (policy: "p9s" | "baseline", scenarioReps: number) => {
     for (const scenario of readScenarios.filter(scenario => policy === "p9s" || scenario.baseline !== false)) {
+      await exec(sql`select set_config('p9s.check_rows', ${literal(scenario.checkRows ? "on" : "off")}, false)`);
       const samples: number[] = [];
       let visibleRows = 0;
       for (let i = 0; i < warmup + scenarioReps; i++) {

@@ -90,6 +90,8 @@ Re-running the migration re-applies these privileges, and revokes broader grants
 
 A permission is a bitmap of `engine.permission.bitmap.size` bits. The numbers in a table's `permission` config are bit positions counted from the left: bit `0` is the first character of `b'1000…'`. A policy for bit `n` checks `(permission << n)::bit = b'1'` on every cache or edge along the path, so access requires the bit on every edge of at least one path from the user to the resource.
 
+Select policies check it in one of two ways, chosen by the `p9s.check_rows` setting of the session, see [first pages](./querying#first-pages). Both let the same rows through, so users may set it.
+
 Roles that are not listed under a table's `permission` get no policy on that table, so RLS denies them every row. That includes graph writers, which usually know the ids they need and don't have to read business tables through RLS.
 
 ## Checking permissions in application code

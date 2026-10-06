@@ -3622,7 +3622,10 @@ drop policy if exists "audit_event_app_user_select_policy" on "public"."audit_ev
 create policy "audit_event_app_user_select_policy" on "public"."audit_event" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id") end
 )
 ;
 
@@ -3659,7 +3662,10 @@ drop policy if exists "comment_app_user_select_policy" on "public"."comment";
 create policy "comment_app_user_select_policy" on "public"."comment" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id") end
 )
 ;
 
@@ -3696,7 +3702,10 @@ drop policy if exists "document_app_user_select_policy" on "public"."document";
 create policy "document_app_user_select_policy" on "public"."document" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id") end
 )
 ;
 
@@ -3734,7 +3743,10 @@ drop policy if exists "folder_app_user_select_policy" on "public"."folder";
 create policy "folder_app_user_select_policy" on "public"."folder" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id") end
 )
 ;
 
@@ -3772,7 +3784,10 @@ drop policy if exists "member_app_user_select_policy" on "public"."member";
 create policy "member_app_user_select_policy" on "public"."member" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id") end
 )
 ;
 
@@ -3810,7 +3825,10 @@ drop policy if exists "organization_app_user_select_policy" on "public"."organiz
 create policy "organization_app_user_select_policy" on "public"."organization" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id") end
 )
 ;
 
@@ -3839,7 +3857,10 @@ drop policy if exists "team_app_user_select_policy" on "public"."team";
 create policy "team_app_user_select_policy" on "public"."team" 
 as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id") end
 )
 ;
 
