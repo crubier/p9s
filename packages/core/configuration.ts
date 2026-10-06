@@ -9,6 +9,7 @@ import type {
   EngineConfig as EngineConfigBase,
   MigrationConfig,
   ParentConfig,
+  ParentsConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
 } from "./configuration-schema";
@@ -23,9 +24,11 @@ export type {
   DerivedResourceOrRoleNamingConfig,
   MigrationConfig,
   ParentConfig,
+  ParentsConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
 };
+export { parentsOf } from "./configuration-schema";
 
 // Generic types that extend the zod base types with User parameter for compile-time safety
 export type TableNamingConfigEntry<User extends string> = Omit<TableNamingConfigEntryBase, 'permission'> & {

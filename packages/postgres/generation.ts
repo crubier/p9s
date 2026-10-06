@@ -1,7 +1,7 @@
 
 // To get syntax highlighting in VSCode with the qufiwefefwoyn.inline-sql-syntax extension
 import { type SQL, query as sql, join, literal, identifier, compile, raw } from "pg-sql2";
-import { getCompleteConfig, getCompleteNamingConfig, getNaming } from "@p9s/core";
+import { getCompleteConfig, getCompleteNamingConfig, getNaming, parentsOf } from "@p9s/core";
 import type { CompleteConfig, Naming, Config } from "@p9s/core";
 
 type Kind = "resource" | "role";
@@ -172,6 +172,13 @@ ${body}`, settings)}
 ${attachStatementTrigger(functionName, triggerName, table, event)}`;
 
 
+interface Parent {
+  column: SQL;
+  // Present when the parent column holds a key of the parent table rather than its id
+  lookup?: { table: SQL, key: SQL, id: SQL, tableName: string };
+  function: SQL;
+}
+
 // A bound table: each of its rows is a node of the resource (or role) tree, identified by its id column
 interface Binding {
   table: SQL;
@@ -179,12 +186,8 @@ interface Binding {
   id: SQL;
   triggerFunction: SQL;
   triggers: Record<TriggerEvent, SQL>;
-  parent?: {
-    column: SQL;
-    // Present when the parent column holds a key of the parent table rather than its id
-    lookup?: { table: SQL, key: SQL, id: SQL, tableName: string };
-    function: SQL;
-  };
+  // The parent of a row is in the first of these columns that it sets
+  parents: Parent[];
   // On leaf tables: the column holding the resource (or role) id of the parent when the parent column holds a key, and
   // the trigger that keeps it
   leaf: { parentId: SQL, triggerFunction: SQL, trigger: SQL };
@@ -211,7 +214,8 @@ const toBinding = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>,
     throw new Error(`Table naming config not found for table: ${table.name}`);
   }
   const id = kind === "resource" ? tableNaming.resourceId : tableNaming.roleId;
-  const parentConfig = kind === "resource" ? table.resourceParent : table.roleParent;
+  const parentConfigs = parentsOf(kind === "resource" ? table.resourceParent : table.roleParent);
+  const parentFunction = kind === "resource" ? tableNaming.resourceParentFunction : tableNaming.roleParentFunction;
   const binding: Binding = {
     table: sql`${tableNaming.schema}.${tableNaming.name}`,
     tableName: table.name,
@@ -223,49 +227,51 @@ const toBinding = (kind: Kind, naming: Naming<any>, config: CompleteConfig<any>,
     leaf: kind === "resource"
       ? { parentId: tableNaming.resourceParentId, triggerFunction: tableNaming.resourceLeafTriggerFunction, trigger: tableNaming.resourceLeafTrigger }
       : { parentId: tableNaming.roleParentId, triggerFunction: tableNaming.roleLeafTriggerFunction, trigger: tableNaming.roleLeafTrigger },
+    parents: parentConfigs.map((parentConfig, index): Parent => {
+      const parentTable = parentConfig.table === undefined ? undefined : config.tables.find(other => other.name === parentConfig.table);
+      if (parentConfig.table !== undefined && !parentTable) {
+        throw new Error(`Parent table ${parentConfig.table} of table ${table.name} is not in the config`);
+      }
+      const parentNaming = parentTable && naming.tables[parentTable.name]!;
+      const parentId = parentNaming && (kind === "resource" ? parentNaming.resourceId : parentNaming.roleId);
+      const key = parentConfig.key !== undefined ? identifier(parentConfig.key) : parentId;
+      return {
+        column: identifier(parentConfig.column),
+        lookup: parentNaming && parentId && key && compile(key).text !== compile(parentId).text
+          ? { table: sql`${parentNaming.schema}.${parentNaming.name}`, key, id: parentId, tableName: parentTable!.name }
+          : undefined,
+        function: index === 0 ? parentFunction : identifier(`${nameOf(parentFunction)}_${parentConfig.column}`),
+      };
+    }),
   };
-  if (parentConfig) {
-    const parentTable = parentConfig.table === undefined ? undefined : config.tables.find(other => other.name === parentConfig.table);
-    if (parentConfig.table !== undefined && !parentTable) {
-      throw new Error(`Parent table ${parentConfig.table} of table ${table.name} is not in the config`);
-    }
-    const parentNaming = parentTable && naming.tables[parentTable.name]!;
-    const parentId = parentNaming && (kind === "resource" ? parentNaming.resourceId : parentNaming.roleId);
-    const key = parentConfig.key !== undefined ? identifier(parentConfig.key) : parentId;
-    binding.parent = {
-      column: identifier(parentConfig.column),
-      lookup: parentNaming && parentId && key && compile(key).text !== compile(parentId).text
-        ? { table: sql`${parentNaming.schema}.${parentNaming.name}`, key, id: parentId, tableName: parentTable!.name }
-        : undefined,
-      function: kind === "resource" ? tableNaming.resourceParentFunction : tableNaming.roleParentFunction,
-    };
-  }
   return binding;
 };
 
+const hasParent = (binding: Binding) => binding.parents.length > 0;
+const coalesce = (values: SQL[]) => values.length === 1 ? values[0]! : sql`coalesce(${join(values, ", ")})`;
+// Whether a row sets one of its parent columns
+const setsParent = (binding: Binding, row: SQL) => sql`(${join(binding.parents.map(({ column }) => sql`${row}.${column} is not null`), " or ")})`;
+// A leaf row whose parent is a key keeps the id of its parent in a column
+const keepsParentId = (binding: Binding) => binding.parents.some(parent => parent.lookup);
+
 // The parent id of a row, as the table owner (in triggers) or through the security definer lookup (in policies)
-const parentOf = (binding: Binding, row: SQL) => {
-  const { column, lookup } = binding.parent!;
-  return lookup
-    ? sql`(select "the_parent".${lookup.id} from ${lookup.table} as "the_parent" where "the_parent".${lookup.key} = ${row}.${column})`
-    : sql`${row}.${column}`;
-};
-const parentOfInPolicy = (binding: Binding, row: SQL) => {
-  const { column, lookup, function: lookupFunction } = binding.parent!;
-  return lookup ? sql`${lookupFunction}(${row}.${column})` : sql`${row}.${column}`;
-};
+const parentIdOf = ({ column, lookup }: Parent, row: SQL) => lookup
+  ? sql`(select "the_parent".${lookup.id} from ${lookup.table} as "the_parent" where "the_parent".${lookup.key} = ${row}.${column})`
+  : sql`${row}.${column}`;
+const parentOf = (binding: Binding, row: SQL) => coalesce(binding.parents.map(parent => parentIdOf(parent, row)));
+const parentOfInPolicy = (binding: Binding, row: SQL) => coalesce(binding.parents.map(({ column, lookup, function: lookupFunction }) =>
+  lookup ? sql`${lookupFunction}(${row}.${column})` : sql`${row}.${column}`));
 // A leaf row keeps the id of its parent, so that policies read a column rather than call the lookup for every row
-const parentOfLeaf = (binding: Binding, row: SQL) => {
-  const { column, lookup } = binding.parent!;
-  return lookup ? sql`${row}.${binding.leaf.parentId}` : sql`${row}.${column}`;
-};
+const parentOfLeaf = (binding: Binding, row: SQL) => keepsParentId(binding)
+  ? sql`${row}.${binding.leaf.parentId}`
+  : coalesce(binding.parents.map(({ column }) => sql`${row}.${column}`));
 
 // A parent key that matches no row of the parent table would silently give no home edge
-const checkParentsFound = (binding: Binding, rows: SQL) => binding.parent?.lookup ? sql`
-  if exists (select from ${rows} as "the_row" where "the_row".${binding.parent.column} is not null and ${parentOf(binding, sql`"the_row"`)} is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', ${textLiteral(binding.tableName)}, ${textLiteral(nameOf(binding.parent.column))}, ${textLiteral(binding.parent.lookup.tableName)}
+const checkParentsFound = (binding: Binding, rows: SQL) => join(binding.parents.filter(parent => parent.lookup).map(parent => sql`
+  if exists (select from ${rows} as "the_row" where "the_row".${parent.column} is not null and ${parentIdOf(parent, sql`"the_row"`)} is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', ${textLiteral(binding.tableName)}, ${textLiteral(nameOf(parent.column))}, ${textLiteral(parent.lookup!.tableName)}
       using errcode = 'foreign_key_violation';
-  end if;` : sql``;
+  end if;`), ``);
 
 const idsOf = (bindings: Binding[], config: CompleteConfig<any>) => bindings.length === 0
   ? sql`select null::${getIdType(config).type} where false`
@@ -658,9 +664,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = ${textLiteral(compile(table).text)}::regclass and "attname" = ${textLiteral(nameOf(id))}) then
     alter table ${table} alter column ${id} set default ${idDefault(kind, naming, config)};
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from ${table} where ${id} is null) then
+    update ${table} set ${id} = default where ${id} is null;
+  end if;
 end
 $$;
-update ${table} set ${id} = default where ${id} is null;
 alter table ${table} alter column ${id} set not null;
 `;
 
@@ -669,7 +680,7 @@ alter table ${table} alter column ${id} set not null;
 -- Table bindings
 -----------------------------------------------------------------------------------------------------------------------
 ${join(kinds.flatMap(kind => getIdBindings(kind, naming, config).map(addColumn)), `\n`)}
-${join(kinds.flatMap(kind => getLeaves(kind, naming, config)).filter(leaf => leaf.parent?.lookup).map(({ table, leaf }) => sql`
+${join(kinds.flatMap(kind => getLeaves(kind, naming, config)).filter(keepsParentId).map(({ table, leaf }) => sql`
 alter table ${table} add column if not exists ${leaf.parentId} ${idType};`), `\n`)}
 ${config.engine.id.mode === "integer" ? join(kinds.map(advanceSequence), `\n`) : sql``}
 ${join(kinds.flatMap(kind => getIdBindings(kind, naming, config).map(binding => bindColumn(kind, binding))), `\n`)}
@@ -739,7 +750,7 @@ begin
     drop trigger if exists ${edgeUpdateTrigger} on ${edge};
     drop trigger if exists ${edgeDeleteTrigger} on ${edge};
     -- Edges that match a parent column become the home edges of their rows
-    ${join(bindings.filter(binding => binding.parent).map(binding => sql`
+    ${join(bindings.filter(hasParent).map(binding => sql`
     update ${edge} as "the_edge" set ${home} = true
     from ${binding.table} as "the_row"
     where "the_edge".${childId} = "the_row".${binding.id} and "the_edge".${parentId} = ${parentOf(binding, sql`"the_row"`)};`), `\n`)}
@@ -1012,10 +1023,10 @@ ${nodeFunction(naming[kind].nodeDeleteFunction, idsArgument, sql`
   // function serves the three triggers, plpgsql plans its statements separately for each. `having` skips statements
   // that changed no row.
   const boundTriggers = (binding: Binding) => {
-    const { table, id, triggerFunction: functionName, triggers, parent } = binding;
-    const parentIds = parent ? sql`array_agg(${parentOf(binding, sql`"the_row"`)})` : sql`null`;
-    const moved = parent && sql`from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using (${id})
-      where "the_row".${parent.column} is distinct from "the_old_row".${parent.column}`;
+    const { table, id, triggerFunction: functionName, triggers, parents } = binding;
+    const parentIds = hasParent(binding) ? sql`array_agg(${parentOf(binding, sql`"the_row"`)})` : sql`null`;
+    const moved = hasParent(binding) && sql`from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using (${id})
+      where ${join(parents.map(({ column }) => sql`"the_row".${column} is distinct from "the_old_row".${column}`), " or ")}`;
     return sql`
 -- ${literal(binding.tableName)} rows are ${literal(kind)} nodes
 create or replace function ${functionName}()
@@ -1057,7 +1068,7 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
     triggers.map(trigger => sql`alter table ${table} ${action} trigger ${trigger};`)), `\n  `);
 
   // Rows written while the triggers were disabled get their home edges, and home edges follow their parent column
-  const homeEdgeFixups = join(bindings.map(binding => binding.parent ? sql`
+  const homeEdgeFixups = join(bindings.map(binding => hasParent(binding) ? sql`
   ${checkParentsFound(binding, binding.table)}
   delete from ${edge} as "the_edge"
   using ${binding.table} as "the_row"
@@ -1066,7 +1077,7 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
   insert into ${edge} (${parentId}, ${childId}, ${permission}, ${home})
   select ${parentOf(binding, sql`"the_row"`)}, "the_row".${binding.id}, ${allBits}, true
   from ${binding.table} as "the_row"
-  where "the_row".${binding.parent.column} is not null
+  where ${setsParent(binding, sql`"the_row"`)}
   on conflict on constraint ${edgePkey} do nothing;` : sql`
   -- No parent column: the home edges of these rows become regular edges
   update ${edge} as "the_edge" set ${home} = false
@@ -1497,7 +1508,7 @@ export const createMigrationLeaves = <User extends string>(naming: Naming<User>,
     const other: Kind = kind === "resource" ? "role" : "resource";
     const leaves = getLeaves(kind, naming, config);
     // Role leaf rows keep an id, which their trigger guards. Resource leaf rows only need one to follow a parent key.
-    const triggerLeaves = kind === "role" ? leaves : leaves.filter(leaf => leaf.parent?.lookup);
+    const triggerLeaves = kind === "role" ? leaves : leaves.filter(keepsParentId);
     const others = [...getBindings(kind, naming, config), ...leaves.filter(leaf => !triggerLeaves.includes(leaf))];
     const otherLeaves = (binding: Binding) => leaves.filter(leaf => leaf !== binding);
     // The truncate guard trigger is shared by both trees
@@ -1506,9 +1517,9 @@ export const createMigrationLeaves = <User extends string>(naming: Naming<User>,
     // Ids never change, so the parent id of a leaf row only changes with its parent column. Set from the parent table
     // whatever the client writes, which needs the trigger to bypass the policies of the parent table.
     const leafTrigger = (binding: Binding) => {
-      const { table, tableName, id, leaf } = binding;
-      const { column, lookup } = binding.parent!;
-      const columns = [...(kind === "role" ? [id] : []), ...(lookup ? [column, leaf.parentId] : [])];
+      const { table, tableName, id, leaf, parents } = binding;
+      const keeps = keepsParentId(binding);
+      const columns = [...(kind === "role" ? [id] : []), ...(keeps ? [...parents.map(parent => parent.column), leaf.parentId] : [])];
       return sql`
 create or replace function ${leaf.triggerFunction}()
 returns trigger as $$
@@ -1520,21 +1531,23 @@ begin${kind === "role" ? sql`
   elsif exists (select from ${edgeCache} as "the_self" where "the_self".${parentId} = new.${id} and "the_self".${childId} = new.${id})${join(otherLeaves(binding).map(other => sql`
     or exists (select from ${other.table} as "the_leaf" where "the_leaf".${other.id} = new.${id})`), ``)} then
     raise exception 'p9s: the role id % is already used by another row', new.${id} using errcode = 'unique_violation';
-  end if;` : sql``}${lookup ? sql`
-  new.${leaf.parentId} := ${parentOf(binding, sql`new`)};
-  if new.${column} is not null and new.${leaf.parentId} is null then
-    raise exception 'p9s: % rows have a % that matches no row of %', ${textLiteral(tableName)}, ${textLiteral(nameOf(column))}, ${textLiteral(lookup.tableName)}
+  end if;` : sql``}${keeps ? sql`
+  new.${leaf.parentId} := ${parentOf(binding, sql`new`)};${join(parents.filter(parent => parent.lookup).map(parent => sql`
+  if new.${parent.column} is not null and ${parentIdOf(parent, sql`new`)} is null then
+    raise exception 'p9s: % rows have a % that matches no row of %', ${textLiteral(tableName)}, ${textLiteral(nameOf(parent.column))}, ${textLiteral(parent.lookup!.tableName)}
       using errcode = 'foreign_key_violation';
-  end if;` : sql``}
+  end if;`), ``)}` : sql``}
   return new;
 end;
 $$ language plpgsql ${definer(naming)};
 ${grantExecute(sql`${leaf.triggerFunction} ()`, [])}
 drop trigger if exists ${leaf.trigger} on ${table};
-create trigger ${leaf.trigger} before insert or update of ${join(columns, `, `)} on ${table} for each row execute function ${leaf.triggerFunction}();${lookup ? sql`
-update ${table} as "the_row" set ${leaf.parentId} = "the_parent".${lookup.id}
-from ${lookup.table} as "the_parent"
-where "the_parent".${lookup.key} = "the_row".${column} and "the_row".${leaf.parentId} is distinct from "the_parent".${lookup.id};` : sql``}`;
+create trigger ${leaf.trigger} before insert or update of ${join(columns, `, `)} on ${table} for each row execute function ${leaf.triggerFunction}();${!keeps ? sql`` : parents.length === 1 ? sql`
+update ${table} as "the_row" set ${leaf.parentId} = "the_parent".${parents[0]!.lookup!.id}
+from ${parents[0]!.lookup!.table} as "the_parent"
+where "the_parent".${parents[0]!.lookup!.key} = "the_row".${parents[0]!.column} and "the_row".${leaf.parentId} is distinct from "the_parent".${parents[0]!.lookup!.id};` : sql`
+update ${table} as "the_row" set ${leaf.parentId} = ${parentOf(binding, sql`"the_row"`)}
+where "the_row".${leaf.parentId} is distinct from ${parentOf(binding, sql`"the_row"`)};`}`;
     };
 
     return sql`
@@ -1851,8 +1864,7 @@ ${grantExecute(sql`${permissionFunction} (${idType}, ${idType})`, everyone)}
 
   // Policies read the parent table through this lookup, so that its own policies do not apply. A table whose parent
   // is a row of the same table would otherwise recurse into its own policies.
-  const parentFunctions = join(nodeBindings.filter(binding => binding.parent?.lookup).map(binding => {
-    const { column, lookup, function: lookupFunction } = binding.parent!;
+  const parentFunctions = join(nodeBindings.flatMap(binding => binding.parents.filter(parent => parent.lookup).map(({ column, lookup, function: lookupFunction }) => {
     return sql`
 create or replace function ${lookupFunction} ("the_key" ${binding.table}.${column}%type)
   returns ${idType}
@@ -1862,12 +1874,12 @@ $$ language sql stable ${definer(naming)};
 
 ${grantExecute(sql`${lookupFunction} (${binding.table}.${column}%type)`, users)}
 `;
-  }), `\n`);
+  })), `\n`);
 
   // Moving a row is inserting it under its new parent, unless that parent already links to it. In plpgsql, so that
   // policies calling it are not planned with its queries on every update. As the owner, to read the edges, which only
   // tells the parents of a row the user has access to.
-  const hasParents = nodeBindings.some(binding => binding.parent);
+  const hasParents = nodeBindings.some(hasParent);
   const parentValidate = hasParents ? sql`
 create or replace function ${resource.parentValidateFunction} ("the_parent" ${idType}, "the_child" ${idType}, "the_insert_bit" integer)
   returns boolean
@@ -1908,7 +1920,7 @@ ${join(config.tables.flatMap(table => {
         const dropPolicy = sql`drop policy if exists ${policyName} on ${schema}.${name};`;
         const bit = userBits[operation];
         const insertBit = userBits.insert;
-        const parent = binding?.parent && (table.resourceLeaf ? parentOfLeaf(binding, name) : parentOfInPolicy(binding, name));
+        const parent = binding && hasParent(binding) ? (table.resourceLeaf ? parentOfLeaf(binding, name) : parentOfInPolicy(binding, name)) : undefined;
         // A leaf row has the permissions of its parent. Moving one needs the bit on both parents, since the new row
         // cannot be told apart from an update that keeps its parent.
         const ownCheck = accessCheck(table.resourceLeaf ? parent! : sql`${name}.${resourceId}`, bit);

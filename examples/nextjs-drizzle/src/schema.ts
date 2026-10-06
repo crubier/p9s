@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, foreignKey, index, uuid, unique, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, foreignKey, index, uuid, unique } from "drizzle-orm/pg-core";
 
 // Better Auth tables. They are not part of the permission graph: people act through their membership of an organization
 
@@ -142,8 +142,8 @@ export const apiKey = pgTable(
   (table) => [index("api_key_member_id_idx").on(table.memberId)],
 );
 
-// A folder is in its parent folder, or at the top of its organization, then called a space. p9s follows a single
-// parent column, so `parent_resource_id` holds the resource id of either, set by a trigger from the two foreign keys
+// A folder is in its parent folder, or at the top of its organization, then called a space: p9s follows the parent
+// folder, or else the organization. The foreign key below keeps a folder in the organization of its parent.
 export const folder = pgTable(
   "folder",
   {
@@ -151,16 +151,15 @@ export const folder = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    parentId: uuid("parent_id").references((): AnyPgColumn => folder.id, { onDelete: "cascade" }),
+    parentId: uuid("parent_id"),
     name: text("name").notNull(),
-    parentResourceId: uuid("parent_resource_id"),
     resourceId: uuid("resource_id").unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     index("folder_org_id_idx").on(table.orgId),
+    foreignKey({ name: "folder_parent_org_fk", columns: [table.parentId, table.orgId], foreignColumns: [table.id, table.orgId] }).onDelete("cascade"),
     index("folder_parent_id_idx").on(table.parentId),
-    index("folder_parent_resource_id_idx").on(table.parentResourceId),
     unique("folder_id_org_id_unique").on(table.id, table.orgId),
   ],
 );

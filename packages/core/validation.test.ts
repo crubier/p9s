@@ -538,6 +538,31 @@ describe("Configuration Validation", () => {
       ]).some(e => e.includes("leaf table") && e.includes("tables.2.resourceParent.table"))).toBe(true);
     });
 
+    test("[valid] several parent columns", () => {
+      expect(errorsOf([
+        table("space"),
+        table("folder", { resourceParent: [{ column: "space_resource_id" }, { column: "parent_folder_id", table: "folder", key: "id" }] }),
+        table("document", { resourceLeaf: true, resourceParent: [{ column: "folder_id", table: "folder", key: "id" }, { column: "space_id", table: "space", key: "id" }] }),
+      ])).toEqual([]);
+    });
+
+    test("[invalid] several parents in the same column", () => {
+      expect(errorsOf([table("folder", { resourceParent: [{ column: "parent_id" }, { column: "parent_id", table: "folder", key: "id" }] })])
+        .some(e => e.includes("need a column each") && e.includes("tables.0.resourceParent"))).toBe(true);
+    });
+
+    test("[invalid] one of several parents is a leaf", () => {
+      expect(errorsOf([
+        table("page"),
+        table("block", { resourceLeaf: true, resourceParent: { column: "page_id", table: "page", key: "id" } }),
+        table("annotation", { resourceParent: [{ column: "page_id", table: "page", key: "id" }, { column: "block_id", table: "block", key: "id" }] }),
+      ]).some(e => e.includes("leaf table") && e.includes("tables.2.resourceParent"))).toBe(true);
+    });
+
+    test("[invalid] an empty list of parents", () => {
+      expect(errorsOf([table("folder", { resourceParent: [] })]).some(e => e.includes("tables.0.resourceParent"))).toBe(true);
+    });
+
     const roleTable = (name: string, extra: Record<string, unknown> = {}) => table(name, { isResource: false, resourceId: "", isRole: true, roleId: "role_id", ...extra });
 
     test("[valid] role leaf under a role node table", () => {

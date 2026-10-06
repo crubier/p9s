@@ -430,9 +430,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."document"'::regclass and "attname" = 'resource_id') then
     alter table "public"."document" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."document" where "resource_id" is null) then
+    update "public"."document" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."document" set "resource_id" = default where "resource_id" is null;
 alter table "public"."document" alter column "resource_id" set not null;
 
 
@@ -441,9 +446,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."folder"'::regclass and "attname" = 'resource_id') then
     alter table "public"."folder" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."folder" where "resource_id" is null) then
+    update "public"."folder" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."folder" set "resource_id" = default where "resource_id" is null;
 alter table "public"."folder" alter column "resource_id" set not null;
 
 
@@ -452,9 +462,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."member"'::regclass and "attname" = 'resource_id') then
     alter table "public"."member" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."member" where "resource_id" is null) then
+    update "public"."member" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."member" set "resource_id" = default where "resource_id" is null;
 alter table "public"."member" alter column "resource_id" set not null;
 
 
@@ -463,9 +478,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."organization"'::regclass and "attname" = 'resource_id') then
     alter table "public"."organization" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."organization" where "resource_id" is null) then
+    update "public"."organization" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."organization" set "resource_id" = default where "resource_id" is null;
 alter table "public"."organization" alter column "resource_id" set not null;
 
 
@@ -474,9 +494,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'resource_id') then
     alter table "public"."team" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."team" where "resource_id" is null) then
+    update "public"."team" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."team" set "resource_id" = default where "resource_id" is null;
 alter table "public"."team" alter column "resource_id" set not null;
 
 
@@ -485,9 +510,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."member"'::regclass and "attname" = 'role_id') then
     alter table "public"."member" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."member" where "role_id" is null) then
+    update "public"."member" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."member" set "role_id" = default where "role_id" is null;
 alter table "public"."member" alter column "role_id" set not null;
 
 
@@ -496,9 +526,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."organization"'::regclass and "attname" = 'role_id') then
     alter table "public"."organization" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."organization" where "role_id" is null) then
+    update "public"."organization" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."organization" set "role_id" = default where "role_id" is null;
 alter table "public"."organization" alter column "role_id" set not null;
 
 
@@ -507,9 +542,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'role_id') then
     alter table "public"."team" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."team" where "role_id" is null) then
+    update "public"."team" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."team" set "role_id" = default where "role_id" is null;
 alter table "public"."team" alter column "role_id" set not null;
 
 
@@ -518,9 +558,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."api_key"'::regclass and "attname" = 'role_id') then
     alter table "public"."api_key" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."api_key" where "role_id" is null) then
+    update "public"."api_key" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."api_key" set "role_id" = default where "role_id" is null;
 alter table "public"."api_key" alter column "role_id" set not null;
 
 
@@ -598,7 +643,7 @@ begin
 
     update "resource_edge" as "the_edge" set "home" = true
     from "public"."folder" as "the_row"
-    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = "the_row"."parent_resource_id";
+    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = coalesce((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"));
 
     update "resource_edge" as "the_edge" set "home" = true
     from "public"."member" as "the_row"
@@ -1412,7 +1457,15 @@ create or replace function "folder_resource_trigger_function"()
 returns trigger as $$
 begin
   if tg_op = 'INSERT' then
-    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg("the_row"."parent_resource_id")) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg(coalesce((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))) from "p9s_new_rows" as "the_row" having count(*) > 0;
   elsif tg_op = 'UPDATE' then
     if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'resource', 'folder' using errcode = 'integrity_constraint_violation';
@@ -1420,10 +1473,18 @@ begin
     -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
     -- old row when no parent changed. Counting them is planned as a join of both
     if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id") > 0 then
-      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg("the_row"."parent_resource_id"))
+      where "the_row"."parent_id" is distinct from "the_old_row"."parent_id" or "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg(coalesce((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))))
       from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id";
+      where "the_row"."parent_id" is distinct from "the_old_row"."parent_id" or "the_row"."org_id" is distinct from "the_old_row"."org_id";
     end if;
   else
     perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
@@ -1711,18 +1772,26 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."document" as "the_row"
-  where "the_row"."folder_id" is not null
+  where ("the_row"."folder_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   
+  if exists (select from "public"."folder" as "the_row" where "the_row"."parent_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'parent_id', 'folder'
+      using errcode = 'foreign_key_violation';
+  end if;
+  if exists (select from "public"."folder" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'folder', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
   delete from "resource_edge" as "the_edge"
   using "public"."folder" as "the_row"
   where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
-  and "the_edge"."parent_id" is distinct from "the_row"."parent_resource_id";
+  and "the_edge"."parent_id" is distinct from coalesce((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"));
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-  select "the_row"."parent_resource_id", "the_row"."resource_id", ~ b'0'::bit(8), true
+  select coalesce((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."parent_id"), (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."folder" as "the_row"
-  where "the_row"."parent_resource_id" is not null
+  where ("the_row"."parent_id" is not null or "the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   
@@ -1737,7 +1806,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."member" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   -- No parent column: the home edges of these rows become regular edges
@@ -1757,7 +1826,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."team" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
   alter table "resource_edge" enable trigger "10_resource_edge_insert_trigger";
   alter table "resource_edge" enable trigger "10_resource_edge_update_trigger";
@@ -2710,7 +2779,7 @@ begin
   insert into "role_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."role_id", ~ b'0'::bit(8), true
   from "public"."member" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "role_edge_pkey" do nothing;
 
   -- No parent column: the home edges of these rows become regular edges
@@ -3477,6 +3546,30 @@ revoke execute on function "document_resource_parent" ("public"."document"."fold
 grant execute on function "document_resource_parent" ("public"."document"."folder_id"%type) to "app_user";
 
 
+create or replace function "folder_resource_parent" ("the_key" "public"."folder"."parent_id"%type)
+  returns uuid
+  as $$
+  select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = $1
+$$ language sql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "folder_resource_parent" ("public"."folder"."parent_id"%type) from public;
+
+grant execute on function "folder_resource_parent" ("public"."folder"."parent_id"%type) to "app_user";
+
+
+create or replace function "folder_resource_parent_org_id" ("the_key" "public"."folder"."org_id"%type)
+  returns uuid
+  as $$
+  select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
+$$ language sql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "folder_resource_parent_org_id" ("public"."folder"."org_id"%type) from public;
+
+grant execute on function "folder_resource_parent_org_id" ("public"."folder"."org_id"%type) to "app_user";
+
+
 create or replace function "member_resource_parent" ("the_key" "public"."member"."org_id"%type)
   returns uuid
   as $$
@@ -3648,7 +3741,7 @@ drop policy if exists "folder_app_user_insert_policy" on "public"."folder";
 create policy "folder_app_user_insert_policy" on "public"."folder"
 as permissive for insert to "app_user"
 with check (
-  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "folder"."parent_resource_id")
+  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = coalesce("folder_resource_parent"("folder"."parent_id"), "folder_resource_parent_org_id"("folder"."org_id")))
 );
 
 
@@ -3660,7 +3753,7 @@ using (
 )
 with check (
   exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
-  and "resource_parent_validate"("folder"."parent_resource_id", "folder"."resource_id", 1)
+  and "resource_parent_validate"(coalesce("folder_resource_parent"("folder"."parent_id"), "folder_resource_parent_org_id"("folder"."org_id")), "folder"."resource_id", 1)
 );
 
 
@@ -4018,7 +4111,7 @@ create or replace function "audit_event_resource_parent_trigger_function"()
 returns trigger as $$
 begin
   new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = new."org_id");
-  if new."org_id" is not null and new."resource_parent_id" is null then
+  if new."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = new."org_id") is null then
     raise exception 'p9s: % rows have a % that matches no row of %', 'audit_event', 'org_id', 'organization'
       using errcode = 'foreign_key_violation';
   end if;
@@ -4039,7 +4132,7 @@ create or replace function "comment_resource_parent_trigger_function"()
 returns trigger as $$
 begin
   new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."document" as "the_parent" where "the_parent"."id" = new."document_id");
-  if new."document_id" is not null and new."resource_parent_id" is null then
+  if new."document_id" is not null and (select "the_parent"."resource_id" from "public"."document" as "the_parent" where "the_parent"."id" = new."document_id") is null then
     raise exception 'p9s: % rows have a % that matches no row of %', 'comment', 'document_id', 'document'
       using errcode = 'foreign_key_violation';
   end if;
@@ -4092,7 +4185,7 @@ begin
     raise exception 'p9s: the role id % is already used by another row', new."role_id" using errcode = 'unique_violation';
   end if;
   new."role_parent_id" := (select "the_parent"."role_id" from "public"."member" as "the_parent" where "the_parent"."id" = new."member_id");
-  if new."member_id" is not null and new."role_parent_id" is null then
+  if new."member_id" is not null and (select "the_parent"."role_id" from "public"."member" as "the_parent" where "the_parent"."id" = new."member_id") is null then
     raise exception 'p9s: % rows have a % that matches no row of %', 'api_key', 'member_id', 'member'
       using errcode = 'foreign_key_violation';
   end if;

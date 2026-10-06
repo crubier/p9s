@@ -122,12 +122,12 @@ Each table entry defines how a database table integrates with the permission sys
 | `name`           | `string`  | Table name                                                                    |
 | `isResource`     | `boolean` | Whether rows are resources                                                    |
 | `resourceId`     | `string`  | Resource id column, added by p9s if missing, with a default                   |
-| `resourceParent` | `object`  | Column naming each row's parent resource, see below                          |
+| `resourceParent` | `object \| object[]` | Column naming each row's parent resource, or several, see below     |
 | `resourceLeaf`   | `boolean` | Rows are not nodes and take the permissions of their parent, see below        |
 | `resourceFkey`   | `string`  | Foreign key to `resource_node` from earlier versions, dropped when upgrading  |
 | `isRole`         | `boolean` | Whether rows are roles                                                        |
 | `roleId`         | `string`  | Role id column, added by p9s if missing, with a default                       |
-| `roleParent`     | `object`  | Column naming each row's parent role, see below                              |
+| `roleParent`     | `object \| object[]` | Column naming each row's parent role, or several, see below         |
 | `roleLeaf`       | `boolean` | Rows are not nodes and act with the permissions of their parent, see below    |
 | `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
 | `permission`     | `object`  | For each user role, the bit checked for each operation, and optionally the `manageAccess` bit that lets them see who has access to a row, see [seeing the access of others](./security-model#seeing-the-access-of-others), and the `share` bit that lets them share it, see [sharing](./security-model#sharing) |
@@ -140,6 +140,22 @@ Each table entry defines how a database table integrates with the permission sys
 - With `table`, `column` holds values of that table's `key` column. `key` defaults to the parent table's `resourceId` column. With `key: "id"`, the column can be an ordinary foreign key to the parent's primary key.
 
 `roleParent` works the same on the role tree, for example to put each user in a team. A parent `table` must be a resource (or role) table of the config. Index the parent columns, p9s looks rows up by them.
+
+**Several parent columns.** A list of parents makes the parent of a row the first of them that it sets. A folder is in another folder, or else at the top of its organization:
+
+```ts
+{
+  name: "folder",
+  isResource: true,
+  resourceId: "resource_id",
+  resourceParent: [
+    { column: "parent_id", table: "folder", key: "id" },
+    { column: "org_id", table: "organization", key: "id" },
+  ],
+}
+```
+
+A nested folder sets both columns: its parent is the folder, and changing its `org_id` moves nothing. Setting `parent_id` to null moves it to the top of its organization. Inserting or moving a row needs the `insert` bit on that parent, whichever column it is in, and a leaf table can list several parents the same way. To let a row set only one of them, add a check constraint like `check (num_nonnulls(parent_id, space_id) <= 1)`. Each column must be a different one, and each `table` a table of the same kind.
 
 #### Leaf tables
 
@@ -186,7 +202,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - Bitmap size must be between 4 and 1024
 - Max depth must be between 1 and 128
 - Permission users in tables must exist in `engine.users`
-- A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind
+- A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind. Several parents need a column each
 - A `resourceLeaf` table needs `isResource` and a `resourceParent`, a `roleLeaf` table needs `isRole` and a `roleParent`, and neither can be the parent table of another table of the same kind
 
 ```typescript

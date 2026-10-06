@@ -198,7 +198,8 @@ export const tableNamingConfigEntrySchema = z.object({
   roleInsertTrigger: z.string(),
   roleUpdateTrigger: z.string(),
   roleDeleteTrigger: z.string(),
-  // Security definer lookups of the parent id from the parent key, for the policies
+  // Security definer lookups of the parent id from the parent key, for the policies. With several parent columns,
+  // the lookups of the others have the name of their column after it.
   resourceParentFunction: z.string(),
   roleParentFunction: z.string(),
   // On leaf tables whose parent column holds a key: the resource (or role) id of the parent, kept by a trigger
@@ -230,6 +231,13 @@ export const parentConfigSchema = z.object({
   key: z.string().optional(),
 });
 
+// Several parent columns: the parent of a row is the first one it sets, in this order. A folder in another folder, or
+// else at the top of its organization, lists both columns.
+export const parentsConfigSchema = z.union([parentConfigSchema, z.array(parentConfigSchema).min(1)]);
+
+export const parentsOf = (parents: ParentsConfig | undefined): ParentConfig[] =>
+  parents === undefined ? [] : Array.isArray(parents) ? parents : [parents];
+
 // Table config schema (for CompleteConfig.tables array entries)
 export const tableConfigSchema = z.object({
   schema: z.string(),
@@ -237,14 +245,14 @@ export const tableConfigSchema = z.object({
   isResource: z.boolean(),
   resourceId: z.string(),
   resourceFkey: z.string(),
-  resourceParent: parentConfigSchema.optional(),
+  resourceParent: parentsConfigSchema.optional(),
   // Rows of a leaf table are not nodes: they have no resource id and take the permissions of their parent. Nothing
   // can be a child of a leaf row, share it on its own, or assign roles to it.
   resourceLeaf: z.boolean().optional(),
   isRole: z.boolean(),
   roleId: z.string(),
   roleFkey: z.string(),
-  roleParent: parentConfigSchema.optional(),
+  roleParent: parentsConfigSchema.optional(),
   // Rows of a role leaf table are not nodes: they keep a role id, only to tell who the current user is, and have the
   // permissions of their parent. Nothing can be a child of a leaf row, share with it on its own, or assign it a resource.
   roleLeaf: z.boolean().optional(),
@@ -344,32 +352,40 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
       });
     }
     for (const [kind, parentKey, flag, leafKey] of [["resource", "resourceParent", "isResource", "resourceLeaf"], ["role", "roleParent", "isRole", "roleLeaf"]] as const) {
-      const parent = table[parentKey];
-      if (!parent) continue;
-      if (!table[flag]) {
+      const parents = parentsOf(table[parentKey]);
+      if (parents.length > 0 && !table[flag]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `A ${kind} parent needs the table to be a ${kind} table (${flag})`,
           path: ["tables", tableIndex, parentKey],
         });
       }
-      if (parent.table !== undefined && !data.tables.some(other => other.name === parent.table && other[flag])) {
+      if (new Set(parents.map(parent => parent.column)).size < parents.length) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Parent table "${parent.table}" is not a ${kind} table of the config`,
-          path: ["tables", tableIndex, parentKey, "table"],
+          message: `The ${kind} parents of ${table.name} need a column each`,
+          path: ["tables", tableIndex, parentKey],
         });
       }
-      if (parent.table !== undefined && data.tables.some(other => other.name === parent.table && other[leafKey])) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Parent table "${parent.table}" is a ${kind} leaf table, its rows cannot have children`,
-          path: ["tables", tableIndex, parentKey, "table"],
-        });
+      for (const parent of parents) {
+        if (parent.table !== undefined && !data.tables.some(other => other.name === parent.table && other[flag])) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Parent table "${parent.table}" is not a ${kind} table of the config`,
+            path: ["tables", tableIndex, parentKey, "table"],
+          });
+        }
+        if (parent.table !== undefined && data.tables.some(other => other.name === parent.table && other[leafKey])) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Parent table "${parent.table}" is a ${kind} leaf table, its rows cannot have children`,
+            path: ["tables", tableIndex, parentKey, "table"],
+          });
+        }
       }
     }
     for (const [kind, parentKey, flag, leafKey] of [["resource", "resourceParent", "isResource", "resourceLeaf"], ["role", "roleParent", "isRole", "roleLeaf"]] as const) {
-      if (table[leafKey] && !(table[flag] && table[parentKey])) {
+      if (table[leafKey] && !(table[flag] && parentsOf(table[parentKey]).length > 0)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `A ${kind} leaf table needs to be a ${kind} table (${flag}) with a parent (${parentKey})`,
@@ -398,6 +414,7 @@ export type TableNamingConfigEntry = z.infer<typeof tableNamingConfigEntrySchema
 export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
 export type NamingConfig = z.infer<typeof namingConfigSchema>;
 export type ParentConfig = z.infer<typeof parentConfigSchema>;
+export type ParentsConfig = z.infer<typeof parentsConfigSchema>;
 export type TableConfig = z.infer<typeof tableConfigSchema>;
 export type EngineConfig = z.infer<typeof engineConfigSchema>;
 export type MigrationConfig = z.infer<typeof migrationConfigSchema>;

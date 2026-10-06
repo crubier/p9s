@@ -1,5 +1,5 @@
 import type { Table } from "drizzle-orm";
-import type { Config, ParentConfig, TableConfig } from "@p9s/core";
+import type { Config, ParentsConfig, TableConfig } from "@p9s/core";
 
 type DrizzleTable = Table<any>;
 
@@ -14,11 +14,11 @@ export interface DrizzleP9sOptions<User extends string> {
       isRole?: boolean;
       resourceId?: string;
       resourceFkey?: string;
-      resourceParent?: ParentConfig;
+      resourceParent?: ParentsConfig;
       resourceLeaf?: boolean;
       roleId?: string;
       roleFkey?: string;
-      roleParent?: ParentConfig;
+      roleParent?: ParentsConfig;
       roleLeaf?: boolean;
       permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> };
     };

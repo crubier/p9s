@@ -424,9 +424,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."organization"'::regclass and "attname" = 'resource_id') then
     alter table "public"."organization" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."organization" where "resource_id" is null) then
+    update "public"."organization" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."organization" set "resource_id" = default where "resource_id" is null;
 alter table "public"."organization" alter column "resource_id" set not null;
 
 
@@ -435,9 +440,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."person"'::regclass and "attname" = 'resource_id') then
     alter table "public"."person" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."person" where "resource_id" is null) then
+    update "public"."person" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."person" set "resource_id" = default where "resource_id" is null;
 alter table "public"."person" alter column "resource_id" set not null;
 
 
@@ -446,9 +456,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'resource_id') then
     alter table "public"."team" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."team" where "resource_id" is null) then
+    update "public"."team" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."team" set "resource_id" = default where "resource_id" is null;
 alter table "public"."team" alter column "resource_id" set not null;
 
 
@@ -457,9 +472,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."project"'::regclass and "attname" = 'resource_id') then
     alter table "public"."project" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."project" where "resource_id" is null) then
+    update "public"."project" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."project" set "resource_id" = default where "resource_id" is null;
 alter table "public"."project" alter column "resource_id" set not null;
 
 
@@ -468,9 +488,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."task"'::regclass and "attname" = 'resource_id') then
     alter table "public"."task" alter column "resource_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."task" where "resource_id" is null) then
+    update "public"."task" set "resource_id" = default where "resource_id" is null;
+  end if;
 end
 $$;
-update "public"."task" set "resource_id" = default where "resource_id" is null;
 alter table "public"."task" alter column "resource_id" set not null;
 
 
@@ -479,9 +504,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."organization"'::regclass and "attname" = 'role_id') then
     alter table "public"."organization" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."organization" where "role_id" is null) then
+    update "public"."organization" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."organization" set "role_id" = default where "role_id" is null;
 alter table "public"."organization" alter column "role_id" set not null;
 
 
@@ -490,9 +520,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."person"'::regclass and "attname" = 'role_id') then
     alter table "public"."person" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."person" where "role_id" is null) then
+    update "public"."person" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."person" set "role_id" = default where "role_id" is null;
 alter table "public"."person" alter column "role_id" set not null;
 
 
@@ -501,9 +536,14 @@ begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'role_id') then
     alter table "public"."team" alter column "role_id" set default uuid_generate_v4();
   end if;
+  -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+  -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+  -- can read a parent column that is gone.
+  if exists (select from "public"."team" where "role_id" is null) then
+    update "public"."team" set "role_id" = default where "role_id" is null;
+  end if;
 end
 $$;
-update "public"."team" set "role_id" = default where "role_id" is null;
 alter table "public"."team" alter column "role_id" set not null;
 
 
@@ -1705,7 +1745,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."person" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   
@@ -1720,7 +1760,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."team" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   
@@ -1735,7 +1775,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."project" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
 
   
@@ -1750,7 +1790,7 @@ begin
   insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
   from "public"."task" as "the_row"
-  where "the_row"."project_id" is not null
+  where ("the_row"."project_id" is not null)
   on conflict on constraint "resource_edge_pkey" do nothing;
   alter table "resource_edge" enable trigger "10_resource_edge_insert_trigger";
   alter table "resource_edge" enable trigger "10_resource_edge_update_trigger";
@@ -2702,7 +2742,7 @@ begin
   insert into "role_edge" ("parent_id", "child_id", "permission", "home")
   select (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."role_id", ~ b'0'::bit(8), true
   from "public"."person" as "the_row"
-  where "the_row"."org_id" is not null
+  where ("the_row"."org_id" is not null)
   on conflict on constraint "role_edge_pkey" do nothing;
 
   -- No parent column: the home edges of these rows become regular edges
@@ -4024,7 +4064,7 @@ create or replace function "comment_resource_parent_trigger_function"()
 returns trigger as $$
 begin
   new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."task" as "the_parent" where "the_parent"."id" = new."task_id");
-  if new."task_id" is not null and new."resource_parent_id" is null then
+  if new."task_id" is not null and (select "the_parent"."resource_id" from "public"."task" as "the_parent" where "the_parent"."id" = new."task_id") is null then
     raise exception 'p9s: % rows have a % that matches no row of %', 'comment', 'task_id', 'task'
       using errcode = 'foreign_key_violation';
   end if;

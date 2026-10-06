@@ -493,9 +493,14 @@ test('Default Migration', () => {
       if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."blog_post"'::regclass and "attname" = 'resource_id') then
         alter table "public"."blog_post" alter column "resource_id" set default nextval('"resource_id_seq"'::regclass);
       end if;
+      -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+      -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+      -- can read a parent column that is gone.
+      if exists (select from "public"."blog_post" where "resource_id" is null) then
+        update "public"."blog_post" set "resource_id" = default where "resource_id" is null;
+      end if;
     end
     $$;
-    update "public"."blog_post" set "resource_id" = default where "resource_id" is null;
     alter table "public"."blog_post" alter column "resource_id" set not null;
 
 
@@ -504,9 +509,14 @@ test('Default Migration', () => {
       if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."human_user"'::regclass and "attname" = 'role_id') then
         alter table "public"."human_user" alter column "role_id" set default nextval('"role_id_seq"'::regclass);
       end if;
+      -- Only rows of a table bound for the first time have no id. Statement triggers fire even when no row changes, and
+      -- the triggers of a table already bound are those of the previous migration, until they are replaced below: they
+      -- can read a parent column that is gone.
+      if exists (select from "public"."human_user" where "role_id" is null) then
+        update "public"."human_user" set "role_id" = default where "role_id" is null;
+      end if;
     end
     $$;
-    update "public"."human_user" set "role_id" = default where "role_id" is null;
     alter table "public"."human_user" alter column "role_id" set not null;
 
 
