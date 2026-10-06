@@ -29,7 +29,7 @@ export default async function AccessPage({ params, searchParams }: { params: Pro
           someone else, so the server checks that you are an admin first. View as a member to browse with their permissions.
         </p>
         <SearchBox query={query} placeholder="Search members" />
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>

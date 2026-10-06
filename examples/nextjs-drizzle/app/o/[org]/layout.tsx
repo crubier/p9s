@@ -21,7 +21,7 @@ export default async function OrganizationLayout({ children, params }: { childre
         isAdmin={can(permission, "admin")}
         canCreateSpace={can(permission, "create")}
       />
-      <SidebarInset className="bg-sidebar md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0 md:pr-2 md:pb-2 md:peer-data-[state=collapsed]:pl-2">
+      <SidebarInset className="bg-sidebar min-w-0 md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0 md:pr-2 md:pb-2 md:peer-data-[state=collapsed]:pl-2">
         {actor.impersonator && (
           <ImpersonationBanner orgSlug={slug} name={actor.name} impersonator={actor.impersonator.name} readOnly={actor.impersonator.readOnly} />
         )}
