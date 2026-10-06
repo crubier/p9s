@@ -672,6 +672,13 @@ export async function runPostgresBenchmark(context: Context, {
     // What an application asks to show the actions a user can take
     { name: "permissions of an object", table: "post", statement: () => sql`select "resource_permission"(${pickPost()})`, baseline: false },
     { name: "first page of 50 with permissions (object)", table: "post", statement: () => sql`select "id", "name", "resource_permission"("resource_id") from "post" order by "id" limit 50`, baseline: false },
+    // ilike is not leakproof, so the policy runs first, for the rows Postgres expects the search to return. Behind
+    // offset 0, it lists what the user can read once instead of checking the ancestors of every row.
+    { name: "search names (object)", table: "post", statement: () => sql`select "id", "name" from "post" where "name" ilike '%post 1777%'`, baseline: false },
+    { name: "search names behind offset 0 (object)", table: "post", statement: () => sql`select "id", "name" from (select "id", "name" from "post" offset 0) as "post" where "name" ilike '%post 1777%'`, baseline: false },
+    // An offset reads and checks every row it skips, a keyset page starts at its key in the index
+    { name: "page after 100 rows by offset (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" offset 100 limit 50`, baseline: false },
+    { name: "page by keyset (object)", table: "post", statement: () => sql`select "id", "name" from "post" where "id" > md5(${literal(String(random.int(1e9)))})::uuid order by "id" limit 50`, baseline: false },
     ...(sampledComments.length === 0 ? [] : [
       { name: "point lookup (comment)", table: "comment", statement: () => sql`select "id" from "comment" where "id" = ${uuid(pickComment().id)}`, baseline: false as const },
       { name: "comments of a post", table: "comment", statement: () => sql`select "id", "body" from "comment" where "post_id" = ${uuid(pickComment().post_id)} order by "created_at"`, baseline: false as const },

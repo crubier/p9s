@@ -22,7 +22,7 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, and counting every visible row. Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
@@ -129,3 +129,17 @@ A policy either checks the ancestors of each row, or lists once every resource t
 | Count visible posts | 7.6 ms                            | 7.6 ms, still listing        |
 
 In the balanced trees of the benchmark, an org admin who sees most objects reads one in 0.5 ms and renames one in 1.7 ms either way. A statement over many rows by a user who sees few resources now checks ancestors too: as the application user, creating 1000 objects in one statement takes 57 ms instead of 45 ms with `combineAssignmentsWith: role`.
+
+### Searches and pages
+
+With a size of 10 (111k resources, 5,600 posts of which a user reads about 200), uuid ids and `combineAssignmentsWith: role`, p50 in milliseconds:
+
+|                                   | p50  |
+| --------------------------------- | ---- |
+| Count visible posts               | 1.95 |
+| Search names with `ilike`         | 60   |
+| The same, behind `offset 0`       | 1.92 |
+| Page after 100 rows, by offset    | 2.82 |
+| Page by keyset                    | 1.87 |
+
+`ilike` is not leakproof, so the policy runs before it, planned for the few rows the search looks like it returns: Postgres checks the ancestors of each of the 5,600 posts. Behind `offset 0` it lists the 200 readable ones once. [Querying through RLS](./configuration/querying) explains these and other patterns.

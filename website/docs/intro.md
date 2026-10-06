@@ -67,5 +67,6 @@ bun run test
 - [Installation](./getting-started/installation) - Set up p9s in your project
 - [Configuration](./configuration/overview) - Learn about configuration options
 - [Security Model](./configuration/security-model) - Who can change permissions, and the rules the application must follow
+- [Querying through RLS](./configuration/querying) - Searches, counts, pages and shares that stay fast through the policies
 - [Benchmarks](./benchmarks) - What p9s costs at read and write time
 - [Core Package](./packages/core) - API reference for the core package
