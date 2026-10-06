@@ -218,4 +218,17 @@ describe('several parent columns', () => {
     ]);
     expect(await cacheMismatches(context, "none")).toEqual(noMismatches);
   });
+
+  test('the lookups of every parent column are hidden from PostGraphile', async () => {
+    await setupFolders(context);
+    await context.exec(sql`alter table "folder" add column "post_id" integer references "blog_post" ("id")`);
+    const config = foldersConfig(context);
+    const folderConfig = config.tables.find(table => table.name === "folder")!;
+    folderConfig.resourceParent = [...[folderConfig.resourceParent ?? []].flat(), { column: "post_id", table: "blog_post", key: "id" }];
+    await context.exec(createMigration({ ...config, engine: { ...config.engine, postgraphile: true } }));
+    const [functions] = await context.runTestQuery(sql`
+      select "proname" as "name", obj_description("oid", 'pg_proc') as "comment" from pg_proc
+      where "proname" in ('folder_resource_parent', 'folder_resource_parent_post_id') order by 1`);
+    expect(functions).toEqual(["folder_resource_parent", "folder_resource_parent_post_id"].map(name => ({ name, comment: "@behavior -*" })));
+  });
 });

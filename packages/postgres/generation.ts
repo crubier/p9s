@@ -2655,6 +2655,8 @@ union all
   const internal = [...new Set([
     ...(["resource", "role", "assignment"] as const).flatMap(kind => namesIn(naming[kind], ["name", "id"])),
     ...Object.values(naming.tables).flatMap(table => namesIn(table, ["name", "schema"])),
+    // The lookups of the parents after the first, named after their column
+    ...(["resource", "role"] as const).flatMap(kind => getBindings(kind, naming, config).flatMap(binding => binding.parents.map(parent => nameOf(parent.function)))),
     nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction), nameOf(naming.deletedPermissionFunction),
     ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
     ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
