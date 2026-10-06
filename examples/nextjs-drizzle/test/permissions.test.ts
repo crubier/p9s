@@ -114,6 +114,8 @@ describe.skipIf(!rootUrl)("example app", () => {
     const runbooks = await folderNamed("Runbooks");
     // Bob edits Engineering, but cannot share it
     await expect(service.share(bob, runbooks.resourceId, dave.roleId, "viewer")).rejects.toThrow("cannot share");
+    // p9s refuses too, without the checks of the server
+    await expect(db.asRole(bob.roleId, (tx) => tx.execute(`select resource_share('${runbooks.resourceId}', '${dave.roleId}', b'10000000')`))).rejects.toThrow(db.DENIED);
     // Erin, given full access to the runbooks, can share them, up to what she has
     await service.share(alice, runbooks.resourceId, erin.roleId, "manager");
     await service.share(erin, runbooks.resourceId, dave.roleId, "commenter");

@@ -468,7 +468,13 @@ export const listAccess = (actor: Actor, resourceId: string) =>
       .sort((a, b) => Number(b.direct) - Number(a.direct) || kinds[a.kind] - kinds[b.kind] || a.name.localeCompare(b.name));
   });
 
-// A member can share a resource if they have the share bit on it, and only give bits they have themselves
+// The assignment of a role on a resource. Members see the assignments of what they can share
+const assignmentOf = async (tx: Tx, resourceId: string, roleId: string) =>
+  (await rows<{ permission: string }>(tx, sql`
+    select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`))[0];
+
+// p9s lets a member share a resource if they have the share bit on it, and only give bits they have themselves. The
+// server checks the same first, to tell why it refuses
 export const share = (actor: Actor, resourceId: string, roleId: string, level: AccessLevel) =>
   asRole(actor, async (tx) => {
     await assertResourceInOrganization(tx, actor, resourceId);
@@ -477,13 +483,9 @@ export const share = (actor: Actor, resourceId: string, roleId: string, level: A
     const requested = ACCESS_LEVELS[level].permission;
     if (!includes(granted, requested)) throw new ForbiddenError("You can only give access you have yourself.");
     if (!(await principalsWithRoles(tx, actor, [roleId])).length) throw new NotFoundError("No such member or team.");
-    const [existing] = await rows<{ permission: string }>(tx, sql`
-      select permission::text from resource_access where resource_id = ${resourceId} and assigned_resource_id = ${resourceId} and role_id = ${roleId}`);
+    const existing = await assignmentOf(tx, resourceId, roleId);
     if (existing && !includes(granted, existing.permission)) throw new ForbiddenError("You cannot change access you don't have yourself.");
-    await switchToGraphWriter(tx);
-    await tx.execute(sql`
-      insert into assignment_edge (resource_id, role_id, permission) values (${resourceId}, ${roleId}, ${requested}::bit(8))
-      on conflict (resource_id, role_id) do update set permission = excluded.permission`);
+    await tx.execute(sql`select resource_share(${resourceId}, ${roleId}, ${requested}::bit(8))`);
   });
 
 // Removing access needs the share bit too, and cannot take away more than the actor has
@@ -492,12 +494,10 @@ export const unshare = (actor: Actor, resourceId: string, roleId: string) =>
     await assertResourceInOrganization(tx, actor, resourceId);
     const granted = await permissionOf(tx, resourceId);
     if (!can(granted, "share")) throw new ForbiddenError("You cannot change who has access to this.");
-    const [existing] = await rows<{ permission: string }>(tx, sql`
-      select permission::text from resource_access where resource_id = ${resourceId} and assigned_resource_id = ${resourceId} and role_id = ${roleId}`);
+    const existing = await assignmentOf(tx, resourceId, roleId);
     if (!existing) throw new NotFoundError("That access is not given here.");
     if (!includes(granted, existing.permission)) throw new ForbiddenError("You cannot remove access you don't have yourself.");
-    await switchToGraphWriter(tx);
-    await tx.execute(sql`delete from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
+    await tx.execute(sql`select resource_unshare(${resourceId}, ${roleId})`);
   });
 
 const assertAdmin = async (tx: Tx, actor: Actor, message: string) => {

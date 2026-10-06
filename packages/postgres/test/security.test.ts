@@ -377,12 +377,118 @@ describe('permission graph privileges', () => {
       expect(seen).toEqual([]);
     });
 
-    test('leaf rows cannot have the manageAccess bit', async () => {
+    test('leaf rows cannot have the manageAccess or share bit', async () => {
       await setupBlogTables(context);
-      const config = blogMigrationConfig(context);
-      const comment = config.tables.find(table => table.name === "blog_comment")!;
-      comment.permission = { [context.database_user_username]: { select: 0, insert: 1, update: 2, delete: 3, manageAccess: 3 } } as any;
-      expect(() => createMigration(config)).toThrow(/Leaf rows have no access of their own/);
+      for (const extra of [{ manageAccess: 3 }, { share: 3 }]) {
+        const config = blogMigrationConfig(context);
+        const comment = config.tables.find(table => table.name === "blog_comment")!;
+        comment.permission = { [context.database_user_username]: { select: 0, insert: 1, update: 2, delete: 3, ...extra } } as any;
+        expect(() => createMigration(config)).toThrow(/Leaf rows have no access of their own/);
+      }
+    });
+  });
+
+  describe('delegated sharing', () => {
+    // The delete bit lets users share a post, and groups cannot be shared by users
+    const setupSharing = async (combineAssignmentsWith: CombineMode = "none") => {
+      await setupBlogTables(context);
+      const config = blogMigrationConfig(context, { combineAssignmentsWith });
+      const post = config.tables.find(table => table.name === "blog_post")!;
+      post.permission = { [context.database_user_username]: { select: 0, insert: 1, update: 2, delete: 3, share: 3 } } as any;
+      await context.exec(createMigration(config));
+      await context.exec(sql`select setval('resource_id_seq', 1000000); select setval('role_id_seq', 1000000);`);
+      await seedGraph(context);
+      await context.exec(sql`insert into "role_group" ("id") values (3), (4)`);
+      const [twoId, threeId] = (await context.runTestQuery(sql`select "resource_id" from "blog_post" order by "group_id"`))[0].map((row: any) => row.resource_id as number);
+      return { two: raw(String(twoId)), three: raw(String(threeId)), twoId };
+    };
+    const user = () => context.database_user_username;
+    const shares = (resourceId: SQL) => context.runTestQuery(sql`
+      select "role_id", "permission"::text from "assignment_edge" where "resource_id" = ${resourceId} order by "role_id"`).then(([rows]) => rows);
+    const share = (roleId: string, resourceId: SQL, to: number, value: string) =>
+      as(context, user(), sql`select "resource_share"(${resourceId}, ${raw(String(to))}, ${bits(value)})`, raw(roleId));
+    const unshare = (roleId: string, resourceId: SQL, from: number) =>
+      as(context, user(), sql`select "resource_unshare"(${resourceId}, ${raw(String(from))}) as "removed"`, raw(roleId)).then(([row]) => row.removed);
+    const posts = (roleId: string) => as(context, user(), sql`select "name" from "blog_post" order by "name"`, raw(roleId)).then(rows => rows.map(row => row.name));
+
+    for (const combineAssignmentsWith of combineModes) {
+      test(`users share what they have the share bit on, with bits they have (combineAssignmentsWith: ${combineAssignmentsWith})`, async () => {
+        const { two, three } = await setupSharing(combineAssignmentsWith);
+        // Role 1 has every bit on group 2, so on post two
+        expect(await posts("2")).toEqual([]);
+        await share("1", two, 2, "1000");
+        expect(await posts("2")).toEqual(["two"]);
+        expect(await cacheMismatches(context, combineAssignmentsWith)).toEqual(noMismatches);
+
+        // Nothing out of reach, nor on a table without share bit, with the same error as for no resource at all
+        for (const resourceId of [three, raw("2"), raw("99")]) {
+          await expectRejected(share("1", resourceId, 2, "1000"), /row-level security/);
+        }
+        // Role 2 can read post two, but not share it
+        await expectRejected(share("2", two, 3, "1000"), /row-level security/);
+
+        // Role 3 can read and share post two: it shares what it has, and nothing more
+        await context.exec(sql`insert into "assignment_edge" values (${two}, 3, ${bits("1001")})`);
+        await expectRejected(share("3", two, 4, "1100"), /row-level security/);
+        await share("3", two, 4, "1001");
+        expect(await shares(two)).toEqual([
+          { role_id: 2, permission: "1000" }, { role_id: 3, permission: "1001" }, { role_id: 4, permission: "1001" }]);
+
+        // It can change or remove a share made by someone else, unless the share has bits it does not have
+        await share("3", two, 2, "1001");
+        expect(await unshare("3", two, 4)).toBe(true);
+        expect(await unshare("3", two, 4)).toBe(false);
+        await share("1", two, 4, "1111");
+        await expectRejected(share("3", two, 4, "1000"), /row-level security/);
+        expect(await unshare("3", two, 4)).toBe(false);
+        expect(await shares(two)).toEqual([
+          { role_id: 2, permission: "1001" }, { role_id: 3, permission: "1001" }, { role_id: 4, permission: "1111" }]);
+        expect(await cacheMismatches(context, combineAssignmentsWith)).toEqual(noMismatches);
+      });
+    }
+
+    test('users only see the assignments of what they can share, and graph writers still write any', async () => {
+      const { two, three, twoId } = await setupSharing();
+      await context.exec(sql`insert into "assignment_edge" values (${two}, 2, ${bits("1000")}), (${three}, 4, ${bits("1000")})`);
+      const seen = (roleId: string) => as(context, user(), sql`select "resource_id", "role_id" from "assignment_edge" order by "role_id"`, raw(roleId));
+      expect(await seen("1")).toEqual([{ resource_id: twoId, role_id: 2 }]);
+      expect(await seen("2")).toEqual([]);
+      // Updates and deletes only find the rows they can see
+      await as(context, user(), sql`delete from "assignment_edge"`, raw("1"));
+      expect(await shares(three)).toEqual([{ role_id: 4, permission: "1000" }]);
+      // The share bit is enough, without the select bit, which the policies of posts check
+      await context.exec(sql`insert into "assignment_edge" values (${two}, 4, ${bits("0001")})`);
+      await share("4", two, 3, "0001");
+      expect(await shares(two)).toEqual([{ role_id: 3, permission: "0001" }, { role_id: 4, permission: "0001" }]);
+
+      await as(context, context.database_writer_username, sql`
+        insert into "assignment_edge" values (3, 4, ${bits("1111")});
+        update "assignment_edge" set "permission" = ${bits("1100")} where "resource_id" = 3 and "role_id" = 4`);
+      expect(await shares(raw("3"))).toEqual([{ role_id: 4, permission: "1100" }]);
+    });
+
+    test('the application can restrict who users share with', async () => {
+      const { two } = await setupSharing();
+      // Only roles 2 and 3, like the members of a team of the user
+      await context.exec(sql`
+        create policy "share_with_team" on "assignment_edge" as restrictive for insert to ${identifier(user())}
+        with check ("role_id" in (2, 3))`);
+      await share("1", two, 2, "1000");
+      await expectRejected(share("1", two, 4, "1000"), /row-level security/);
+    });
+
+    test('without share bits, users have no privilege on assignments, and the functions and policies are dropped', async () => {
+      await setupSharing();
+      await context.exec(createMigration(blogMigrationConfig(context)));
+      await expectRejected(as(context, user(), sql`select count(*) from "assignment_edge"`, raw("1")));
+      const [functions] = await context.runTestQuery(sql`
+        select count(*)::int as "n" from pg_proc where "proname" in ('resource_share', 'resource_unshare') and "pronamespace" = 'public'::regnamespace`);
+      expect(functions).toEqual([{ n: 0 }]);
+      const [policies] = await context.runTestQuery(sql`
+        select "policyname" from pg_policies where "tablename" = 'assignment_edge' order by "policyname"`);
+      expect(policies).toEqual([{ policyname: "assignment_edge_policy_writer" }]);
+      const [[table]] = await context.runTestQuery(sql`select "relrowsecurity" from pg_class where "oid" = 'assignment_edge'::regclass`);
+      expect(table.relrowsecurity).toBe(false);
     });
   });
 

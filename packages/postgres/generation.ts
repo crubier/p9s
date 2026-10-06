@@ -45,6 +45,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   ${createMigrationDataModelPolicies(naming, completeConfig)}
 
+  ${createMigrationSharing(naming, completeConfig)}
+
 
   ${createMigrationCleanup(naming, completeConfig)}
 
@@ -68,6 +70,10 @@ const getIdType = (config: CompleteConfig<any>) => {
     },
   }[config.engine.id.mode];
 }
+
+// The users with a share bit on some table, who write assignments through the policies of the assignment table
+const sharers = (config: CompleteConfig<any>): string[] => config.engine.users.filter((user: string) =>
+  config.tables.some(table => table.isResource && !table.resourceLeaf && table.permission?.[user]?.share != null));
 
 const getRoles = (config: CompleteConfig<any>) => {
   const users: string[] = config.engine.users;
@@ -615,7 +621,8 @@ create index if not exists ${edgeResourceIdIndex} on ${edge} (${resourceId});
 
 create index if not exists ${edgeRoleIdIndex} on ${edge} (${roleId});
 
-${setPrivileges(edge, [], writers, users)}
+-- Users who can share write it too, through its policies
+${setPrivileges(edge, [], [...writers, ...sharers(config)], users)}
 `;
 }
 
@@ -1593,9 +1600,9 @@ const roleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>, roleId: SQ
   )`;
 };
 
-// The bits the policies of tables and the access views check
+// The bits the policies of tables, of the assignment table and the access views check
 const policyBits = (config: CompleteConfig<any>) => [...new Set(config.tables.filter(table => table.isResource)
-  .flatMap(table => Object.values(table.permission ?? {}).flatMap(bits => (["select", "insert", "update", "delete", "manageAccess"] as const)
+  .flatMap(table => Object.values(table.permission ?? {}).flatMap(bits => (["select", "insert", "update", "delete", "manageAccess", "share"] as const)
     .map(operation => bits?.[operation]).filter((bit): bit is number => bit != null))))].sort((a, b) => a - b);
 
 const currentAccessViewOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}`);
@@ -1685,8 +1692,11 @@ join ${role.edgeCache} as "the_role_edge" on "the_role_edge".${role.parentId} = 
   })();
 
   for (const table of config.tables.filter(table => table.resourceLeaf)) {
-    if (Object.values(table.permission ?? {}).some(bits => (bits as { manageAccess?: number } | undefined)?.manageAccess != null)) {
-      throw new Error(`Leaf rows have no access of their own: manageAccess is checked on resources, and the rows of ${table.name} are not`);
+    if (Object.values(table.permission ?? {}).some(bits => {
+      const { manageAccess, share } = (bits ?? {}) as { manageAccess?: number; share?: number };
+      return manageAccess != null || share != null;
+    })) {
+      throw new Error(`Leaf rows have no access of their own: manageAccess and share are checked on resources, and the rows of ${table.name} are not`);
     }
   }
   // Roles that can read the graph tables, graph writers and the owner, see everything. In a view, current_user is
@@ -1966,3 +1976,120 @@ drop function if exists ${currentRoleNodeFunction} (${idType});
 ${roleLeaves.length === 0 ? sql`drop function if exists ${currentRoleNodeFunction} ();` : sql``}
     `;
 }
+
+// Users share a resource by writing its assignments, as the policies of the assignment table allow: with the share
+// bit of its table on it, and only bits they have on it. The triggers that keep the caches run as the owner, which
+// bypasses these policies.
+export const createMigrationSharing = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { assignment, permissionFunction, shareFunction, unshareFunction } = naming;
+  const { type: idType } = getIdType(config);
+  const { writers } = getRoles(config);
+  const size = config.engine.permission.bitmap.size;
+  const bindings = getBindings("resource", naming, config);
+  const policyOf = (suffix: string) => identifier(`${nameOf(assignment.edgePolicy)}_${suffix}`);
+  const policies = [
+    ...(writers.length > 0 ? [nameOf(policyOf("writer"))] : []),
+    ...sharers(config).flatMap(user => ["select", "insert", "update", "delete"].map(operation => nameOf(policyOf(`${user}_${operation}`)))),
+  ];
+
+  const checkOf = (user: string) => identifier(`${nameOf(shareFunction)}_check_${user}`);
+
+  const sharing = join(sharers(config).map(user => {
+    const shareable = bindings.flatMap(binding => {
+      const bit = (config.tables.find(table => table.name === binding.tableName)?.permission as Record<string, { share?: number }> | undefined)?.[user]?.share;
+      return bit == null ? [] : [sql`
+    (exists (select from ${binding.table} as "the_row" where "the_row".${binding.id} = "the_resource_id")
+      and exists (select from ${currentAccessViewOf(naming, bit)} as "the_sharer" where "the_sharer".${assignment.resourceId} = "the_resource_id"))`];
+    });
+    const canShare = sql`${checkOf(user)}(${assignment.edge}.${assignment.resourceId})`;
+    // Every bit of the assignment is a bit the user has on the resource
+    const withinReach = sql`
+  and (${assignment.edge}.${assignment.permission} & ~ ${permissionFunction}(${assignment.edge}.${assignment.resourceId})) = b'0'::bit(${literal(size)})`;
+    const role = identifier(user);
+    return sql`
+-- Whether the current user has the share bit on a resource, through the table of the resource. As the owner, so that
+-- the policies of that table do not apply: they would check the select bit, and plan the lookup of one row as a list
+-- of every readable row
+create or replace function ${checkOf(user)} ("the_resource_id" ${idType})
+  returns boolean
+  as $$
+begin
+  return ${join(shareable, ` or`)};
+end
+$$ language plpgsql stable ${definer(naming)};
+
+${grantExecute(sql`${checkOf(user)} (${idType})`, [user])}
+
+create policy ${policyOf(`${user}_select`)} on ${assignment.edge} as permissive for select to ${role}
+using (${canShare});
+create policy ${policyOf(`${user}_insert`)} on ${assignment.edge} as permissive for insert to ${role}
+with check (${canShare}${withinReach});
+create policy ${policyOf(`${user}_update`)} on ${assignment.edge} as permissive for update to ${role}
+using (${canShare}${withinReach})
+with check (${canShare}${withinReach});
+create policy ${policyOf(`${user}_delete`)} on ${assignment.edge} as permissive for delete to ${role}
+using (${canShare}${withinReach});
+`;
+  }), `\n`);
+
+  const stale = join(config.engine.users.filter(user => !sharers(config).includes(user)).map(user => sql`
+drop function if exists ${checkOf(user)} (${idType});`), ``);
+
+  const functions = sharers(config).length > 0 ? sql`
+-- Gives a role access to a resource, or changes the bits of its assignment, as the policies allow
+create or replace function ${shareFunction} ("the_resource_id" ${idType}, "the_role_id" ${idType}, "the_permission" bit(${literal(size)}))
+  returns void
+  as $$
+begin
+  insert into ${assignment.edge} (${assignment.resourceId}, ${assignment.roleId}, ${assignment.permission})
+  values ("the_resource_id", "the_role_id", "the_permission")
+  on conflict (${assignment.resourceId}, ${assignment.roleId}) do update set ${assignment.permission} = excluded.${assignment.permission};
+end
+$$ language plpgsql volatile security invoker set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${shareFunction} (${idType}, ${idType}, bit(${literal(size)}))`, sharers(config))}
+
+-- Removes the assignment of a role on a resource, as the policies allow. False when there was none to remove.
+create or replace function ${unshareFunction} ("the_resource_id" ${idType}, "the_role_id" ${idType})
+  returns boolean
+  as $$
+begin
+  delete from ${assignment.edge} where ${assignment.resourceId} = "the_resource_id" and ${assignment.roleId} = "the_role_id";
+  return found;
+end
+$$ language plpgsql volatile security invoker set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${unshareFunction} (${idType}, ${idType})`, sharers(config))}
+` : sql`
+drop function if exists ${shareFunction} (${idType}, ${idType}, bit(${literal(size)}));
+drop function if exists ${unshareFunction} (${idType}, ${idType});
+`;
+
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Sharing
+-----------------------------------------------------------------------------------------------------------------------
+-- The policies are created again from the config, and those of users who can no longer share are dropped
+do $$
+declare
+  "the_policy" text;
+begin
+  for "the_policy" in
+    select "policyname" from pg_policies where "schemaname" = current_schema() and "tablename" = ${textLiteral(nameOf(assignment.edge))}
+    and left("policyname", ${literal(nameOf(assignment.edgePolicy).length + 1)}) = ${textLiteral(`${nameOf(assignment.edgePolicy)}_`)}
+  loop
+    execute format('drop policy %I on %I', "the_policy", ${textLiteral(nameOf(assignment.edge))});
+  end loop;
+end
+$$;
+${writers.length > 0 ? sql`
+create policy ${policyOf("writer")} on ${assignment.edge} as permissive for all to ${join(writers.map(writer => identifier(writer)), ", ")}
+using (true) with check (true);` : sql``}
+${sharing}
+
+-- Without users who share, the privileges keep users out, and roles granted the table by hand read it whole
+alter table ${assignment.edge} ${sharers(config).length > 0 ? sql`enable` : sql`disable`} row level security;
+${stale}
+${functions}
+`;
+};

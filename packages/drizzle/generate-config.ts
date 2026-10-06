@@ -20,7 +20,7 @@ export interface DrizzleP9sOptions<User extends string> {
       roleFkey?: string;
       roleParent?: ParentConfig;
       roleLeaf?: boolean;
-      permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number }> };
+      permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> };
     };
   };
   engine?: Partial<Config<User>["engine"]>;
@@ -117,17 +117,18 @@ export function generateConfigurationFromDrizzleSchema<User extends string>(
     }
 
     if (tableOptions.permission) {
-      const permission: Partial<{ [user in User]: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number }> }> = {};
+      const permission: Partial<{ [user in User]: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> }> = {};
       for (const user of options.users) {
         if (tableOptions.permission[user]) {
           const userPerm = tableOptions.permission[user]!;
-          const filteredPerm: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number }> = {};
+          const filteredPerm: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> = {};
           // Values are bit positions in the permission bitmap, so 0 is a real bit
           if (userPerm.select !== undefined) filteredPerm.select = userPerm.select;
           if (userPerm.insert !== undefined) filteredPerm.insert = userPerm.insert;
           if (userPerm.update !== undefined) filteredPerm.update = userPerm.update;
           if (userPerm.delete !== undefined) filteredPerm.delete = userPerm.delete;
           if (userPerm.manageAccess !== undefined) filteredPerm.manageAccess = userPerm.manageAccess;
+          if (userPerm.share !== undefined) filteredPerm.share = userPerm.share;
           if (Object.keys(filteredPerm).length > 0) {
             permission[user] = filteredPerm;
           }

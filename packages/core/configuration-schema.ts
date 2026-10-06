@@ -8,6 +8,8 @@ export const permissionPerOperationSchema = z.object({
   delete: z.number(),
   // Lets users see who has access to a row of the table, and what any role can do on it
   manageAccess: z.number().optional(),
+  // Lets users share a row of the table: write the assignments of the row, with bits they have on it
+  share: z.number().optional(),
 });
 
 // Permission per operation (string values for naming config)
@@ -147,6 +149,8 @@ export const assignmentNamingConfigSchema = z.object({
   combinedEdgeDeleteTrigger: z.string(),
   enableTriggerFunction: z.string(),
   disableTriggerFunction: z.string(),
+  // Prefix of the policies of the assignment table, followed by the user and the operation, or by "writer"
+  edgePolicy: z.string(),
 });
 
 // Derived naming config schema (combines resource, role, assignment)
@@ -173,6 +177,9 @@ export const derivedNamingConfigSchema = z.object({
   // permissions of every role
   accessView: z.string(),
   roleAccessView: z.string(),
+  // Users with the share bit on a resource write its assignments through these, or the assignment table itself
+  shareFunction: z.string(),
+  unshareFunction: z.string(),
 });
 
 // Table naming config entry schema. The fkey names are only used to upgrade from node tables.
@@ -326,10 +333,10 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
         });
       }
     });
-    if (table.resourceLeaf && Object.values(table.permission).some(bits => bits.manageAccess != null)) {
+    if (table.resourceLeaf && Object.values(table.permission).some(bits => bits.manageAccess != null || bits.share != null)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Leaf rows have no access of their own: manageAccess is checked on resources, and the rows of ${table.name} are not`,
+        message: `Leaf rows have no access of their own: manageAccess and share are checked on resources, and the rows of ${table.name} are not`,
         path: ["tables", tableIndex, "permission"],
       });
     }

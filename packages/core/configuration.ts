@@ -196,7 +196,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     pkey,
     fkey,
     insert, update, delete: deletez, trigger, function: functionz, cache,
-    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard, node
+    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard, node, policy
   } = deepMerge(defaultBaseNamingConfig, config.engine.naming);
 
   const size = config.engine.permission.bitmap.size;
@@ -242,7 +242,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       combinedEdgeDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}_${functionz}`,
       combinedEdgeDeleteTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}`,
       enableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${enable}`,
-      disableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${disable}`
+      disableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${disable}`,
+      edgePolicy: `${prefix}${assignment.name}_${edge}_${policy}`,
     },
     schema: `${config.engine.schema}`,
     orBitmap: `${prefix}or_bitmap_${size}`,
@@ -256,6 +257,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     currentRoleView: `${prefix}current_${role.name}`,
     accessView: `${prefix}${resource.name}_access`,
     roleAccessView: `${prefix}${resource.name}_${role.name}_access`,
+    shareFunction: `${prefix}${resource.name}_share`,
+    unshareFunction: `${prefix}${resource.name}_unshare`,
   }
 }
 

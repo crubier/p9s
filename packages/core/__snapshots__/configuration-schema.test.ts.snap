@@ -17,6 +17,9 @@ exports[`Configuration JSON Schemas permissionPerOperationSchema 1`] = `
     "select": {
       "type": "number",
     },
+    "share": {
+      "type": "number",
+    },
     "update": {
       "type": "number",
     },
@@ -550,6 +553,9 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "edgePkey": {
       "type": "string",
     },
+    "edgePolicy": {
+      "type": "string",
+    },
     "edgeResourceIdIndex": {
       "type": "string",
     },
@@ -625,6 +631,7 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "combinedEdgeDeleteTrigger",
     "enableTriggerFunction",
     "disableTriggerFunction",
+    "edgePolicy",
   ],
   "type": "object",
   "~standard": {
@@ -713,6 +720,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "edgePkey": {
           "type": "string",
         },
+        "edgePolicy": {
+          "type": "string",
+        },
         "edgeResourceIdIndex": {
           "type": "string",
         },
@@ -788,6 +798,7 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "combinedEdgeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "edgePolicy",
       ],
       "type": "object",
     },
@@ -1218,10 +1229,16 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "schema": {
       "type": "string",
     },
+    "shareFunction": {
+      "type": "string",
+    },
     "truncateGuardFunction": {
       "type": "string",
     },
     "truncateGuardTrigger": {
+      "type": "string",
+    },
+    "unshareFunction": {
       "type": "string",
     },
   },
@@ -1241,6 +1258,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "currentRoleView",
     "accessView",
     "roleAccessView",
+    "shareFunction",
+    "unshareFunction",
   ],
   "type": "object",
   "~standard": {
@@ -1624,6 +1643,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "edgePkey": {
           "type": "string",
         },
+        "edgePolicy": {
+          "type": "string",
+        },
         "edgeResourceIdIndex": {
           "type": "string",
         },
@@ -1699,6 +1721,7 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "combinedEdgeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "edgePolicy",
       ],
       "type": "object",
     },
@@ -2207,6 +2230,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "sequence": {
       "type": "string",
     },
+    "shareFunction": {
+      "type": "string",
+    },
     "tables": {
       "additionalProperties": {
         "additionalProperties": false,
@@ -2355,6 +2381,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "truncateGuardTrigger": {
       "type": "string",
     },
+    "unshareFunction": {
+      "type": "string",
+    },
     "update": {
       "type": "string",
     },
@@ -2417,6 +2446,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "currentRoleView",
     "accessView",
     "roleAccessView",
+    "shareFunction",
+    "unshareFunction",
     "tables",
   ],
   "type": "object",
@@ -2460,6 +2491,9 @@ exports[`Configuration JSON Schemas tableConfigSchema 1`] = `
             "type": "number",
           },
           "select": {
+            "type": "number",
+          },
+          "share": {
             "type": "number",
           },
           "update": {
@@ -2681,6 +2715,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "edgePkey": {
               "type": "string",
             },
+            "edgePolicy": {
+              "type": "string",
+            },
             "edgeResourceIdIndex": {
               "type": "string",
             },
@@ -2756,6 +2793,7 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "combinedEdgeDeleteTrigger",
             "enableTriggerFunction",
             "disableTriggerFunction",
+            "edgePolicy",
           ],
           "type": "object",
         },
@@ -3264,6 +3302,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "sequence": {
           "type": "string",
         },
+        "shareFunction": {
+          "type": "string",
+        },
         "tables": {
           "additionalProperties": {
             "additionalProperties": false,
@@ -3410,6 +3451,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
           "type": "string",
         },
         "truncateGuardTrigger": {
+          "type": "string",
+        },
+        "unshareFunction": {
           "type": "string",
         },
         "update": {
@@ -3655,6 +3699,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "edgePkey": {
                   "type": "string",
                 },
+                "edgePolicy": {
+                  "type": "string",
+                },
                 "edgeResourceIdIndex": {
                   "type": "string",
                 },
@@ -3730,6 +3777,7 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "combinedEdgeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "edgePolicy",
               ],
               "type": "object",
             },
@@ -4238,6 +4286,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "sequence": {
               "type": "string",
             },
+            "shareFunction": {
+              "type": "string",
+            },
             "tables": {
               "additionalProperties": {
                 "additionalProperties": false,
@@ -4386,6 +4437,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "truncateGuardTrigger": {
               "type": "string",
             },
+            "unshareFunction": {
+              "type": "string",
+            },
             "update": {
               "type": "string",
             },
@@ -4509,6 +4563,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                   "type": "number",
                 },
                 "select": {
+                  "type": "number",
+                },
+                "share": {
                   "type": "number",
                 },
                 "update": {
@@ -4743,6 +4800,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "edgePkey": {
                   "type": "string",
                 },
+                "edgePolicy": {
+                  "type": "string",
+                },
                 "edgeResourceIdIndex": {
                   "type": "string",
                 },
@@ -4818,6 +4878,7 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "combinedEdgeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "edgePolicy",
               ],
               "type": "object",
             },
@@ -5326,6 +5387,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "sequence": {
               "type": "string",
             },
+            "shareFunction": {
+              "type": "string",
+            },
             "tables": {
               "additionalProperties": {
                 "additionalProperties": false,
@@ -5474,6 +5538,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "truncateGuardTrigger": {
               "type": "string",
             },
+            "unshareFunction": {
+              "type": "string",
+            },
             "update": {
               "type": "string",
             },
@@ -5584,6 +5651,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "type": "number",
                 },
                 "select": {
+                  "type": "number",
+                },
+                "share": {
                   "type": "number",
                 },
                 "update": {

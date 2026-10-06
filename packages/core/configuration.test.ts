@@ -47,6 +47,7 @@ test('Default Configuration', () => {
         "edgeInsertTrigger": "10_assignment_edge_insert_trigger",
         "edgeInsertTriggerFunction": "assignment_edge_insert_trigger_function",
         "edgePkey": "assignment_edge_pkey",
+        "edgePolicy": "assignment_edge_policy",
         "edgeResourceIdIndex": "assignment_edge_resource_id_index",
         "edgeRoleIdIndex": "assignment_edge_role_id_index",
         "edgeUpdateTrigger": "10_assignment_edge_update_trigger",
@@ -199,6 +200,7 @@ test('Default Configuration', () => {
       "schema": "public",
       "select": "select",
       "sequence": "seq",
+      "shareFunction": "resource_share",
       "tables": {
         "blog_post": {
           "name": "blog_post",
@@ -263,6 +265,7 @@ test('Default Configuration', () => {
       "truncate": "truncate",
       "truncateGuardFunction": "truncate_guard_trigger_function",
       "truncateGuardTrigger": "05_truncate_guard_trigger",
+      "unshareFunction": "resource_unshare",
       "update": "update",
       "validate": "validate",
       "var": "var",
