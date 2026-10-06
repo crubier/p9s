@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "bun run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/graphql", "destination": "/api?route=graphql" },
+    { "source": "/graphiql", "destination": "/api?route=graphiql" },
+    { "source": "/api/auth/:path*", "destination": "/api?route=api/auth/:path*" },
+    { "source": "/((?!api|assets/|ruru-static/|favicon\\.ico).*)", "destination": "/index.html" }
+  ]
+}

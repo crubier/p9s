@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
@@ -11,7 +11,9 @@
     "strict": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["bun"]
+    "jsx": "react-jsx",
+    "types": ["bun", "vite/client"],
+    "paths": { "@/*": ["./web/*"] }
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "web", "lib", "api", "vite.config.ts", "codegen.ts"]
 }

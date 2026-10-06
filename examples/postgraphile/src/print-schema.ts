@@ -1,10 +1,9 @@
-import { postgraphile } from "postgraphile";
 import { printSchema } from "postgraphile/graphql";
 import { pool } from "./db";
-import { preset } from "./graphile.config";
+import { pgl } from "./graphql";
 
-// Writes the GraphQL schema PostGraphile builds from the database, to review what it exposes
-const pgl = postgraphile(preset);
+// Writes the GraphQL schema PostGraphile builds from the database, to review what it exposes, and for the types of
+// the operations of the app
 const { schema } = await pgl.getSchemaResult();
 await Bun.write(new URL("../schema.graphql", import.meta.url), printSchema(schema));
 await pgl.release();

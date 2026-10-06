@@ -32,8 +32,8 @@ jobs:
       - name: Example app typecheck and lint
         run: bun run typecheck && bun run lint
         working-directory: examples/nextjs-drizzle
-      - name: PostGraphile example typecheck
-        run: bun run typecheck
+      - name: PostGraphile example typecheck, generated types and build
+        run: bun run typecheck && bun run codegen && git diff --exit-code web/gql && bun run build
         working-directory: examples/postgraphile
       - name: Tests on PGlite
         run: bun run test

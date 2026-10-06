@@ -1,35 +1,38 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { postgraphile } from "postgraphile";
-import { grafserv } from "postgraphile/grafserv/node";
-import { signToken } from "./auth";
-import { pool } from "./db";
-import { preset } from "./graphile.config";
+import { extname, join, normalize } from "node:path";
+import { handle, servesPath } from "./handler";
 
-const pgl = postgraphile(preset);
-const serv = pgl.createServ(grafserv);
+// One server for the app, GraphQL and GraphiQL. In development Vite serves the pages, and reloads them; otherwise
+// they are the files `vite build` wrote to dist
+const dev = process.env.NODE_ENV !== "production";
+const port = Number(process.env.PORT ?? 3200);
+const dist = new URL("../dist/", import.meta.url).pathname;
 
-// For trying the API only: anyone can get the token of anyone by their email. A real app signs people in first.
-const login = async (body: string) => {
-  const { email } = JSON.parse(body) as { email?: string };
-  const { rows } = await pool.query<{ role_id: string }>(`select role_id from person where email = $1`, [email]);
-  return rows[0] ? { token: await signToken(rows[0].role_id) } : undefined;
+const vite = dev
+  ? await (await import("vite")).createServer({ server: { middlewareMode: true }, appType: "spa" })
+  : undefined;
+
+const TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".json": "application/json",
 };
 
-const graphql = serv.createHandler();
+const serveFile = async (url: string, res: import("node:http").ServerResponse) => {
+  const path = normalize(join(dist, decodeURIComponent(url.split("?")[0]!)));
+  const file = path.startsWith(dist) && (await stat(path).catch(() => undefined))?.isFile() ? path : join(dist, "index.html");
+  res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
+  createReadStream(file).pipe(res);
+};
 
-const server = createServer((req, res) => {
-  if (req.method === "POST" && req.url === "/login") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", async () => {
-      const result = await login(body).catch(() => undefined);
-      res.writeHead(result ? 200 : 401, { "content-type": "application/json" });
-      res.end(JSON.stringify(result ?? { error: "Unknown email" }));
-    });
-    return;
-  }
-  graphql(req, res);
-});
-
-const port = preset.grafserv?.port ?? 5678;
-server.listen(port, () => console.log(`GraphQL and GraphiQL on http://localhost:${port}/graphql`));
+createServer((req, res) => {
+  if (servesPath(req.url)) return void handle(req, res);
+  if (vite) return vite.middlewares(req, res);
+  void serveFile(req.url ?? "/", res);
+}).listen(port, () => console.log(`App on http://localhost:${port}, GraphiQL on http://localhost:${port}/graphiql`));
