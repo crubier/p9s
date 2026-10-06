@@ -1,6 +1,6 @@
 "use client";
 
-import { IconChevronDown, IconFilePlus, IconFolderPlus, IconPlus } from "@tabler/icons-react";
+import { IconFilePlus, IconFolderPlus, IconPlus } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createDocument, createFolder } from "@/app/o/[org]/actions";
@@ -71,7 +71,7 @@ export function AddMenu({ orgSlug, parentId }: { orgSlug: string; parentId: stri
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm">
-            <IconPlus /> Add <IconChevronDown className="text-muted-foreground" />
+            <IconPlus /> Add
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

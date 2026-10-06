@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { searchPrincipals, share, unshare } from "@/app/o/[org]/actions";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ACCESS_LEVELS, can, capabilities, includes, type AccessLevel } from "@/lib/permissions";
 import type { AccessRow, Principal } from "@/src/service";
@@ -118,22 +118,26 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
   );
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <Button variant="outline" size="sm">
           <IconShare /> {canShare ? "Share" : "Access"}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{canShare ? `Share ${name}` : `Who has access to ${name}`}</DialogTitle>
-          <DialogDescription>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="flex w-[min(34rem,calc(100vw-2rem))] flex-col gap-4"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <div className="flex flex-col gap-1">
+          <h2 className="font-semibold">{canShare ? `Share ${name}` : `Who has access to ${name}`}</h2>
+          <p className="text-muted-foreground text-sm">
             Access given on a folder applies to everything inside it.{" "}
             {canShare
               ? "Add people or teams, change what they can do, or remove them. You can give up to your own access."
               : `Only people with Full access can share it${sharers.length ? `, like ${sharers.slice(0, 3).join(", ")}` : ""}.`}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Your access</span>
           <PermissionBadge permission={permission} />
@@ -207,7 +211,7 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
           })}
           {!access.length && <li className="text-muted-foreground py-2 text-sm">Nobody else has access yet.</li>}
         </ul>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   );
 }
