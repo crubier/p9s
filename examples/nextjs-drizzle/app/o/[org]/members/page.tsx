@@ -1,5 +1,5 @@
 import { InviteForm, MemberTable, TeamList } from "@/components/members";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { Pager, SearchBox, pageNumber, searchHref } from "@/components/search-pager";
 import { can } from "@/lib/permissions";
 import { listMembers, listTeams, organizationPermission } from "@/src/service";
@@ -23,7 +23,7 @@ export default async function MembersPage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "Members and teams" }]} />
-      <div className="flex max-w-4xl flex-col gap-8 p-6">
+      <PageBody className="flex max-w-4xl flex-col gap-8 p-6">
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="font-semibold">Members</h2>
@@ -44,7 +44,7 @@ export default async function MembersPage({ params, searchParams }: { params: Pr
           <h2 className="font-semibold">Teams</h2>
           <TeamList orgSlug={slug} teams={teams} isAdmin={isAdmin} />
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }

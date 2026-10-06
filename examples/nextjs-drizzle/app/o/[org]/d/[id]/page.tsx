@@ -1,7 +1,7 @@
 import { Comments } from "@/components/comments";
 import { DocumentEditor } from "@/components/document-editor";
 import { ItemActions } from "@/components/item-actions";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { PermissionBadge } from "@/components/permission-badge";
 import { ShareDialog } from "@/components/share-dialog";
 import { can } from "@/lib/permissions";
@@ -31,7 +31,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ org: 
           parentHref={folder ? `${base}/f/${folder.id}` : base}
         />
       </PageHeader>
-      <div className="flex max-w-3xl flex-col gap-8 p-6">
+      <PageBody className="flex max-w-3xl flex-col gap-8 p-6">
         <DocumentEditor key={document.updatedAt} orgSlug={slug} id={id} title={document.title} content={document.content} canEdit={can(document.permission, "edit")} />
         {document.author && <p className="text-muted-foreground -mt-6 text-xs">Created by {document.author}</p>}
         <Comments
@@ -41,7 +41,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ org: 
           canComment={can(document.permission, "comment")}
           canDelete={can(document.permission, "delete")}
         />
-      </div>
+      </PageBody>
     </>
   );
 }

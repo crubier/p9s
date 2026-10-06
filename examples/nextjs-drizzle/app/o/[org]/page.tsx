@@ -1,5 +1,5 @@
 import { ItemList } from "@/components/item-list";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { listDocuments, listShared, listSpaces } from "@/src/service";
 import { requireActor } from "@/src/session";
 
@@ -15,7 +15,7 @@ export default async function OrganizationHome({ params }: { params: Promise<{ o
   return (
     <>
       <PageHeader path={[{ label: actor.org.name }]} />
-      <div className="flex max-w-4xl flex-col gap-8 p-6">
+      <PageBody className="flex max-w-4xl flex-col gap-8 p-6">
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold">Spaces</h2>
           <ItemList
@@ -48,7 +48,7 @@ export default async function OrganizationHome({ params }: { params: Promise<{ o
             empty="No documents yet."
           />
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }

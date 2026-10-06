@@ -6,7 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export function PageHeader({ path, children }: { path: { label: string; href?: string }[]; children?: React.ReactNode }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+    <header className="flex h-14 shrink-0 items-center gap-2 px-4 md:mt-2 md:px-2">
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
       <Breadcrumb>
@@ -29,5 +29,14 @@ export function PageHeader({ path, children }: { path: { label: string; href?: s
       </Breadcrumb>
       <div className="ml-auto flex items-center gap-2">{children}</div>
     </header>
+  );
+}
+
+// The card of the page's own content, below the header which is part of the app shell
+export function PageBody({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-background min-w-0 flex-1 md:rounded-xl md:border md:shadow-sm">
+      <div className={className}>{children}</div>
+    </div>
   );
 }

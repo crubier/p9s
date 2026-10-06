@@ -1,7 +1,7 @@
 import { IconKey, IconUserShare } from "@tabler/icons-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { Pager, pageNumber, searchHref } from "@/components/search-pager";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -64,7 +64,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "Audit log" }]} />
-      <div className="flex max-w-5xl flex-col gap-4 p-6">
+      <PageBody className="flex max-w-5xl flex-col gap-4 p-6">
         <p className="text-muted-foreground max-w-3xl text-sm">
           Triggers record what members change, shares and team memberships included, in a table that is a p9s leaf of the organization: RLS shows it
           to admins only. Changes made with an API key, or by an admin acting as a member, say so.
@@ -126,7 +126,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           </Table>
         </div>
         <Pager page={page} pageSize={PAGE_SIZE} hasMore={found.length > PAGE_SIZE} href={(target) => filter({ page: target })} />
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -2,7 +2,7 @@ import { IconFilePlus, IconFolderPlus } from "@tabler/icons-react";
 import { ItemActions } from "@/components/item-actions";
 import { ItemList } from "@/components/item-list";
 import { NewItemButton } from "@/components/new-item-button";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { PermissionBadge } from "@/components/permission-badge";
 import { ShareDialog } from "@/components/share-dialog";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
           parentHref={parent ? `${base}/f/${parent.id}` : base}
         />
       </PageHeader>
-      <div className="flex max-w-4xl flex-col gap-4 p-6">
+      <PageBody className="flex max-w-4xl flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <h1 className="flex-1 text-xl font-semibold">{folder.name}</h1>
           {can(folder.permission, "create") && (
@@ -59,7 +59,7 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
           ]}
           empty="This folder is empty."
         />
-      </div>
+      </PageBody>
     </>
   );
 }

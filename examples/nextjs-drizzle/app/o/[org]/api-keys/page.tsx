@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { ApiKeys } from "@/components/api-keys";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { listApiKeys } from "@/src/service";
 import { requireActor } from "@/src/session";
 
@@ -13,7 +13,7 @@ export default async function ApiKeysPage({ params }: { params: Promise<{ org: s
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "API keys" }]} />
-      <div className="flex max-w-3xl flex-col gap-4 p-6">
+      <PageBody className="flex max-w-3xl flex-col gap-4 p-6">
         <p className="text-muted-foreground text-sm">
           A key acts as you in {actor.org.name}, with exactly your permissions, and follows them when they change. It is a role leaf in p9s: it has
           its own role id, so the API knows which key made a request, but it is not a node of the graph.
@@ -24,7 +24,7 @@ export default async function ApiKeysPage({ params }: { params: Promise<{ org: s
           </p>
         )}
         <ApiKeys orgSlug={slug} keys={keys} origin={`${host.startsWith("localhost") ? "http" : "https"}://${host}`} />
-      </div>
+      </PageBody>
     </>
   );
 }

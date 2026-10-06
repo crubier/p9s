@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { PermissionBadge } from "@/components/permission-badge";
 import { Pager, SearchBox, pageNumber, searchHref } from "@/components/search-pager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +23,7 @@ export default async function AccessPage({ params, searchParams }: { params: Pro
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "Access overview" }]} />
-      <div className="flex min-w-0 flex-col gap-4 p-6">
+      <PageBody className="flex min-w-0 flex-col gap-4 p-6">
         <p className="text-muted-foreground max-w-3xl text-sm">
           What each member can do in each space, from <code>resource_permission(resource_id, role_id)</code>. Only the graph writer role can ask about
           someone else, so the server checks that you are an admin first. View as a member to browse with their permissions.
@@ -64,7 +64,7 @@ export default async function AccessPage({ params, searchParams }: { params: Pro
           </Table>
         </div>
         <Pager page={page} pageSize={PAGE_SIZE} total={total} href={(target) => searchHref(`/o/${slug}/access`, { q: query, page: target })} />
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -11,7 +11,7 @@ export function ImpersonationBanner({ orgSlug, name, impersonator, readOnly }: {
   const { pending, run } = useAction();
   const Icon = readOnly ? IconEye : IconUserShare;
   return (
-    <div className={`flex items-center gap-3 px-4 py-2 text-sm ${readOnly ? "bg-sky-100 text-sky-950" : "bg-amber-100 text-amber-950"}`}>
+    <div className={`flex items-center gap-3 px-4 py-2 text-sm md:mt-2 md:rounded-lg ${readOnly ? "bg-sky-100 text-sky-950" : "bg-amber-100 text-amber-950"}`}>
       <Icon className="size-4 shrink-0" />
       <p className="flex-1">
         {readOnly ? (
