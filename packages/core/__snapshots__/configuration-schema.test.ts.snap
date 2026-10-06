@@ -3509,6 +3509,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
       ],
       "type": "object",
     },
+    "postgraphile": {
+      "type": "boolean",
+    },
     "schema": {
       "type": "string",
     },
@@ -4492,6 +4495,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "maxDepth",
           ],
           "type": "object",
+        },
+        "postgraphile": {
+          "type": "boolean",
         },
         "schema": {
           "type": "string",
@@ -5593,6 +5599,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "maxDepth",
           ],
           "type": "object",
+        },
+        "postgraphile": {
+          "type": "boolean",
         },
         "schema": {
           "type": "string",

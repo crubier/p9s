@@ -1,0 +1,2774 @@
+"""The root query type which gives access points into the data universe."""
+type Query implements Node {
+  """
+  Exposes the root query type nested one level down. This is helpful for Relay 1
+  which can only query top level fields if they are in a particular form.
+  """
+  query: Query!
+
+  """
+  The root query type must be a `Node` to work well with Relay 1 mutations. This just resolves to `query`.
+  """
+  id: ID!
+
+  """Fetches an object given its globally unique `ID`."""
+  node(
+    """The globally unique `ID`."""
+    id: ID!
+  ): Node
+
+  """Get a single `ResourceNode`."""
+  resourceNodeByRowId(rowId: UUID!): ResourceNode
+
+  """Get a single `RoleNode`."""
+  roleNodeByRowId(rowId: UUID!): RoleNode
+
+  """Get a single `Organization`."""
+  organizationByRowId(rowId: UUID!): Organization
+
+  """Get a single `Organization`."""
+  organizationByResourceId(resourceId: UUID!): Organization
+
+  """Get a single `Organization`."""
+  organizationByRoleId(roleId: UUID!): Organization
+
+  """Get a single `Team`."""
+  teamByRowId(rowId: UUID!): Team
+
+  """Get a single `Team`."""
+  teamByResourceId(resourceId: UUID!): Team
+
+  """Get a single `Team`."""
+  teamByRoleId(roleId: UUID!): Team
+
+  """Get a single `Person`."""
+  personByRowId(rowId: UUID!): Person
+
+  """Get a single `Person`."""
+  personByEmail(email: String!): Person
+
+  """Get a single `Person`."""
+  personByResourceId(resourceId: UUID!): Person
+
+  """Get a single `Person`."""
+  personByRoleId(roleId: UUID!): Person
+
+  """Get a single `Project`."""
+  projectByRowId(rowId: UUID!): Project
+
+  """Get a single `Project`."""
+  projectByResourceId(resourceId: UUID!): Project
+
+  """Get a single `Comment`."""
+  commentByRowId(rowId: UUID!): Comment
+
+  """Get a single `Task`."""
+  taskByRowId(rowId: UUID!): Task
+
+  """Get a single `Task`."""
+  taskByResourceId(resourceId: UUID!): Task
+  currentPerson: Person
+
+  """Reads a single `ResourceNode` using its globally unique `ID`."""
+  resourceNode(
+    """
+    The globally unique `ID` to be used in selecting a single `ResourceNode`.
+    """
+    id: ID!
+  ): ResourceNode
+
+  """Reads a single `RoleNode` using its globally unique `ID`."""
+  roleNode(
+    """The globally unique `ID` to be used in selecting a single `RoleNode`."""
+    id: ID!
+  ): RoleNode
+
+  """Reads a single `Organization` using its globally unique `ID`."""
+  organization(
+    """
+    The globally unique `ID` to be used in selecting a single `Organization`.
+    """
+    id: ID!
+  ): Organization
+
+  """Reads a single `Team` using its globally unique `ID`."""
+  team(
+    """The globally unique `ID` to be used in selecting a single `Team`."""
+    id: ID!
+  ): Team
+
+  """Reads a single `Person` using its globally unique `ID`."""
+  person(
+    """The globally unique `ID` to be used in selecting a single `Person`."""
+    id: ID!
+  ): Person
+
+  """Reads a single `Project` using its globally unique `ID`."""
+  project(
+    """The globally unique `ID` to be used in selecting a single `Project`."""
+    id: ID!
+  ): Project
+
+  """Reads a single `Comment` using its globally unique `ID`."""
+  comment(
+    """The globally unique `ID` to be used in selecting a single `Comment`."""
+    id: ID!
+  ): Comment
+
+  """Reads a single `Task` using its globally unique `ID`."""
+  task(
+    """The globally unique `ID` to be used in selecting a single `Task`."""
+    id: ID!
+  ): Task
+
+  """Reads and enables pagination through a set of `CurrentAssignment`."""
+  allCurrentAssignments(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentAssignmentCondition
+
+    """The method to use when ordering `CurrentAssignment`."""
+    orderBy: [CurrentAssignmentOrderBy!] = [NATURAL]
+  ): CurrentAssignmentConnection
+
+  """Reads and enables pagination through a set of `CurrentResourceAccess`."""
+  allCurrentResourceAccesses(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentResourceAccessCondition
+
+    """The method to use when ordering `CurrentResourceAccess`."""
+    orderBy: [CurrentResourceAccessOrderBy!] = [NATURAL]
+  ): CurrentResourceAccessConnection
+
+  """Reads and enables pagination through a set of `CurrentRole`."""
+  allCurrentRoles(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentRoleCondition
+
+    """The method to use when ordering `CurrentRole`."""
+    orderBy: [CurrentRoleOrderBy!] = [NATURAL]
+  ): CurrentRoleConnection
+
+  """Reads and enables pagination through a set of `CurrentResourceEdge`."""
+  allCurrentResourceEdges(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentResourceEdgeCondition
+
+    """The method to use when ordering `CurrentResourceEdge`."""
+    orderBy: [CurrentResourceEdgeOrderBy!] = [NATURAL]
+  ): CurrentResourceEdgeConnection
+
+  """Reads and enables pagination through a set of `ResourceRoleAccess`."""
+  allResourceRoleAccesses(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceRoleAccessCondition
+
+    """The method to use when ordering `ResourceRoleAccess`."""
+    orderBy: [ResourceRoleAccessOrderBy!] = [NATURAL]
+  ): ResourceRoleAccessConnection
+
+  """Reads and enables pagination through a set of `ResourceNode`."""
+  allResourceNodes(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceNodeCondition
+
+    """The method to use when ordering `ResourceNode`."""
+    orderBy: [ResourceNodeOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ResourceNodeConnection
+
+  """Reads and enables pagination through a set of `RoleNode`."""
+  allRoleNodes(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: RoleNodeCondition
+
+    """The method to use when ordering `RoleNode`."""
+    orderBy: [RoleNodeOrderBy!] = [PRIMARY_KEY_ASC]
+  ): RoleNodeConnection
+
+  """Reads and enables pagination through a set of `ResourceAccess`."""
+  allResourceAccesses(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceAccessCondition
+
+    """The method to use when ordering `ResourceAccess`."""
+    orderBy: [ResourceAccessOrderBy!] = [NATURAL]
+  ): ResourceAccessConnection
+
+  """Reads and enables pagination through a set of `Organization`."""
+  allOrganizations(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: OrganizationCondition
+
+    """The method to use when ordering `Organization`."""
+    orderBy: [OrganizationOrderBy!] = [PRIMARY_KEY_ASC]
+  ): OrganizationConnection
+
+  """Reads and enables pagination through a set of `Team`."""
+  allTeams(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TeamCondition
+
+    """The method to use when ordering `Team`."""
+    orderBy: [TeamOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TeamConnection
+
+  """Reads and enables pagination through a set of `Person`."""
+  allPeople(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: PersonCondition
+
+    """The method to use when ordering `Person`."""
+    orderBy: [PersonOrderBy!] = [PRIMARY_KEY_ASC]
+  ): PersonConnection
+
+  """Reads and enables pagination through a set of `Project`."""
+  allProjects(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ProjectCondition
+
+    """The method to use when ordering `Project`."""
+    orderBy: [ProjectOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ProjectConnection
+
+  """Reads and enables pagination through a set of `Comment`."""
+  allComments(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CommentCondition
+
+    """The method to use when ordering `Comment`."""
+    orderBy: [CommentOrderBy!] = [PRIMARY_KEY_ASC]
+  ): CommentConnection
+
+  """Reads and enables pagination through a set of `Task`."""
+  allTasks(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TaskCondition
+
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TaskConnection
+}
+
+"""An object with a globally unique `ID`."""
+interface Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+}
+
+type ResourceNode implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  tableName: String
+
+  """Reads a single `Organization` that is related to this `ResourceNode`."""
+  organization: Organization
+
+  """Reads a single `Person` that is related to this `ResourceNode`."""
+  person: Person
+
+  """Reads a single `Team` that is related to this `ResourceNode`."""
+  team: Team
+
+  """Reads a single `Project` that is related to this `ResourceNode`."""
+  project: Project
+
+  """Reads a single `Task` that is related to this `ResourceNode`."""
+  task: Task
+
+  """Reads and enables pagination through a set of `CurrentAssignment`."""
+  currentAssignmentsByResourceId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentAssignmentCondition
+
+    """The method to use when ordering `CurrentAssignment`."""
+    orderBy: [CurrentAssignmentOrderBy!] = [NATURAL]
+  ): CurrentAssignmentConnection!
+
+  """Reads and enables pagination through a set of `CurrentResourceAccess`."""
+  currentResourceAccessesByResourceId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentResourceAccessCondition
+
+    """The method to use when ordering `CurrentResourceAccess`."""
+    orderBy: [CurrentResourceAccessOrderBy!] = [NATURAL]
+  ): CurrentResourceAccessConnection!
+
+  """Reads and enables pagination through a set of `CurrentResourceEdge`."""
+  currentResourceEdgesByParentId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentResourceEdgeCondition
+
+    """The method to use when ordering `CurrentResourceEdge`."""
+    orderBy: [CurrentResourceEdgeOrderBy!] = [NATURAL]
+  ): CurrentResourceEdgeConnection!
+
+  """Reads and enables pagination through a set of `CurrentResourceEdge`."""
+  currentResourceEdgesByChildId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentResourceEdgeCondition
+
+    """The method to use when ordering `CurrentResourceEdge`."""
+    orderBy: [CurrentResourceEdgeOrderBy!] = [NATURAL]
+  ): CurrentResourceEdgeConnection!
+
+  """Reads and enables pagination through a set of `ResourceAccess`."""
+  resourceAccessesByResourceId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceAccessCondition
+
+    """The method to use when ordering `ResourceAccess`."""
+    orderBy: [ResourceAccessOrderBy!] = [NATURAL]
+  ): ResourceAccessConnection!
+
+  """Reads and enables pagination through a set of `ResourceAccess`."""
+  resourceAccessesByAssignedResourceId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceAccessCondition
+
+    """The method to use when ordering `ResourceAccess`."""
+    orderBy: [ResourceAccessOrderBy!] = [NATURAL]
+  ): ResourceAccessConnection!
+
+  """Reads and enables pagination through a set of `ResourceRoleAccess`."""
+  resourceRoleAccessesByResourceId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceRoleAccessCondition
+
+    """The method to use when ordering `ResourceRoleAccess`."""
+    orderBy: [ResourceRoleAccessOrderBy!] = [NATURAL]
+  ): ResourceRoleAccessConnection!
+}
+
+"""A string representing a series of binary bits"""
+scalar BitString
+
+"""
+A universally unique identifier as defined by [RFC 4122](https://tools.ietf.org/html/rfc4122).
+"""
+scalar UUID
+
+type Organization implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  name: String!
+  resourceId: UUID!
+  roleId: UUID!
+
+  """Reads and enables pagination through a set of `Person`."""
+  peopleByOrgId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: PersonCondition
+
+    """The method to use when ordering `Person`."""
+    orderBy: [PersonOrderBy!] = [PRIMARY_KEY_ASC]
+  ): PersonConnection!
+
+  """Reads and enables pagination through a set of `Team`."""
+  teamsByOrgId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TeamCondition
+
+    """The method to use when ordering `Team`."""
+    orderBy: [TeamOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TeamConnection!
+
+  """Reads and enables pagination through a set of `Project`."""
+  projectsByOrgId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ProjectCondition
+
+    """The method to use when ordering `Project`."""
+    orderBy: [ProjectOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ProjectConnection!
+
+  """Reads a single `ResourceNode` that is related to this `Organization`."""
+  resourceNode: ResourceNode
+
+  """Reads a single `RoleNode` that is related to this `Organization`."""
+  roleNode: RoleNode
+}
+
+"""A connection to a list of `Person` values."""
+type PersonConnection {
+  """A list of `Person` objects."""
+  nodes: [Person]!
+
+  """
+  A list of edges which contains the `Person` and cursor to aid in pagination.
+  """
+  edges: [PersonEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Person` you could get from the connection."""
+  totalCount: Int!
+}
+
+type Person implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  orgId: UUID!
+  name: String!
+  email: String!
+  resourceId: UUID!
+  roleId: UUID!
+
+  """Reads a single `Organization` that is related to this `Person`."""
+  organizationByOrgId: Organization
+
+  """Reads and enables pagination through a set of `Task`."""
+  tasksByAssigneeId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TaskCondition
+
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TaskConnection!
+
+  """Reads a single `ResourceNode` that is related to this `Person`."""
+  resourceNode: ResourceNode
+
+  """Reads a single `RoleNode` that is related to this `Person`."""
+  roleNode: RoleNode
+}
+
+"""A connection to a list of `Task` values."""
+type TaskConnection {
+  """A list of `Task` objects."""
+  nodes: [Task]!
+
+  """
+  A list of edges which contains the `Task` and cursor to aid in pagination.
+  """
+  edges: [TaskEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Task` you could get from the connection."""
+  totalCount: Int!
+}
+
+type Task implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  projectId: UUID!
+  title: String!
+  done: Boolean!
+  assigneeId: UUID
+  createdAt: Datetime!
+  resourceId: UUID!
+
+  """Reads a single `Person` that is related to this `Task`."""
+  personByAssigneeId: Person
+
+  """Reads a single `Project` that is related to this `Task`."""
+  projectByProjectId: Project
+
+  """Reads and enables pagination through a set of `Comment`."""
+  commentsByTaskId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CommentCondition
+
+    """The method to use when ordering `Comment`."""
+    orderBy: [CommentOrderBy!] = [PRIMARY_KEY_ASC]
+  ): CommentConnection!
+
+  """Reads a single `ResourceNode` that is related to this `Task`."""
+  resourceNode: ResourceNode
+}
+
+"""
+A point in time as described by the [ISO
+8601](https://en.wikipedia.org/wiki/ISO_8601) and, if it has a timezone, [RFC
+3339](https://datatracker.ietf.org/doc/html/rfc3339) standards. Input values
+that do not conform to both ISO 8601 and RFC 3339 may be coerced, which may lead
+to unexpected results.
+"""
+scalar Datetime
+
+type Project implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  orgId: UUID!
+  name: String!
+  createdAt: Datetime!
+  resourceId: UUID!
+
+  """Reads a single `Organization` that is related to this `Project`."""
+  organizationByOrgId: Organization
+
+  """Reads and enables pagination through a set of `Task`."""
+  tasksByProjectId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: TaskCondition
+
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!] = [PRIMARY_KEY_ASC]
+  ): TaskConnection!
+
+  """Reads a single `ResourceNode` that is related to this `Project`."""
+  resourceNode: ResourceNode
+}
+
+"""A location in a connection that can be used for resuming pagination."""
+scalar Cursor
+
+"""
+A condition to be used against `Task` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input TaskCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `projectId` field."""
+  projectId: UUID
+
+  """Checks for equality with the object’s `assigneeId` field."""
+  assigneeId: UUID
+
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+}
+
+"""Methods to use when ordering `Task`."""
+enum TaskOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  PROJECT_ID_ASC
+  PROJECT_ID_DESC
+  ASSIGNEE_ID_ASC
+  ASSIGNEE_ID_DESC
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+}
+
+"""A connection to a list of `Comment` values."""
+type CommentConnection {
+  """A list of `Comment` objects."""
+  nodes: [Comment]!
+
+  """
+  A list of edges which contains the `Comment` and cursor to aid in pagination.
+  """
+  edges: [CommentEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Comment` you could get from the connection."""
+  totalCount: Int!
+}
+
+type Comment implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  taskId: UUID!
+  authorId: UUID
+  body: String!
+  createdAt: Datetime!
+  resourceParentId: UUID
+
+  """Reads a single `Person` that is related to this `Comment`."""
+  personByAuthorId: Person
+
+  """Reads a single `Task` that is related to this `Comment`."""
+  taskByTaskId: Task
+}
+
+"""A `Comment` edge in the connection."""
+type CommentEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Comment` at the end of the edge."""
+  node: Comment
+}
+
+"""Information about pagination in a connection."""
+type PageInfo {
+  """When paginating forwards, are there more items?"""
+  hasNextPage: Boolean!
+
+  """When paginating backwards, are there more items?"""
+  hasPreviousPage: Boolean!
+
+  """When paginating backwards, the cursor to continue."""
+  startCursor: Cursor
+
+  """When paginating forwards, the cursor to continue."""
+  endCursor: Cursor
+}
+
+"""
+A condition to be used against `Comment` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input CommentCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `taskId` field."""
+  taskId: UUID
+}
+
+"""Methods to use when ordering `Comment`."""
+enum CommentOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  TASK_ID_ASC
+  TASK_ID_DESC
+}
+
+"""A `Task` edge in the connection."""
+type TaskEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Task` at the end of the edge."""
+  node: Task
+}
+
+type RoleNode implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  tableName: String
+
+  """Reads a single `Organization` that is related to this `RoleNode`."""
+  organization: Organization
+
+  """Reads a single `Person` that is related to this `RoleNode`."""
+  person: Person
+
+  """Reads a single `Team` that is related to this `RoleNode`."""
+  team: Team
+
+  """Reads and enables pagination through a set of `CurrentRole`."""
+  currentRolesByRoleId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: CurrentRoleCondition
+
+    """The method to use when ordering `CurrentRole`."""
+    orderBy: [CurrentRoleOrderBy!] = [NATURAL]
+  ): CurrentRoleConnection!
+
+  """Reads and enables pagination through a set of `ResourceAccess`."""
+  resourceAccessesByRoleId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceAccessCondition
+
+    """The method to use when ordering `ResourceAccess`."""
+    orderBy: [ResourceAccessOrderBy!] = [NATURAL]
+  ): ResourceAccessConnection!
+
+  """Reads and enables pagination through a set of `ResourceRoleAccess`."""
+  resourceRoleAccessesByRoleId(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ResourceRoleAccessCondition
+
+    """The method to use when ordering `ResourceRoleAccess`."""
+    orderBy: [ResourceRoleAccessOrderBy!] = [NATURAL]
+  ): ResourceRoleAccessConnection!
+}
+
+type Team implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  permission: BitString
+  rowId: UUID!
+  orgId: UUID!
+  name: String!
+  resourceId: UUID!
+  roleId: UUID!
+
+  """Reads a single `Organization` that is related to this `Team`."""
+  organizationByOrgId: Organization
+
+  """Reads a single `ResourceNode` that is related to this `Team`."""
+  resourceNode: ResourceNode
+
+  """Reads a single `RoleNode` that is related to this `Team`."""
+  roleNode: RoleNode
+}
+
+"""A connection to a list of `CurrentRole` values."""
+type CurrentRoleConnection {
+  """A list of `CurrentRole` objects."""
+  nodes: [CurrentRole]!
+
+  """
+  A list of edges which contains the `CurrentRole` and cursor to aid in pagination.
+  """
+  edges: [CurrentRoleEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `CurrentRole` you could get from the connection."""
+  totalCount: Int!
+}
+
+type CurrentRole {
+  roleId: UUID
+  permission: BitString
+
+  """Reads a single `RoleNode` that is related to this `CurrentRole`."""
+  role: RoleNode
+}
+
+"""A `CurrentRole` edge in the connection."""
+type CurrentRoleEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `CurrentRole` at the end of the edge."""
+  node: CurrentRole
+}
+
+"""
+A condition to be used against `CurrentRole` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input CurrentRoleCondition {
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `CurrentRole`."""
+enum CurrentRoleOrderBy {
+  NATURAL
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+}
+
+"""A connection to a list of `ResourceAccess` values."""
+type ResourceAccessConnection {
+  """A list of `ResourceAccess` objects."""
+  nodes: [ResourceAccess]!
+
+  """
+  A list of edges which contains the `ResourceAccess` and cursor to aid in pagination.
+  """
+  edges: [ResourceAccessEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `ResourceAccess` you could get from the connection."""
+  totalCount: Int!
+}
+
+type ResourceAccess {
+  resourceId: UUID
+  roleId: UUID
+  assignedResourceId: UUID
+  permission: BitString
+
+  """
+  Reads a single `ResourceNode` that is related to this `ResourceAccess`.
+  """
+  resource: ResourceNode
+
+  """Reads a single `RoleNode` that is related to this `ResourceAccess`."""
+  role: RoleNode
+
+  """
+  Reads a single `ResourceNode` that is related to this `ResourceAccess`.
+  """
+  assignedResource: ResourceNode
+}
+
+"""A `ResourceAccess` edge in the connection."""
+type ResourceAccessEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ResourceAccess` at the end of the edge."""
+  node: ResourceAccess
+}
+
+"""
+A condition to be used against `ResourceAccess` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input ResourceAccessCondition {
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+
+  """Checks for equality with the object’s `assignedResourceId` field."""
+  assignedResourceId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `ResourceAccess`."""
+enum ResourceAccessOrderBy {
+  NATURAL
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+  ASSIGNED_RESOURCE_ID_ASC
+  ASSIGNED_RESOURCE_ID_DESC
+}
+
+"""A connection to a list of `ResourceRoleAccess` values."""
+type ResourceRoleAccessConnection {
+  """A list of `ResourceRoleAccess` objects."""
+  nodes: [ResourceRoleAccess]!
+
+  """
+  A list of edges which contains the `ResourceRoleAccess` and cursor to aid in pagination.
+  """
+  edges: [ResourceRoleAccessEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """
+  The count of *all* `ResourceRoleAccess` you could get from the connection.
+  """
+  totalCount: Int!
+}
+
+type ResourceRoleAccess {
+  resourceId: UUID
+  roleId: UUID
+  permission: BitString
+
+  """
+  Reads a single `ResourceNode` that is related to this `ResourceRoleAccess`.
+  """
+  resource: ResourceNode
+
+  """
+  Reads a single `RoleNode` that is related to this `ResourceRoleAccess`.
+  """
+  role: RoleNode
+}
+
+"""A `ResourceRoleAccess` edge in the connection."""
+type ResourceRoleAccessEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ResourceRoleAccess` at the end of the edge."""
+  node: ResourceRoleAccess
+}
+
+"""
+A condition to be used against `ResourceRoleAccess` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input ResourceRoleAccessCondition {
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `ResourceRoleAccess`."""
+enum ResourceRoleAccessOrderBy {
+  NATURAL
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+}
+
+"""A `Person` edge in the connection."""
+type PersonEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Person` at the end of the edge."""
+  node: Person
+}
+
+"""
+A condition to be used against `Person` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input PersonCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `orgId` field."""
+  orgId: UUID
+
+  """Checks for equality with the object’s `email` field."""
+  email: String
+
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+}
+
+"""Methods to use when ordering `Person`."""
+enum PersonOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  ORG_ID_ASC
+  ORG_ID_DESC
+  EMAIL_ASC
+  EMAIL_DESC
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+}
+
+"""A connection to a list of `Team` values."""
+type TeamConnection {
+  """A list of `Team` objects."""
+  nodes: [Team]!
+
+  """
+  A list of edges which contains the `Team` and cursor to aid in pagination.
+  """
+  edges: [TeamEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Team` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `Team` edge in the connection."""
+type TeamEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Team` at the end of the edge."""
+  node: Team
+}
+
+"""
+A condition to be used against `Team` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input TeamCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `orgId` field."""
+  orgId: UUID
+
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+}
+
+"""Methods to use when ordering `Team`."""
+enum TeamOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  ORG_ID_ASC
+  ORG_ID_DESC
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+}
+
+"""A connection to a list of `Project` values."""
+type ProjectConnection {
+  """A list of `Project` objects."""
+  nodes: [Project]!
+
+  """
+  A list of edges which contains the `Project` and cursor to aid in pagination.
+  """
+  edges: [ProjectEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Project` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `Project` edge in the connection."""
+type ProjectEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Project` at the end of the edge."""
+  node: Project
+}
+
+"""
+A condition to be used against `Project` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input ProjectCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `orgId` field."""
+  orgId: UUID
+
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+}
+
+"""Methods to use when ordering `Project`."""
+enum ProjectOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  ORG_ID_ASC
+  ORG_ID_DESC
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+}
+
+"""A connection to a list of `CurrentAssignment` values."""
+type CurrentAssignmentConnection {
+  """A list of `CurrentAssignment` objects."""
+  nodes: [CurrentAssignment]!
+
+  """
+  A list of edges which contains the `CurrentAssignment` and cursor to aid in pagination.
+  """
+  edges: [CurrentAssignmentEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """
+  The count of *all* `CurrentAssignment` you could get from the connection.
+  """
+  totalCount: Int!
+}
+
+type CurrentAssignment {
+  resourceId: UUID
+  permission: BitString
+
+  """
+  Reads a single `ResourceNode` that is related to this `CurrentAssignment`.
+  """
+  resource: ResourceNode
+}
+
+"""A `CurrentAssignment` edge in the connection."""
+type CurrentAssignmentEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `CurrentAssignment` at the end of the edge."""
+  node: CurrentAssignment
+}
+
+"""
+A condition to be used against `CurrentAssignment` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input CurrentAssignmentCondition {
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `CurrentAssignment`."""
+enum CurrentAssignmentOrderBy {
+  NATURAL
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+}
+
+"""A connection to a list of `CurrentResourceAccess` values."""
+type CurrentResourceAccessConnection {
+  """A list of `CurrentResourceAccess` objects."""
+  nodes: [CurrentResourceAccess]!
+
+  """
+  A list of edges which contains the `CurrentResourceAccess` and cursor to aid in pagination.
+  """
+  edges: [CurrentResourceAccessEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """
+  The count of *all* `CurrentResourceAccess` you could get from the connection.
+  """
+  totalCount: Int!
+}
+
+type CurrentResourceAccess {
+  resourceId: UUID
+  permission: BitString
+
+  """
+  Reads a single `ResourceNode` that is related to this `CurrentResourceAccess`.
+  """
+  resource: ResourceNode
+}
+
+"""A `CurrentResourceAccess` edge in the connection."""
+type CurrentResourceAccessEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `CurrentResourceAccess` at the end of the edge."""
+  node: CurrentResourceAccess
+}
+
+"""
+A condition to be used against `CurrentResourceAccess` object types. All fields
+are tested for equality and combined with a logical ‘and.’
+"""
+input CurrentResourceAccessCondition {
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `CurrentResourceAccess`."""
+enum CurrentResourceAccessOrderBy {
+  NATURAL
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+}
+
+"""A connection to a list of `CurrentResourceEdge` values."""
+type CurrentResourceEdgeConnection {
+  """A list of `CurrentResourceEdge` objects."""
+  nodes: [CurrentResourceEdge]!
+
+  """
+  A list of edges which contains the `CurrentResourceEdge` and cursor to aid in pagination.
+  """
+  edges: [CurrentResourceEdgeEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """
+  The count of *all* `CurrentResourceEdge` you could get from the connection.
+  """
+  totalCount: Int!
+}
+
+type CurrentResourceEdge {
+  parentId: UUID
+  childId: UUID
+  permission: BitString
+
+  """
+  Reads a single `ResourceNode` that is related to this `CurrentResourceEdge`.
+  """
+  parent: ResourceNode
+
+  """
+  Reads a single `ResourceNode` that is related to this `CurrentResourceEdge`.
+  """
+  child: ResourceNode
+}
+
+"""A `CurrentResourceEdge` edge in the connection."""
+type CurrentResourceEdgeEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `CurrentResourceEdge` at the end of the edge."""
+  node: CurrentResourceEdge
+}
+
+"""
+A condition to be used against `CurrentResourceEdge` object types. All fields
+are tested for equality and combined with a logical ‘and.’
+"""
+input CurrentResourceEdgeCondition {
+  """Checks for equality with the object’s `parentId` field."""
+  parentId: UUID
+
+  """Checks for equality with the object’s `childId` field."""
+  childId: UUID
+
+  """Checks for equality with the object’s `permission` field."""
+  permission: BitString
+}
+
+"""Methods to use when ordering `CurrentResourceEdge`."""
+enum CurrentResourceEdgeOrderBy {
+  NATURAL
+  PARENT_ID_ASC
+  PARENT_ID_DESC
+  CHILD_ID_ASC
+  CHILD_ID_DESC
+}
+
+"""A connection to a list of `ResourceNode` values."""
+type ResourceNodeConnection {
+  """A list of `ResourceNode` objects."""
+  nodes: [ResourceNode]!
+
+  """
+  A list of edges which contains the `ResourceNode` and cursor to aid in pagination.
+  """
+  edges: [ResourceNodeEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `ResourceNode` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `ResourceNode` edge in the connection."""
+type ResourceNodeEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ResourceNode` at the end of the edge."""
+  node: ResourceNode
+}
+
+"""
+A condition to be used against `ResourceNode` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input ResourceNodeCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `tableName` field."""
+  tableName: String
+}
+
+"""Methods to use when ordering `ResourceNode`."""
+enum ResourceNodeOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  TABLE_NAME_ASC
+  TABLE_NAME_DESC
+}
+
+"""A connection to a list of `RoleNode` values."""
+type RoleNodeConnection {
+  """A list of `RoleNode` objects."""
+  nodes: [RoleNode]!
+
+  """
+  A list of edges which contains the `RoleNode` and cursor to aid in pagination.
+  """
+  edges: [RoleNodeEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `RoleNode` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `RoleNode` edge in the connection."""
+type RoleNodeEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `RoleNode` at the end of the edge."""
+  node: RoleNode
+}
+
+"""
+A condition to be used against `RoleNode` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input RoleNodeCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `tableName` field."""
+  tableName: String
+}
+
+"""Methods to use when ordering `RoleNode`."""
+enum RoleNodeOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  TABLE_NAME_ASC
+  TABLE_NAME_DESC
+}
+
+"""A connection to a list of `Organization` values."""
+type OrganizationConnection {
+  """A list of `Organization` objects."""
+  nodes: [Organization]!
+
+  """
+  A list of edges which contains the `Organization` and cursor to aid in pagination.
+  """
+  edges: [OrganizationEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Organization` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `Organization` edge in the connection."""
+type OrganizationEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Organization` at the end of the edge."""
+  node: Organization
+}
+
+"""
+A condition to be used against `Organization` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input OrganizationCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `resourceId` field."""
+  resourceId: UUID
+
+  """Checks for equality with the object’s `roleId` field."""
+  roleId: UUID
+}
+
+"""Methods to use when ordering `Organization`."""
+enum OrganizationOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  RESOURCE_ID_ASC
+  RESOURCE_ID_DESC
+  ROLE_ID_ASC
+  ROLE_ID_DESC
+}
+
+"""
+The root mutation type which contains root level fields which mutate data.
+"""
+type Mutation {
+  resourceUnshare(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: ResourceUnshareInput!
+  ): ResourceUnsharePayload
+  resourceShare(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: ResourceShareInput!
+  ): ResourceSharePayload
+  setTeamMembership(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: SetTeamMembershipInput!
+  ): SetTeamMembershipPayload
+  createProject(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: CreateProjectInput!
+  ): CreateProjectPayload
+  createTask(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: CreateTaskInput!
+  ): CreateTaskPayload
+
+  """Creates a single `Comment`."""
+  createComment(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: CreateCommentInput!
+  ): CreateCommentPayload
+
+  """Updates a single `Project` using its globally unique id and a patch."""
+  updateProject(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateProjectInput!
+  ): UpdateProjectPayload
+
+  """Updates a single `Project` using a unique key and a patch."""
+  updateProjectByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateProjectByRowIdInput!
+  ): UpdateProjectPayload
+
+  """Updates a single `Project` using a unique key and a patch."""
+  updateProjectByResourceId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateProjectByResourceIdInput!
+  ): UpdateProjectPayload
+
+  """Updates a single `Comment` using its globally unique id and a patch."""
+  updateComment(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateCommentInput!
+  ): UpdateCommentPayload
+
+  """Updates a single `Comment` using a unique key and a patch."""
+  updateCommentByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateCommentByRowIdInput!
+  ): UpdateCommentPayload
+
+  """Updates a single `Task` using its globally unique id and a patch."""
+  updateTask(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateTaskInput!
+  ): UpdateTaskPayload
+
+  """Updates a single `Task` using a unique key and a patch."""
+  updateTaskByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateTaskByRowIdInput!
+  ): UpdateTaskPayload
+
+  """Updates a single `Task` using a unique key and a patch."""
+  updateTaskByResourceId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateTaskByResourceIdInput!
+  ): UpdateTaskPayload
+
+  """Deletes a single `Project` using its globally unique id."""
+  deleteProject(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteProjectInput!
+  ): DeleteProjectPayload
+
+  """Deletes a single `Project` using a unique key."""
+  deleteProjectByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteProjectByRowIdInput!
+  ): DeleteProjectPayload
+
+  """Deletes a single `Project` using a unique key."""
+  deleteProjectByResourceId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteProjectByResourceIdInput!
+  ): DeleteProjectPayload
+
+  """Deletes a single `Comment` using its globally unique id."""
+  deleteComment(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteCommentInput!
+  ): DeleteCommentPayload
+
+  """Deletes a single `Comment` using a unique key."""
+  deleteCommentByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteCommentByRowIdInput!
+  ): DeleteCommentPayload
+
+  """Deletes a single `Task` using its globally unique id."""
+  deleteTask(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteTaskInput!
+  ): DeleteTaskPayload
+
+  """Deletes a single `Task` using a unique key."""
+  deleteTaskByRowId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteTaskByRowIdInput!
+  ): DeleteTaskPayload
+
+  """Deletes a single `Task` using a unique key."""
+  deleteTaskByResourceId(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteTaskByResourceIdInput!
+  ): DeleteTaskPayload
+}
+
+"""The output of our `resourceUnshare` mutation."""
+type ResourceUnsharePayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+  result: Boolean
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+}
+
+"""All input for the `resourceUnshare` mutation."""
+input ResourceUnshareInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  theResourceId: UUID
+  theRoleId: UUID
+}
+
+"""The output of our `resourceShare` mutation."""
+type ResourceSharePayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+}
+
+"""All input for the `resourceShare` mutation."""
+input ResourceShareInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  theResourceId: UUID
+  theRoleId: UUID
+  thePermission: BitString
+}
+
+"""The output of our `setTeamMembership` mutation."""
+type SetTeamMembershipPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+  result: Boolean
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+}
+
+"""All input for the `setTeamMembership` mutation."""
+input SetTeamMembershipInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  teamId: UUID
+  personId: UUID
+  member: Boolean
+}
+
+"""The output of our `createProject` mutation."""
+type CreateProjectPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+  result: Project
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Project`. May be used by Relay 1."""
+  projectEdge(
+    """The method to use when ordering `Project`."""
+    orderBy: [ProjectOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProjectEdge
+}
+
+"""All input for the `createProject` mutation."""
+input CreateProjectInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  orgId: UUID
+  name: String
+}
+
+"""The output of our `createTask` mutation."""
+type CreateTaskPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+  result: Task
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Task`. May be used by Relay 1."""
+  taskEdge(
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): TaskEdge
+}
+
+"""All input for the `createTask` mutation."""
+input CreateTaskInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  projectId: UUID
+  title: String
+  assigneeId: UUID
+}
+
+"""The output of our create `Comment` mutation."""
+type CreateCommentPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Comment` that was created by this mutation."""
+  comment: Comment
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Comment`. May be used by Relay 1."""
+  commentEdge(
+    """The method to use when ordering `Comment`."""
+    orderBy: [CommentOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): CommentEdge
+}
+
+"""All input for the create `Comment` mutation."""
+input CreateCommentInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """The `Comment` to be created by this mutation."""
+  comment: CommentInput!
+}
+
+"""An input for mutations affecting `Comment`"""
+input CommentInput {
+  rowId: UUID
+  taskId: UUID!
+  authorId: UUID
+  body: String!
+  createdAt: Datetime
+  resourceParentId: UUID
+}
+
+"""The output of our update `Project` mutation."""
+type UpdateProjectPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Project` that was updated by this mutation."""
+  project: Project
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Project`. May be used by Relay 1."""
+  projectEdge(
+    """The method to use when ordering `Project`."""
+    orderBy: [ProjectOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProjectEdge
+}
+
+"""All input for the `updateProject` mutation."""
+input UpdateProjectInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Project` to be updated.
+  """
+  id: ID!
+
+  """
+  An object where the defined keys will be set on the `Project` being updated.
+  """
+  projectPatch: ProjectPatch!
+}
+
+"""
+Represents an update to a `Project`. Fields that are set will be updated.
+"""
+input ProjectPatch {
+  rowId: UUID
+  orgId: UUID
+  name: String
+  createdAt: Datetime
+  resourceId: UUID
+}
+
+"""All input for the `updateProjectByRowId` mutation."""
+input UpdateProjectByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+
+  """
+  An object where the defined keys will be set on the `Project` being updated.
+  """
+  projectPatch: ProjectPatch!
+}
+
+"""All input for the `updateProjectByResourceId` mutation."""
+input UpdateProjectByResourceIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  resourceId: UUID!
+
+  """
+  An object where the defined keys will be set on the `Project` being updated.
+  """
+  projectPatch: ProjectPatch!
+}
+
+"""The output of our update `Comment` mutation."""
+type UpdateCommentPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Comment` that was updated by this mutation."""
+  comment: Comment
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Comment`. May be used by Relay 1."""
+  commentEdge(
+    """The method to use when ordering `Comment`."""
+    orderBy: [CommentOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): CommentEdge
+}
+
+"""All input for the `updateComment` mutation."""
+input UpdateCommentInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Comment` to be updated.
+  """
+  id: ID!
+
+  """
+  An object where the defined keys will be set on the `Comment` being updated.
+  """
+  commentPatch: CommentPatch!
+}
+
+"""
+Represents an update to a `Comment`. Fields that are set will be updated.
+"""
+input CommentPatch {
+  rowId: UUID
+  taskId: UUID
+  authorId: UUID
+  body: String
+  createdAt: Datetime
+  resourceParentId: UUID
+}
+
+"""All input for the `updateCommentByRowId` mutation."""
+input UpdateCommentByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+
+  """
+  An object where the defined keys will be set on the `Comment` being updated.
+  """
+  commentPatch: CommentPatch!
+}
+
+"""The output of our update `Task` mutation."""
+type UpdateTaskPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Task` that was updated by this mutation."""
+  task: Task
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Task`. May be used by Relay 1."""
+  taskEdge(
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): TaskEdge
+}
+
+"""All input for the `updateTask` mutation."""
+input UpdateTaskInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Task` to be updated.
+  """
+  id: ID!
+
+  """
+  An object where the defined keys will be set on the `Task` being updated.
+  """
+  taskPatch: TaskPatch!
+}
+
+"""Represents an update to a `Task`. Fields that are set will be updated."""
+input TaskPatch {
+  rowId: UUID
+  projectId: UUID
+  title: String
+  done: Boolean
+  assigneeId: UUID
+  createdAt: Datetime
+  resourceId: UUID
+}
+
+"""All input for the `updateTaskByRowId` mutation."""
+input UpdateTaskByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+
+  """
+  An object where the defined keys will be set on the `Task` being updated.
+  """
+  taskPatch: TaskPatch!
+}
+
+"""All input for the `updateTaskByResourceId` mutation."""
+input UpdateTaskByResourceIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  resourceId: UUID!
+
+  """
+  An object where the defined keys will be set on the `Task` being updated.
+  """
+  taskPatch: TaskPatch!
+}
+
+"""The output of our delete `Project` mutation."""
+type DeleteProjectPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Project` that was deleted by this mutation."""
+  project: Project
+  deletedProjectId: ID
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Project`. May be used by Relay 1."""
+  projectEdge(
+    """The method to use when ordering `Project`."""
+    orderBy: [ProjectOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProjectEdge
+}
+
+"""All input for the `deleteProject` mutation."""
+input DeleteProjectInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Project` to be deleted.
+  """
+  id: ID!
+}
+
+"""All input for the `deleteProjectByRowId` mutation."""
+input DeleteProjectByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+}
+
+"""All input for the `deleteProjectByResourceId` mutation."""
+input DeleteProjectByResourceIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  resourceId: UUID!
+}
+
+"""The output of our delete `Comment` mutation."""
+type DeleteCommentPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Comment` that was deleted by this mutation."""
+  comment: Comment
+  deletedCommentId: ID
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Comment`. May be used by Relay 1."""
+  commentEdge(
+    """The method to use when ordering `Comment`."""
+    orderBy: [CommentOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): CommentEdge
+}
+
+"""All input for the `deleteComment` mutation."""
+input DeleteCommentInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Comment` to be deleted.
+  """
+  id: ID!
+}
+
+"""All input for the `deleteCommentByRowId` mutation."""
+input DeleteCommentByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+}
+
+"""The output of our delete `Task` mutation."""
+type DeleteTaskPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `Task` that was deleted by this mutation."""
+  task: Task
+  deletedTaskId: ID
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `Task`. May be used by Relay 1."""
+  taskEdge(
+    """The method to use when ordering `Task`."""
+    orderBy: [TaskOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): TaskEdge
+}
+
+"""All input for the `deleteTask` mutation."""
+input DeleteTaskInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `Task` to be deleted.
+  """
+  id: ID!
+}
+
+"""All input for the `deleteTaskByRowId` mutation."""
+input DeleteTaskByRowIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+}
+
+"""All input for the `deleteTaskByResourceId` mutation."""
+input DeleteTaskByResourceIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  resourceId: UUID!
+}

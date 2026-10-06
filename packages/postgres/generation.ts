@@ -47,6 +47,8 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   ${createMigrationSharing(naming, completeConfig)}
 
+  ${createMigrationNodeViews(naming, completeConfig)}
+
 
   ${createMigrationCleanup(naming, completeConfig)}
 
@@ -719,7 +721,8 @@ do $$
 declare
   "the_count" bigint;
 begin
-  if to_regclass(${textLiteral(nameOf(node))}) is not null then
+  -- A table: the views of all nodes have the same name
+  if exists (select from pg_class where "oid" = to_regclass(${textLiteral(nameOf(node))}) and "relkind" = 'r') then
     select count(*) into "the_count" from ${node} as "the_node" where ${notBound(sql`"the_node".${id}`)};
     if "the_count" > 0 then
       raise exception 'p9s: % % nodes are not a row of a bound table. Bind a table that holds them (a table with only an id column is enough) or delete them, then run the migration again.', "the_count", ${textLiteral(kind)};
@@ -2091,5 +2094,136 @@ ${sharing}
 alter table ${assignment.edge} ${sharers(config).length > 0 ? sql`enable` : sql`disable`} row level security;
 ${stale}
 ${functions}
+`;
+};
+
+// The views of p9s are for reading
+const readOnly = "@behavior -insert -update -delete";
+
+const camelCase = (name: string) => name.replace(/_+([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+
+// One view per tree with the id of every node and the table of its row, for tools that serve nodes, like a GraphQL
+// schema. They are security invokers, so that the privileges and policies of each table apply to the user of the
+// view, which needs Postgres 15.
+export const createMigrationNodeViews = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { everyone } = getRoles(config);
+  const smartComments = config.engine.postgraphile === true;
+  const nodeView = (kind: Kind) => naming[kind].node;
+  const views = (["resource", "role"] as const).map(kind => {
+    const bindings = getBindings(kind, naming, config);
+    const view = nodeView(kind);
+    if (bindings.length === 0) {
+      return sql`
+    if exists (select from pg_class where "oid" = to_regclass(${textLiteral(nameOf(view))}) and "relkind" = 'v') then
+      drop view ${view};
+    end if;`;
+    }
+    const definition = compile(sql`
+create or replace view ${view} with (security_invoker = true) as
+${join(bindings.map(binding => sql`select "the_row".${binding.id} as "id", ${textLiteral(binding.tableName)}::text as "table_name" from ${binding.table} as "the_row"`), `
+union all
+`)}`).text;
+    return sql`
+    execute ${textLiteral(definition)};
+    perform pg_temp.p9s_set_privileges(${textLiteral(compile(view).text)}::regclass, ${roleArray(everyone)}, array[]::text[], array[]::text[]);${smartComments ? sql`
+    comment on view ${view} is ${textLiteral([`@primaryKey id`, readOnly, ...bindings.map(binding => `@foreignKey (id) references ${nameOf(naming.tables[binding.tableName]!.schema)}.${binding.tableName} (${nameOf(binding.id)})|@fieldName ${camelCase(binding.tableName)}|@foreignFieldName ${camelCase(nameOf(view))}`)].join("\n"))};` : sql``}`;
+  });
+
+  // Keys of the views users read, to the node views
+  // PostGraphile reads names without quotes
+  const nodeViewName = (kind: Kind) => `${nameOf(naming.schema)}.${nameOf(nodeView(kind))}`;
+  const resourceKey = (column: string, field: string) => `@foreignKey (${column}) references ${nodeViewName("resource")} (id)|@fieldName ${field}`;
+  const roleKey = (column: string, field: string) => `@foreignKey (${column}) references ${nodeViewName("role")} (id)|@fieldName ${field}`;
+  const viewKeys: [SQL, string[]][] = ([
+    [naming.currentAccessView, [resourceKey("resource_id", "resource")]],
+    [naming.currentAssignmentView, [resourceKey("resource_id", "resource")]],
+    [naming.currentResourceEdgeView, [resourceKey("parent_id", "parent"), resourceKey("child_id", "child")]],
+    [naming.currentRoleView, [roleKey("role_id", "role")]],
+    [naming.accessView, [resourceKey("resource_id", "resource"), roleKey("role_id", "role"), resourceKey("assigned_resource_id", "assignedResource")]],
+    [naming.roleAccessView, [resourceKey("resource_id", "resource"), roleKey("role_id", "role")]],
+  ] as [SQL, string[]][]).map(([view, keys]) => [view, [readOnly, ...keys]]);
+  // Every table, view and function p9s names is internal, except the views and functions users call
+  const visible = new Set([nodeView("resource"), nodeView("role"), ...viewKeys.map(([view]) => view),
+    naming.permissionFunction, naming.shareFunction, naming.unshareFunction].map(nameOf));
+  const namesIn = (names: object, skip: string[]) => Object.entries(names)
+    .filter(([key, value]) => !skip.includes(key) && (value as { type?: string } | null)?.type === "IDENTIFIER").map(([, value]) => nameOf(value as SQL));
+  const internal = [...new Set([
+    ...(["resource", "role", "assignment"] as const).flatMap(kind => namesIn(naming[kind], ["name", "id"])),
+    ...Object.values(naming.tables).flatMap(table => namesIn(table, ["name", "schema"])),
+    nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction),
+    ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
+    ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
+  ])].filter(name => !visible.has(name));
+  // PostGraphile skips overloaded functions, like resource_permission: it reads the permissions of the current user on
+  // each row through these, as a permission field of each resource type
+  const size = config.engine.permission.bitmap.size;
+  const permissionFields = getBindings("resource", naming, config).map(binding => {
+    const field = identifier(`${binding.tableName}_permission`);
+    return smartComments ? sql`
+create or replace function ${field} ("the_row" ${binding.table})
+  returns bit(${literal(size)})
+  as $$
+  select ${naming.permissionFunction}("the_row".${binding.id})
+$$ language sql stable set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${field} (${binding.table})`, everyone)}
+` : sql`
+drop function if exists ${field} (${binding.table});`;
+  });
+  const nodePermissionField = identifier(`${nameOf(nodeView("resource"))}_permission`);
+  const nodePermission = compile(sql`
+create or replace function ${nodePermissionField} ("the_row" ${nodeView("resource")})
+  returns bit(${literal(size)})
+  as $p9s$
+  select ${naming.permissionFunction}("the_row"."id")
+$p9s$ language sql stable set search_path = ${naming.schema}, pg_temp`).text;
+
+  const comments = smartComments ? sql`
+-- Smart comments for PostGraphile. Internal objects are hidden from the GraphQL schema, whatever their privileges
+create or replace function pg_temp.p9s_comment_relation(target text, comment text)
+returns void as $$
+declare
+  "the_kind" "char" := (select "relkind" from pg_class where "oid" = to_regclass(target));
+begin
+  if "the_kind" in ('r', 'p', 'v') then
+    execute format('comment on %s %s is %L', case "the_kind" when 'v' then 'view' else 'table' end, to_regclass(target), comment);
+  end if;
+end;
+$$ language plpgsql;
+
+create or replace function pg_temp.p9s_comment_functions(target text, comment text)
+returns void as $$
+declare
+  "the_function" regprocedure;
+begin
+  for "the_function" in select "oid"::regprocedure from pg_proc where "proname" = target and "pronamespace" = current_schema()::regnamespace loop
+    execute format('comment on %s %s is %L', case when (select "prokind" from pg_proc where "oid" = "the_function") = 'a' then 'aggregate' else 'function' end, "the_function", comment);
+  end loop;
+end;
+$$ language plpgsql;
+
+select pg_temp.p9s_comment_relation(quote_ident("the_name"), '@behavior -*'), pg_temp.p9s_comment_functions("the_name", '@behavior -*')
+from unnest(${roleArray(internal)}) as "the_name";
+` : sql``;
+
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Views of all nodes
+-----------------------------------------------------------------------------------------------------------------------
+${comments}
+${join(permissionFields, ``)}
+do $$
+begin
+  if current_setting('server_version_num')::int >= 150000 then${join(views, ``)}${smartComments ? sql`${join(viewKeys.map(([view, keys]) => sql`
+    perform pg_temp.p9s_comment_relation(${textLiteral(compile(view).text)}, ${textLiteral(keys.join("\n"))});`), ``)}${getBindings("resource", naming, config).length > 0 ? sql`
+    execute ${textLiteral(nodePermission)};
+    revoke execute on function ${nodePermissionField} (${nodeView("resource")}) from public;${join(everyone.map(role => sql`
+    grant execute on function ${nodePermissionField} (${nodeView("resource")}) to ${identifier(role)};`), ``)}` : sql``}` : sql`
+    if to_regclass(${textLiteral(compile(nodeView("resource")).text)}) is not null then
+      drop function if exists ${nodePermissionField} (${nodeView("resource")});
+    end if;`}
+  end if;
+end
+$$;
 `;
 };

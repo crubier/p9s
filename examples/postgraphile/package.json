@@ -1,0 +1,28 @@
+{
+  "name": "@p9s/example-postgraphile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test",
+    "db:p9s": "bun src/p9s.ts",
+    "db:migrate": "bun src/migrate.ts",
+    "db:seed": "bun src/seed.ts",
+    "schema": "bun src/print-schema.ts"
+  },
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "jose": "^6.1.0",
+    "pg": "^8.23.1",
+    "pg-sql2": "^4.14.1",
+    "postgraphile": "^5.1.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
+  }
+}

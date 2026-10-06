@@ -553,7 +553,8 @@ test('Default Migration', () => {
     declare
       "the_count" bigint;
     begin
-      if to_regclass('resource_node') is not null then
+      -- A table: the views of all nodes have the same name
+      if exists (select from pg_class where "oid" = to_regclass('resource_node') and "relkind" = 'r') then
         select count(*) into "the_count" from "resource_node" as "the_node" where not exists (select from "public"."blog_post" as "the_row" where "the_row"."resource_id" = "the_node"."id");
         if "the_count" > 0 then
           raise exception 'p9s: % % nodes are not a row of a bound table. Bind a table that holds them (a table with only an id column is enough) or delete them, then run the migration again.', "the_count", 'resource';
@@ -588,7 +589,8 @@ test('Default Migration', () => {
     declare
       "the_count" bigint;
     begin
-      if to_regclass('role_node') is not null then
+      -- A table: the views of all nodes have the same name
+      if exists (select from pg_class where "oid" = to_regclass('role_node') and "relkind" = 'r') then
         select count(*) into "the_count" from "role_node" as "the_node" where not exists (select from "public"."human_user" as "the_row" where "the_row"."role_id" = "the_node"."id");
         if "the_count" > 0 then
           raise exception 'p9s: % % nodes are not a row of a bound table. Bind a table that holds them (a table with only an id column is enough) or delete them, then run the migration again.', "the_count", 'role';
@@ -2531,6 +2533,32 @@ test('Default Migration', () => {
     drop function if exists "resource_share" (integer, integer, bit(4));
     drop function if exists "resource_unshare" (integer, integer);
 
+
+
+      
+    -----------------------------------------------------------------------------------------------------------------------
+    -- Views of all nodes
+    -----------------------------------------------------------------------------------------------------------------------
+
+
+    drop function if exists "blog_post_permission" ("public"."blog_post");
+    do $$
+    begin
+      if current_setting('server_version_num')::int >= 150000 then
+        execute '
+    create or replace view "resource_node" with (security_invoker = true) as
+    select "the_row"."resource_id" as "id", ''blog_post''::text as "table_name" from "public"."blog_post" as "the_row"';
+        perform pg_temp.p9s_set_privileges('"resource_node"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
+        execute '
+    create or replace view "role_node" with (security_invoker = true) as
+    select "the_row"."role_id" as "id", ''human_user''::text as "table_name" from "public"."human_user" as "the_row"';
+        perform pg_temp.p9s_set_privileges('"role_node"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
+        if to_regclass('"resource_node"') is not null then
+          drop function if exists "resource_node_permission" ("resource_node");
+        end if;
+      end if;
+    end
+    $$;
 
 
 

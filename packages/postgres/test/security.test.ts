@@ -388,6 +388,85 @@ describe('permission graph privileges', () => {
     });
   });
 
+  describe('views of all nodes', () => {
+    const version = async () => Number((await context.runTestQuery(sql`select current_setting('server_version_num') as "v"`))[0][0].v);
+
+    test('list the nodes of each tree that users can see, with the table of their row', async () => {
+      await setupBlog(context);
+      await seedGraph(context);
+      if (await version() < 150000) {
+        const [[view]] = await context.runTestQuery(sql`select to_regclass('resource_node') as "view"`);
+        expect(view.view).toBeNull();
+        return;
+      }
+      const user = context.database_user_username;
+      await context.exec(sql`grant select on "resource_group", "role_group" to ${identifier(user)}`);
+      const [[post]] = await context.runTestQuery(sql`select "resource_id" from "blog_post" where "group_id" = 2`);
+      // Groups have no policy for users, posts show the ones role 1 can read. Role tables have no RLS, keys are leaves.
+      expect(await as(context, user, sql`select "id", "table_name" from "resource_node" order by "id"`, raw("1")))
+        .toEqual([{ id: post.resource_id, table_name: "blog_post" }]);
+      expect(await as(context, user, sql`select "id", "table_name" from "resource_node"`, raw("2"))).toEqual([]);
+      expect(await as(context, user, sql`select "id", "table_name" from "role_node" order by "id"`, raw("2")))
+        .toEqual([{ id: 1, table_name: "role_group" }, { id: 2, table_name: "role_group" }]);
+      // The owner sees every node
+      const [nodes] = await context.runTestQuery(sql`select "table_name", count(*)::int as "n" from "resource_node" group by 1 order by 1`);
+      expect(nodes).toEqual([{ table_name: "blog_post", n: 2 }, { table_name: "resource_group", n: 3 }]);
+    });
+
+    test('smart comments give PostGraphile the keys of the views, and hide the internal objects', async () => {
+      await setupBlogTables(context);
+      const config = { ...blogMigrationConfig(context), engine: { ...blogMigrationConfig(context).engine, postgraphile: true } };
+      await context.exec(createMigration(config));
+      await context.exec(createMigration(config));
+      const comment = async (target: string) => (await context.runTestQuery(sql`select obj_description(to_regclass(${raw(`'${target}'`)}), 'pg_class') as "c"`))[0][0].c;
+      for (const table of ["resource_edge", "role_edge_cache", "assignment_edge", "current_resource_access_0"]) {
+        expect(await comment(table)).toBe("@behavior -*");
+      }
+      const [functions] = await context.runTestQuery(sql`
+        select "oid"::regprocedure::text as "signature", obj_description("oid", 'pg_proc') as "c" from pg_proc
+        where "proname" in ('resource_permission', 'resource_edge_cache_parent_compute', 'or_bitmap_4') order by 1`);
+      expect(functions).toEqual([
+        { signature: "or_bitmap_4(bit)", c: "@behavior -*" },
+        { signature: "resource_edge_cache_parent_compute(integer)", c: "@behavior -*" },
+        { signature: "resource_permission(integer)", c: null },
+        { signature: "resource_permission(integer,integer)", c: null },
+      ]);
+      if (await version() < 150000) return;
+      expect(await comment("resource_node")).toBe([
+        "@primaryKey id",
+        "@behavior -insert -update -delete",
+        `@foreignKey (id) references public.resource_group (id)|@fieldName resourceGroup|@foreignFieldName resourceNode`,
+        `@foreignKey (id) references public.blog_post (resource_id)|@fieldName blogPost|@foreignFieldName resourceNode`,
+      ].join("\n"));
+      expect(await comment("current_resource_edge")).toBe([
+        "@behavior -insert -update -delete",
+        `@foreignKey (parent_id) references public.resource_node (id)|@fieldName parent`,
+        `@foreignKey (child_id) references public.resource_node (id)|@fieldName child`,
+      ].join("\n"));
+    });
+
+    test('PostGraphile reads the permission of the current user on each row, which resource_permission cannot give it', async () => {
+      await setupBlogTables(context);
+      const config = { ...blogMigrationConfig(context), engine: { ...blogMigrationConfig(context).engine, postgraphile: true } };
+      await context.exec(createMigration(config));
+      await context.exec(sql`select setval('resource_id_seq', 1000000); select setval('role_id_seq', 1000000);`);
+      await seedGraph(context);
+      const user = context.database_user_username;
+      await context.exec(sql`grant select on "resource_group" to ${identifier(user)}`);
+      expect(await as(context, user, sql`select "id", "blog_post_permission"("p") as "permission" from "blog_post" "p" order by "id"`, raw("1")))
+        .toEqual([{ id: 1, permission: "1111" }]);
+      expect(await as(context, user, sql`select "id", "resource_group_permission"("g") as "permission" from "resource_group" "g" order by "id"`, raw("1")))
+        .toEqual((await as(context, user, sql`select "id", "resource_permission"("id") as "permission" from "resource_group" order by "id"`, raw("1"))));
+      if (await version() >= 150000) {
+        expect(await as(context, user, sql`select "n"."table_name", "resource_node_permission"("n") as "permission" from "resource_node" "n"`, raw("1")))
+          .toEqual([{ table_name: "blog_post", permission: "1111" }]);
+      }
+      await context.exec(createMigration(blogMigrationConfig(context)));
+      const [functions] = await context.runTestQuery(sql`select "proname" from pg_proc where "proname" like '%\_permission' and "proname" <> 'resource_permission'`);
+      expect(functions).toEqual([]);
+    });
+  });
+
   describe('delegated sharing', () => {
     // The delete bit lets users share a post, and groups cannot be shared by users
     const setupSharing = async (combineAssignmentsWith: CombineMode = "none") => {

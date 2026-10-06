@@ -40,6 +40,8 @@ There are no node tables: every row of a resource table is a resource node, and 
 - Deleting a row deletes the edges and assignments it has, so the next row given the same id inherits nothing.
 - An insert whose id is already used by another row, of any bound table, is rejected, and so is an update changing an id.
 
+**Views of all nodes.** On Postgres 15 and later, `resource_node` and `role_node` are views of every node, `(id, table_name)`: the union of the ids of the bound tables, with the name of the table holding each. They run as the querying user (`security_invoker`), so they show the nodes their RLS lets through, and querying them needs the select privilege on every bound table. Below Postgres 15 views cannot do that, and p9s doesn't create them. They give tools like [PostGraphile](./postgraphile) a single type for the `resource_id` of the other views.
+
 **Ids.** In integer mode the resource tables share one sequence, `resource_id_seq`, and the role tables another, `role_id_seq`, role leaf tables included, so ids are unique across tables. A column with ids of its own would collide with the other tables, so the migration refuses to bind an integer column that has its own default (a `serial`, for example), is an identity column or is generated, and stops before changing anything. Keep that column as it is, and bind a separate column for p9s instead, like `resourceId: "resource_id"`, which p9s adds. Rows inserted with explicit ids don't advance the sequence: after such a bulk load, move it past them with `select setval('resource_id_seq', (select max(...) ...))`. In UUID mode the default is `uuid_generate_v4()`.
 
 ## Home edges and shares

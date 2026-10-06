@@ -275,6 +275,9 @@ export const engineConfigBaseSchema = z.object({
     mode: z.enum(["integer", "uuid"]),
   }),
   combineAssignmentsWith: z.enum(["none", "role", "resource"]),
+  // For PostGraphile: smart comments with the keys of the node views and of the views of p9s, the internal tables and
+  // functions hidden from the GraphQL schema, and a permission field on each resource table
+  postgraphile: z.boolean().optional(),
   naming: namingConfigSchema.partial(),
 });
 

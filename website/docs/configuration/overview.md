@@ -88,6 +88,7 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
+| `postgraphile`                    | `boolean`                        | Smart comments and `permission` fields for PostGraphile, see [PostGraphile](./postgraphile) |
 
 `getCurrentUserId` must exist before the migration runs, for example:
 

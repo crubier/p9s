@@ -66,12 +66,12 @@ begin
       exists (select from pg_trigger as "o" where "o"."tgrelid" = "t"."tgrelid" and "o"."tgname" = "the_name"."name") as "replaced"
     from pg_trigger as "t"
     join pg_proc as "p" on "p"."oid" = "t"."tgfoid"
-    join unnest(array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', '10_api_key_resource_parent_trigger', '10_api_key_role_parent_trigger', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', '10_audit_event_resource_parent_trigger', '10_audit_event_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', '10_document_resource_parent_trigger', '10_document_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', '10_member_resource_parent_trigger', '10_member_role_parent_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[], array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', '10_api_key_resource_parent_trigger', '10_api_key_role_parent_trigger', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', '10_audit_event_resource_parent_trigger', '10_audit_event_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', '10_document_resource_parent_trigger', '10_document_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', '10_member_resource_parent_trigger', '10_member_role_parent_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[]) as "the_name" ("name", "unprefixed")
+    join unnest(array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_person_resource_insert_trigger', '10_person_resource_update_trigger', '10_person_resource_delete_trigger', '10_person_role_insert_trigger', '10_person_role_update_trigger', '10_person_role_delete_trigger', '10_person_resource_parent_trigger', '10_person_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_project_resource_insert_trigger', '10_project_resource_update_trigger', '10_project_resource_delete_trigger', '10_project_role_insert_trigger', '10_project_role_update_trigger', '10_project_role_delete_trigger', '10_project_resource_parent_trigger', '10_project_role_parent_trigger', '10_task_resource_insert_trigger', '10_task_resource_update_trigger', '10_task_resource_delete_trigger', '10_task_role_insert_trigger', '10_task_role_update_trigger', '10_task_role_delete_trigger', '10_task_resource_parent_trigger', '10_task_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger']::text[], array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_person_resource_insert_trigger', '10_person_resource_update_trigger', '10_person_resource_delete_trigger', '10_person_role_insert_trigger', '10_person_role_update_trigger', '10_person_role_delete_trigger', '10_person_resource_parent_trigger', '10_person_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_project_resource_insert_trigger', '10_project_resource_update_trigger', '10_project_resource_delete_trigger', '10_project_role_insert_trigger', '10_project_role_update_trigger', '10_project_role_delete_trigger', '10_project_resource_parent_trigger', '10_project_role_parent_trigger', '10_task_resource_insert_trigger', '10_task_resource_update_trigger', '10_task_resource_delete_trigger', '10_task_role_insert_trigger', '10_task_role_update_trigger', '10_task_role_delete_trigger', '10_task_resource_parent_trigger', '10_task_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger']::text[]) as "the_name" ("name", "unprefixed")
       on right("t"."tgname", length("the_name"."unprefixed")) = "the_name"."unprefixed"
     where not "t"."tgisinternal"
-    and "t"."tgname" <> all (array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', '10_api_key_resource_parent_trigger', '10_api_key_role_parent_trigger', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', '10_audit_event_resource_parent_trigger', '10_audit_event_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', '10_document_resource_parent_trigger', '10_document_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', '10_member_resource_parent_trigger', '10_member_role_parent_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[])
+    and "t"."tgname" <> all (array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_person_resource_insert_trigger', '10_person_resource_update_trigger', '10_person_resource_delete_trigger', '10_person_role_insert_trigger', '10_person_role_update_trigger', '10_person_role_delete_trigger', '10_person_resource_parent_trigger', '10_person_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_project_resource_insert_trigger', '10_project_resource_update_trigger', '10_project_resource_delete_trigger', '10_project_role_insert_trigger', '10_project_role_update_trigger', '10_project_role_delete_trigger', '10_project_resource_parent_trigger', '10_project_role_parent_trigger', '10_task_resource_insert_trigger', '10_task_resource_update_trigger', '10_task_resource_delete_trigger', '10_task_role_insert_trigger', '10_task_role_update_trigger', '10_task_role_delete_trigger', '10_task_resource_parent_trigger', '10_task_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger']::text[])
     and "p"."pronamespace" = 'public'::regnamespace
-    and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_8', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'current_resource_access', 'current_assignment', 'current_resource_edge', 'current_role', 'resource_access', 'resource_role_access', 'resource_share', 'resource_unshare', 'account', 'resource_account_fkey', 'role_account_fkey', 'account_resource_trigger_function', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', 'account_role_trigger_function', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', 'account_resource_parent', 'account_role_parent', 'resource_parent_id', 'account_resource_parent_trigger_function', '10_account_resource_parent_trigger', 'role_parent_id', 'account_role_parent_trigger_function', '10_account_role_parent_trigger', 'api_key', 'resource_api_key_fkey', 'role_api_key_fkey', 'api_key_resource_trigger_function', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', 'api_key_role_trigger_function', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', 'api_key_resource_parent', 'api_key_role_parent', 'api_key_resource_parent_trigger_function', '10_api_key_resource_parent_trigger', 'api_key_role_parent_trigger_function', '10_api_key_role_parent_trigger', 'audit_event', 'resource_audit_event_fkey', 'role_audit_event_fkey', 'audit_event_resource_trigger_function', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', 'audit_event_role_trigger_function', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', 'audit_event_resource_parent', 'audit_event_role_parent', 'audit_event_resource_parent_trigger_function', '10_audit_event_resource_parent_trigger', 'audit_event_role_parent_trigger_function', '10_audit_event_role_parent_trigger', 'audit_event_app_user_select_policy', 'audit_event_app_user_insert_policy', 'audit_event_app_user_update_policy', 'audit_event_app_user_delete_policy', 'comment', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'comment_app_user_select_policy', 'comment_app_user_insert_policy', 'comment_app_user_update_policy', 'comment_app_user_delete_policy', 'document', 'resource_document_fkey', 'role_document_fkey', 'document_resource_trigger_function', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', 'document_role_trigger_function', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', 'document_resource_parent', 'document_role_parent', 'document_resource_parent_trigger_function', '10_document_resource_parent_trigger', 'document_role_parent_trigger_function', '10_document_role_parent_trigger', 'document_app_user_select_policy', 'document_app_user_insert_policy', 'document_app_user_update_policy', 'document_app_user_delete_policy', 'folder', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'folder_app_user_select_policy', 'folder_app_user_insert_policy', 'folder_app_user_update_policy', 'folder_app_user_delete_policy', 'member', 'resource_member_fkey', 'role_member_fkey', 'member_resource_trigger_function', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', 'member_role_trigger_function', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', 'member_resource_parent', 'member_role_parent', 'member_resource_parent_trigger_function', '10_member_resource_parent_trigger', 'member_role_parent_trigger_function', '10_member_role_parent_trigger', 'member_app_user_select_policy', 'member_app_user_insert_policy', 'member_app_user_update_policy', 'member_app_user_delete_policy', 'organization', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'organization_app_user_select_policy', 'organization_app_user_insert_policy', 'organization_app_user_update_policy', 'organization_app_user_delete_policy', 'session', 'resource_session_fkey', 'role_session_fkey', 'session_resource_trigger_function', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', 'session_role_trigger_function', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', 'session_resource_parent', 'session_role_parent', 'session_resource_parent_trigger_function', '10_session_resource_parent_trigger', 'session_role_parent_trigger_function', '10_session_role_parent_trigger', 'team', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'team_app_user_select_policy', 'team_app_user_insert_policy', 'team_app_user_update_policy', 'team_app_user_delete_policy', 'user', 'resource_user_fkey', 'role_user_fkey', 'user_resource_trigger_function', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', 'user_role_trigger_function', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', 'user_resource_parent', 'user_role_parent', 'user_resource_parent_trigger_function', '10_user_resource_parent_trigger', 'user_role_parent_trigger_function', '10_user_role_parent_trigger', 'verification', 'resource_verification_fkey', 'role_verification_fkey', 'verification_resource_trigger_function', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', 'verification_role_trigger_function', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', 'verification_resource_parent', 'verification_role_parent', 'verification_resource_parent_trigger_function', '10_verification_resource_parent_trigger', 'verification_role_parent_trigger_function', '10_verification_role_parent_trigger']::text[])
+    and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_8', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'current_resource_access', 'current_assignment', 'current_resource_edge', 'current_role', 'resource_access', 'resource_role_access', 'resource_share', 'resource_unshare', 'organization', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'resource_parent_id', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'role_parent_id', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'organization_app_user_select_policy', 'organization_app_user_insert_policy', 'organization_app_user_update_policy', 'organization_app_user_delete_policy', 'person', 'resource_person_fkey', 'role_person_fkey', 'person_resource_trigger_function', '10_person_resource_insert_trigger', '10_person_resource_update_trigger', '10_person_resource_delete_trigger', 'person_role_trigger_function', '10_person_role_insert_trigger', '10_person_role_update_trigger', '10_person_role_delete_trigger', 'person_resource_parent', 'person_role_parent', 'person_resource_parent_trigger_function', '10_person_resource_parent_trigger', 'person_role_parent_trigger_function', '10_person_role_parent_trigger', 'person_app_user_select_policy', 'person_app_user_insert_policy', 'person_app_user_update_policy', 'person_app_user_delete_policy', 'team', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'team_app_user_select_policy', 'team_app_user_insert_policy', 'team_app_user_update_policy', 'team_app_user_delete_policy', 'project', 'resource_project_fkey', 'role_project_fkey', 'project_resource_trigger_function', '10_project_resource_insert_trigger', '10_project_resource_update_trigger', '10_project_resource_delete_trigger', 'project_role_trigger_function', '10_project_role_insert_trigger', '10_project_role_update_trigger', '10_project_role_delete_trigger', 'project_resource_parent', 'project_role_parent', 'project_resource_parent_trigger_function', '10_project_resource_parent_trigger', 'project_role_parent_trigger_function', '10_project_role_parent_trigger', 'project_app_user_select_policy', 'project_app_user_insert_policy', 'project_app_user_update_policy', 'project_app_user_delete_policy', 'task', 'resource_task_fkey', 'role_task_fkey', 'task_resource_trigger_function', '10_task_resource_insert_trigger', '10_task_resource_update_trigger', '10_task_resource_delete_trigger', 'task_role_trigger_function', '10_task_role_insert_trigger', '10_task_role_update_trigger', '10_task_role_delete_trigger', 'task_resource_parent', 'task_role_parent', 'task_resource_parent_trigger_function', '10_task_resource_parent_trigger', 'task_role_parent_trigger_function', '10_task_role_parent_trigger', 'task_app_user_select_policy', 'task_app_user_insert_policy', 'task_app_user_update_policy', 'task_app_user_delete_policy', 'comment', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'comment_app_user_select_policy', 'comment_app_user_insert_policy', 'comment_app_user_update_policy', 'comment_app_user_delete_policy']::text[])
   loop
     if "the_trigger"."replaced" then
       execute format('drop trigger %I on %s', "the_trigger"."name", "the_trigger"."table");
@@ -188,7 +188,7 @@ create or replace function "resource_edge_cache_parent_compute" ("var_child_id" 
     join "search_graph" as "the_search_graph" 
     on "the_edge"."child_id" = "the_search_graph"."parent_id"
     where ("the_edge"."child_id" <> all ("the_search_graph"."path")) -- prevent from cycling
-    and "the_search_graph"."depth" <= 16 -- max search depth
+    and "the_search_graph"."depth" <= 8 -- max search depth
   )
     select
       "the_search_graph"."parent_id",
@@ -227,7 +227,7 @@ create or replace function "resource_edge_cache_child_compute" ("var_parent_id" 
     join "search_graph" as "the_search_graph" 
     on "the_search_graph"."child_id" = "the_edge"."parent_id"
     where ("the_edge"."parent_id" <> all ("the_search_graph"."path")) -- prevent from cycling
-    and "the_search_graph"."depth" <= 16 -- max search depth
+    and "the_search_graph"."depth" <= 8 -- max search depth
   )
     select
       "the_search_graph"."parent_id",
@@ -400,62 +400,23 @@ select pg_temp.p9s_set_privileges('"assignment_edge"'::regclass, array[]::text[]
 -- Table bindings
 -----------------------------------------------------------------------------------------------------------------------
 
-alter table "public"."document" add column if not exists "resource_id" uuid unique;
-
-alter table "public"."folder" add column if not exists "resource_id" uuid unique;
-
-alter table "public"."member" add column if not exists "resource_id" uuid unique;
-
 alter table "public"."organization" add column if not exists "resource_id" uuid unique;
+
+alter table "public"."person" add column if not exists "resource_id" uuid unique;
 
 alter table "public"."team" add column if not exists "resource_id" uuid unique;
 
-alter table "public"."member" add column if not exists "role_id" uuid unique;
+alter table "public"."project" add column if not exists "resource_id" uuid unique;
+
+alter table "public"."task" add column if not exists "resource_id" uuid unique;
 
 alter table "public"."organization" add column if not exists "role_id" uuid unique;
 
+alter table "public"."person" add column if not exists "role_id" uuid unique;
+
 alter table "public"."team" add column if not exists "role_id" uuid unique;
 
-alter table "public"."api_key" add column if not exists "role_id" uuid unique;
-
-alter table "public"."audit_event" add column if not exists "resource_parent_id" uuid;
-
 alter table "public"."comment" add column if not exists "resource_parent_id" uuid;
-
-alter table "public"."api_key" add column if not exists "role_parent_id" uuid;
-
-
-do $$
-begin
-  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."document"'::regclass and "attname" = 'resource_id') then
-    alter table "public"."document" alter column "resource_id" set default uuid_generate_v4();
-  end if;
-end
-$$;
-update "public"."document" set "resource_id" = default where "resource_id" is null;
-alter table "public"."document" alter column "resource_id" set not null;
-
-
-do $$
-begin
-  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."folder"'::regclass and "attname" = 'resource_id') then
-    alter table "public"."folder" alter column "resource_id" set default uuid_generate_v4();
-  end if;
-end
-$$;
-update "public"."folder" set "resource_id" = default where "resource_id" is null;
-alter table "public"."folder" alter column "resource_id" set not null;
-
-
-do $$
-begin
-  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."member"'::regclass and "attname" = 'resource_id') then
-    alter table "public"."member" alter column "resource_id" set default uuid_generate_v4();
-  end if;
-end
-$$;
-update "public"."member" set "resource_id" = default where "resource_id" is null;
-alter table "public"."member" alter column "resource_id" set not null;
 
 
 do $$
@@ -471,6 +432,17 @@ alter table "public"."organization" alter column "resource_id" set not null;
 
 do $$
 begin
+  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."person"'::regclass and "attname" = 'resource_id') then
+    alter table "public"."person" alter column "resource_id" set default uuid_generate_v4();
+  end if;
+end
+$$;
+update "public"."person" set "resource_id" = default where "resource_id" is null;
+alter table "public"."person" alter column "resource_id" set not null;
+
+
+do $$
+begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'resource_id') then
     alter table "public"."team" alter column "resource_id" set default uuid_generate_v4();
   end if;
@@ -482,13 +454,24 @@ alter table "public"."team" alter column "resource_id" set not null;
 
 do $$
 begin
-  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."member"'::regclass and "attname" = 'role_id') then
-    alter table "public"."member" alter column "role_id" set default uuid_generate_v4();
+  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."project"'::regclass and "attname" = 'resource_id') then
+    alter table "public"."project" alter column "resource_id" set default uuid_generate_v4();
   end if;
 end
 $$;
-update "public"."member" set "role_id" = default where "role_id" is null;
-alter table "public"."member" alter column "role_id" set not null;
+update "public"."project" set "resource_id" = default where "resource_id" is null;
+alter table "public"."project" alter column "resource_id" set not null;
+
+
+do $$
+begin
+  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."task"'::regclass and "attname" = 'resource_id') then
+    alter table "public"."task" alter column "resource_id" set default uuid_generate_v4();
+  end if;
+end
+$$;
+update "public"."task" set "resource_id" = default where "resource_id" is null;
+alter table "public"."task" alter column "resource_id" set not null;
 
 
 do $$
@@ -504,6 +487,17 @@ alter table "public"."organization" alter column "role_id" set not null;
 
 do $$
 begin
+  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."person"'::regclass and "attname" = 'role_id') then
+    alter table "public"."person" alter column "role_id" set default uuid_generate_v4();
+  end if;
+end
+$$;
+update "public"."person" set "role_id" = default where "role_id" is null;
+alter table "public"."person" alter column "role_id" set not null;
+
+
+do $$
+begin
   if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."team"'::regclass and "attname" = 'role_id') then
     alter table "public"."team" alter column "role_id" set default uuid_generate_v4();
   end if;
@@ -511,17 +505,6 @@ end
 $$;
 update "public"."team" set "role_id" = default where "role_id" is null;
 alter table "public"."team" alter column "role_id" set not null;
-
-
-do $$
-begin
-  if not (select "atthasdef" from pg_attribute where "attrelid" = '"public"."api_key"'::regclass and "attname" = 'role_id') then
-    alter table "public"."api_key" alter column "role_id" set default uuid_generate_v4();
-  end if;
-end
-$$;
-update "public"."api_key" set "role_id" = default where "role_id" is null;
-alter table "public"."api_key" alter column "role_id" set not null;
 
 
 
@@ -536,7 +519,7 @@ select
   "parent_permissions"."child_id" as "child_id",
   "parent_permissions"."permission" as "permission"
 from
-  (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_node" ("id"),
+  (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_node" ("id"),
   lateral "resource_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
 select pg_temp.p9s_set_privileges('"resource_edge_cache_view"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
@@ -553,7 +536,7 @@ select
   "parent_permissions"."child_id" as "child_id",
   "parent_permissions"."permission" as "permission"
 from
-  (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_node" ("id"),
+  (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_node" ("id"),
   lateral "role_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
 select pg_temp.p9s_set_privileges('"role_edge_cache_view"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
@@ -569,7 +552,7 @@ declare
 begin
   -- A table: the views of all nodes have the same name
   if exists (select from pg_class where "oid" = to_regclass('resource_node') and "relkind" = 'r') then
-    select count(*) into "the_count" from "resource_node" as "the_node" where not exists (select from "public"."document" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."folder" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."member" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."organization" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."team" as "the_row" where "the_row"."resource_id" = "the_node"."id");
+    select count(*) into "the_count" from "resource_node" as "the_node" where not exists (select from "public"."organization" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."person" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."team" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."project" as "the_row" where "the_row"."resource_id" = "the_node"."id") and not exists (select from "public"."task" as "the_row" where "the_row"."resource_id" = "the_node"."id");
     if "the_count" > 0 then
       raise exception 'p9s: % % nodes are not a row of a bound table. Bind a table that holds them (a table with only an id column is enough) or delete them, then run the migration again.', "the_count", 'resource';
     end if;
@@ -579,13 +562,12 @@ begin
     alter table "resource_edge_cache" drop constraint if exists "resource_edge_cache_child_pkey";
     alter table "assignment_edge" drop constraint if exists "assignment_edge_resource_fkey";
     alter table if exists "assignment_edge_cache" drop constraint if exists "assignment_edge_cache_resource_fkey";
-    alter table "public"."audit_event" drop constraint if exists "resource_audit_event_fkey";
-    alter table "public"."comment" drop constraint if exists "resource_comment_fkey";
-    alter table "public"."document" drop constraint if exists "resource_document_fkey";
-    alter table "public"."folder" drop constraint if exists "resource_folder_fkey";
-    alter table "public"."member" drop constraint if exists "resource_member_fkey";
     alter table "public"."organization" drop constraint if exists "resource_organization_fkey";
+    alter table "public"."person" drop constraint if exists "resource_person_fkey";
     alter table "public"."team" drop constraint if exists "resource_team_fkey";
+    alter table "public"."project" drop constraint if exists "resource_project_fkey";
+    alter table "public"."task" drop constraint if exists "resource_task_fkey";
+    alter table "public"."comment" drop constraint if exists "resource_comment_fkey";
     -- Recreated below. The bootstrap rebuilds the cache, there is no need to refresh it edge by edge here.
     drop trigger if exists "10_resource_edge_insert_trigger" on "resource_edge";
     drop trigger if exists "10_resource_edge_update_trigger" on "resource_edge";
@@ -593,20 +575,20 @@ begin
     -- Edges that match a parent column become the home edges of their rows
     
     update "resource_edge" as "the_edge" set "home" = true
-    from "public"."document" as "the_row"
-    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id");
-
-    update "resource_edge" as "the_edge" set "home" = true
-    from "public"."folder" as "the_row"
-    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = "the_row"."parent_resource_id";
-
-    update "resource_edge" as "the_edge" set "home" = true
-    from "public"."member" as "the_row"
+    from "public"."person" as "the_row"
     where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
 
     update "resource_edge" as "the_edge" set "home" = true
     from "public"."team" as "the_row"
     where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
+
+    update "resource_edge" as "the_edge" set "home" = true
+    from "public"."project" as "the_row"
+    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
+
+    update "resource_edge" as "the_edge" set "home" = true
+    from "public"."task" as "the_row"
+    where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."parent_id" = (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id");
     drop table "resource_node";
     drop function if exists "resource_node_insert_trigger_function"();
     drop function if exists "resource_node_update_trigger_function"();
@@ -626,7 +608,7 @@ declare
 begin
   -- A table: the views of all nodes have the same name
   if exists (select from pg_class where "oid" = to_regclass('role_node') and "relkind" = 'r') then
-    select count(*) into "the_count" from "role_node" as "the_node" where not exists (select from "public"."member" as "the_row" where "the_row"."role_id" = "the_node"."id") and not exists (select from "public"."organization" as "the_row" where "the_row"."role_id" = "the_node"."id") and not exists (select from "public"."team" as "the_row" where "the_row"."role_id" = "the_node"."id");
+    select count(*) into "the_count" from "role_node" as "the_node" where not exists (select from "public"."organization" as "the_row" where "the_row"."role_id" = "the_node"."id") and not exists (select from "public"."person" as "the_row" where "the_row"."role_id" = "the_node"."id") and not exists (select from "public"."team" as "the_row" where "the_row"."role_id" = "the_node"."id");
     if "the_count" > 0 then
       raise exception 'p9s: % % nodes are not a row of a bound table. Bind a table that holds them (a table with only an id column is enough) or delete them, then run the migration again.', "the_count", 'role';
     end if;
@@ -636,9 +618,8 @@ begin
     alter table "role_edge_cache" drop constraint if exists "role_edge_cache_child_pkey";
     alter table "assignment_edge" drop constraint if exists "assignment_edge_role_fkey";
     alter table if exists "assignment_edge_cache" drop constraint if exists "assignment_edge_cache_role_fkey";
-    alter table "public"."api_key" drop constraint if exists "role_api_key_fkey";
-    alter table "public"."member" drop constraint if exists "role_member_fkey";
     alter table "public"."organization" drop constraint if exists "role_organization_fkey";
+    alter table "public"."person" drop constraint if exists "role_person_fkey";
     alter table "public"."team" drop constraint if exists "role_team_fkey";
     -- Recreated below. The bootstrap rebuilds the cache, there is no need to refresh it edge by edge here.
     drop trigger if exists "10_role_edge_insert_trigger" on "role_edge";
@@ -647,7 +628,7 @@ begin
     -- Edges that match a parent column become the home edges of their rows
     
     update "role_edge" as "the_edge" set "home" = true
-    from "public"."member" as "the_row"
+    from "public"."person" as "the_row"
     where "the_edge"."child_id" = "the_row"."role_id" and "the_edge"."parent_id" = (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
     drop table "role_node";
     drop function if exists "role_node_insert_trigger_function"();
@@ -667,18 +648,18 @@ create or replace function "resource_edge_cache_backfill" ()
   as $$
 begin
   perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-  if exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") group by "the_id"."id" having count(*) > 1) then
+  if exists (select from (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_id" ("id") group by "the_id"."id" having count(*) > 1) then
     raise exception 'p9s: the % id % is used by more than one bound row', 'resource',
-      (select "the_id"."id" from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
+      (select "the_id"."id" from (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
       using errcode = 'unique_violation';
   end if;
   -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
   -- scans the ids again for every edge
-  if exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
-    or exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
+  if exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+    or exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
     raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
   end if;
-  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_assignment"."resource_id")) then
+  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "resource_id" from "public"."organization" union all select "resource_id" from "public"."person" union all select "resource_id" from "public"."team" union all select "resource_id" from "public"."project" union all select "resource_id" from "public"."task") as "the_id" ("id") where "the_id"."id" = "the_assignment"."resource_id")) then
     raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
   end if;
   -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -691,9 +672,9 @@ begin
       union all
       select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
       from "walk" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
-      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 8
     )
-    select "walk"."path" from "walk" where "walk"."depth" > 16
+    select "walk"."path" from "walk" where "walk"."depth" > 8
   ) as "the_path") then
     raise exception 'p9s: the % path % has more than % edges, the maxDepth of the % tree', 'resource',
       (select array_to_string("the_path"."path", ' -> ') from (
@@ -702,10 +683,10 @@ begin
       union all
       select "the_edge"."parent_id", "walk"."depth" + 1, "the_edge"."parent_id" || "walk"."path"
       from "walk" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."node"
-      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 16
+      where "the_edge"."parent_id" <> all ("walk"."path") and "walk"."depth" <= 8
     )
-    select "walk"."path" from "walk" where "walk"."depth" > 16
-  ) as "the_path" limit 1), 16, 'resource'
+    select "walk"."path" from "walk" where "walk"."depth" > 8
+  ) as "the_path" limit 1), 8, 'resource'
       using errcode = 'program_limit_exceeded';
   end if;
   delete from "resource_edge_cache";
@@ -764,10 +745,10 @@ begin
       union all
       select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     ),
     "above" ("node", "depth", "path", "budget") as (
-      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      select "below"."parent", 0, array["below"."parent"], 7 - max("below"."depth") from "below" group by "below"."parent"
       union all
       select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
@@ -780,20 +761,20 @@ begin
       union all
       select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
-      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 8
     ),
     "below" ("start", "node", "depth", "path") as (
       select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
       union all
       select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     )
     select "the_new"."parent_id", "the_new"."child_id"
     from "the_new"
     join "above" on "above"."start" = "the_new"."parent_id"
     join "below" on "below"."start" = "the_new"."child_id"
-    where "above"."depth" + 1 + "below"."depth" > 16
+    where "above"."depth" + 1 + "below"."depth" > 8
     and not ("above"."path" && "below"."path")
   ) as "the_edge") then
     raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'resource',
@@ -804,22 +785,22 @@ begin
       union all
       select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
-      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 8
     ),
     "below" ("start", "node", "depth", "path") as (
       select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
       union all
       select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     )
     select "the_new"."parent_id", "the_new"."child_id"
     from "the_new"
     join "above" on "above"."start" = "the_new"."parent_id"
     join "below" on "below"."start" = "the_new"."child_id"
-    where "above"."depth" + 1 + "below"."depth" > 16
+    where "above"."depth" + 1 + "below"."depth" > 8
     and not ("above"."path" && "below"."path")
-  ) as "the_edge" limit 1), 16, 'resource'
+  ) as "the_edge" limit 1), 8, 'resource'
       using errcode = 'program_limit_exceeded';
   end if;
 
@@ -852,7 +833,7 @@ begin
     join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
     where "walk"."inside"
     and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
-    and "walk"."depth" <= 16 -- max search depth
+    and "walk"."depth" <= 8 -- max search depth
   ),
   "fresh" as (
     select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_8" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
@@ -947,10 +928,10 @@ begin
       union all
       select "below"."parent", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     ),
     "above" ("node", "depth", "path", "budget") as (
-      select "below"."parent", 0, array["below"."parent"], 15 - max("below"."depth") from "below" group by "below"."parent"
+      select "below"."parent", 0, array["below"."parent"], 7 - max("below"."depth") from "below" group by "below"."parent"
       union all
       select "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id", "above"."budget"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
@@ -963,20 +944,20 @@ begin
       union all
       select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
-      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 8
     ),
     "below" ("start", "node", "depth", "path") as (
       select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
       union all
       select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     )
     select "the_new"."parent_id", "the_new"."child_id"
     from "the_new"
     join "above" on "above"."start" = "the_new"."parent_id"
     join "below" on "below"."start" = "the_new"."child_id"
-    where "above"."depth" + 1 + "below"."depth" > 16
+    where "above"."depth" + 1 + "below"."depth" > 8
     and not ("above"."path" && "below"."path")
   ) as "the_edge") then
     raise exception 'p9s: the % edge % makes a path of more than % edges, the maxDepth of the % tree', 'resource',
@@ -987,22 +968,22 @@ begin
       union all
       select "above"."start", "the_edge"."parent_id", "above"."depth" + 1, "above"."path" || "the_edge"."parent_id"
       from "above" join "resource_edge" as "the_edge" on "the_edge"."child_id" = "above"."node"
-      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 16
+      where "the_edge"."parent_id" <> all ("above"."path") and "above"."depth" < 8
     ),
     "below" ("start", "node", "depth", "path") as (
       select "the_start"."id", "the_start"."id", 0, array["the_start"."id"] from (select distinct "child_id" as "id" from "the_new") as "the_start"
       union all
       select "below"."start", "the_edge"."child_id", "below"."depth" + 1, "below"."path" || "the_edge"."child_id"
       from "below" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "below"."node"
-      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 16
+      where "the_edge"."child_id" <> all ("below"."path") and "below"."depth" < 8
     )
     select "the_new"."parent_id", "the_new"."child_id"
     from "the_new"
     join "above" on "above"."start" = "the_new"."parent_id"
     join "below" on "below"."start" = "the_new"."child_id"
-    where "above"."depth" + 1 + "below"."depth" > 16
+    where "above"."depth" + 1 + "below"."depth" > 8
     and not ("above"."path" && "below"."path")
-  ) as "the_edge" limit 1), 16, 'resource'
+  ) as "the_edge" limit 1), 8, 'resource'
       using errcode = 'program_limit_exceeded';
   end if;
 
@@ -1035,7 +1016,7 @@ begin
     join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
     where "walk"."inside"
     and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
-    and "walk"."depth" <= 16 -- max search depth
+    and "walk"."depth" <= 8 -- max search depth
   ),
   "fresh" as (
     select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_8" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
@@ -1142,7 +1123,7 @@ begin
     join "resource_edge" as "the_edge" on "the_edge"."child_id" = "walk"."parent_id"
     where "walk"."inside"
     and "the_edge"."parent_id" <> all ("walk"."path") -- prevent from cycling
-    and "walk"."depth" <= 16 -- max search depth
+    and "walk"."depth" <= 8 -- max search depth
   ),
   "fresh" as (
     select "the_path"."parent_id", "the_path"."child_id", "or_bitmap_8" ("the_path"."permission") as "permission" -- bitwise "or" on permissions between various paths
@@ -1348,175 +1329,6 @@ revoke execute on function "resource_node_delete" ("the_ids" uuid[]) from public
 
 
 
--- 'document' rows are 'resource' nodes
-create or replace function "document_resource_trigger_function"()
-returns trigger as $$
-begin
-  if tg_op = 'INSERT' then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'document', 'folder_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
-  elsif tg_op = 'UPDATE' then
-    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
-      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'document' using errcode = 'integrity_constraint_violation';
-    end if;
-    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
-    -- old row when no parent changed. Counting them is planned as a join of both
-    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") > 0 then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'document', 'folder_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id")))
-      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id";
-    end if;
-  else
-    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "document_resource_trigger_function" () from public;
-
-
-
-drop trigger if exists "10_document_resource_insert_trigger" on "public"."document";
-create trigger "10_document_resource_insert_trigger"
-after insert on "public"."document"
-referencing new table as "p9s_new_rows"
-for each statement execute function "document_resource_trigger_function"();
-
-drop trigger if exists "10_document_resource_update_trigger" on "public"."document";
-create trigger "10_document_resource_update_trigger"
-after update on "public"."document"
-referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "document_resource_trigger_function"();
-
-drop trigger if exists "10_document_resource_delete_trigger" on "public"."document";
-create trigger "10_document_resource_delete_trigger"
-after delete on "public"."document"
-referencing old table as "p9s_old_rows"
-for each statement execute function "document_resource_trigger_function"();
-
-drop trigger if exists "05_truncate_guard_trigger" on "public"."document";
-create trigger "05_truncate_guard_trigger" before truncate on "public"."document" for each statement execute function "truncate_guard_trigger_function"();
-
-
--- 'folder' rows are 'resource' nodes
-create or replace function "folder_resource_trigger_function"()
-returns trigger as $$
-begin
-  if tg_op = 'INSERT' then
-    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg("the_row"."parent_resource_id")) from "p9s_new_rows" as "the_row" having count(*) > 0;
-  elsif tg_op = 'UPDATE' then
-    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
-      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'folder' using errcode = 'integrity_constraint_violation';
-    end if;
-    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
-    -- old row when no parent changed. Counting them is planned as a join of both
-    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id") > 0 then
-      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg("the_row"."parent_resource_id"))
-      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id";
-    end if;
-  else
-    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "folder_resource_trigger_function" () from public;
-
-
-
-drop trigger if exists "10_folder_resource_insert_trigger" on "public"."folder";
-create trigger "10_folder_resource_insert_trigger"
-after insert on "public"."folder"
-referencing new table as "p9s_new_rows"
-for each statement execute function "folder_resource_trigger_function"();
-
-drop trigger if exists "10_folder_resource_update_trigger" on "public"."folder";
-create trigger "10_folder_resource_update_trigger"
-after update on "public"."folder"
-referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "folder_resource_trigger_function"();
-
-drop trigger if exists "10_folder_resource_delete_trigger" on "public"."folder";
-create trigger "10_folder_resource_delete_trigger"
-after delete on "public"."folder"
-referencing old table as "p9s_old_rows"
-for each statement execute function "folder_resource_trigger_function"();
-
-drop trigger if exists "05_truncate_guard_trigger" on "public"."folder";
-create trigger "05_truncate_guard_trigger" before truncate on "public"."folder" for each statement execute function "truncate_guard_trigger_function"();
-
-
--- 'member' rows are 'resource' nodes
-create or replace function "member_resource_trigger_function"()
-returns trigger as $$
-begin
-  if tg_op = 'INSERT' then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
-  elsif tg_op = 'UPDATE' then
-    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
-      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'member' using errcode = 'integrity_constraint_violation';
-    end if;
-    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
-    -- old row when no parent changed. Counting them is planned as a join of both
-    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))
-      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id";
-    end if;
-  else
-    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "member_resource_trigger_function" () from public;
-
-
-
-drop trigger if exists "10_member_resource_insert_trigger" on "public"."member";
-create trigger "10_member_resource_insert_trigger"
-after insert on "public"."member"
-referencing new table as "p9s_new_rows"
-for each statement execute function "member_resource_trigger_function"();
-
-drop trigger if exists "10_member_resource_update_trigger" on "public"."member";
-create trigger "10_member_resource_update_trigger"
-after update on "public"."member"
-referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "member_resource_trigger_function"();
-
-drop trigger if exists "10_member_resource_delete_trigger" on "public"."member";
-create trigger "10_member_resource_delete_trigger"
-after delete on "public"."member"
-referencing old table as "p9s_old_rows"
-for each statement execute function "member_resource_trigger_function"();
-
-drop trigger if exists "05_truncate_guard_trigger" on "public"."member";
-create trigger "05_truncate_guard_trigger" before truncate on "public"."member" for each statement execute function "truncate_guard_trigger_function"();
-
-
 -- 'organization' rows are 'resource' nodes
 create or replace function "organization_resource_trigger_function"()
 returns trigger as $$
@@ -1558,6 +1370,65 @@ for each statement execute function "organization_resource_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."organization";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."organization" for each statement execute function "truncate_guard_trigger_function"();
+
+
+-- 'person' rows are 'resource' nodes
+create or replace function "person_resource_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'person' using errcode = 'integrity_constraint_violation';
+    end if;
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
+
+revoke execute on function "person_resource_trigger_function" () from public;
+
+
+
+drop trigger if exists "10_person_resource_insert_trigger" on "public"."person";
+create trigger "10_person_resource_insert_trigger"
+after insert on "public"."person"
+referencing new table as "p9s_new_rows"
+for each statement execute function "person_resource_trigger_function"();
+
+drop trigger if exists "10_person_resource_update_trigger" on "public"."person";
+create trigger "10_person_resource_update_trigger"
+after update on "public"."person"
+referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+for each statement execute function "person_resource_trigger_function"();
+
+drop trigger if exists "10_person_resource_delete_trigger" on "public"."person";
+create trigger "10_person_resource_delete_trigger"
+after delete on "public"."person"
+referencing old table as "p9s_old_rows"
+for each statement execute function "person_resource_trigger_function"();
+
+drop trigger if exists "05_truncate_guard_trigger" on "public"."person";
+create trigger "05_truncate_guard_trigger" before truncate on "public"."person" for each statement execute function "truncate_guard_trigger_function"();
 
 
 -- 'team' rows are 'resource' nodes
@@ -1619,6 +1490,124 @@ drop trigger if exists "05_truncate_guard_trigger" on "public"."team";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."team" for each statement execute function "truncate_guard_trigger_function"();
 
 
+-- 'project' rows are 'resource' nodes
+create or replace function "project_resource_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'project', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'project' using errcode = 'integrity_constraint_violation';
+    end if;
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'project', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
+
+revoke execute on function "project_resource_trigger_function" () from public;
+
+
+
+drop trigger if exists "10_project_resource_insert_trigger" on "public"."project";
+create trigger "10_project_resource_insert_trigger"
+after insert on "public"."project"
+referencing new table as "p9s_new_rows"
+for each statement execute function "project_resource_trigger_function"();
+
+drop trigger if exists "10_project_resource_update_trigger" on "public"."project";
+create trigger "10_project_resource_update_trigger"
+after update on "public"."project"
+referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+for each statement execute function "project_resource_trigger_function"();
+
+drop trigger if exists "10_project_resource_delete_trigger" on "public"."project";
+create trigger "10_project_resource_delete_trigger"
+after delete on "public"."project"
+referencing old table as "p9s_old_rows"
+for each statement execute function "project_resource_trigger_function"();
+
+drop trigger if exists "05_truncate_guard_trigger" on "public"."project";
+create trigger "05_truncate_guard_trigger" before truncate on "public"."project" for each statement execute function "truncate_guard_trigger_function"();
+
+
+-- 'task' rows are 'resource' nodes
+create or replace function "task_resource_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."project_id" is not null and (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'task', 'project_id', 'project'
+      using errcode = 'foreign_key_violation';
+  end if;
+    perform "resource_node_insert"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'resource', 'task' using errcode = 'integrity_constraint_violation';
+    end if;
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."project_id" is distinct from "the_old_row"."project_id") > 0 then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."project_id" is not null and (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'task', 'project_id', 'project'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg((select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."project_id" is distinct from "the_old_row"."project_id";
+    end if;
+  else
+    perform "resource_node_delete"(array_agg("the_row"."resource_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
+
+revoke execute on function "task_resource_trigger_function" () from public;
+
+
+
+drop trigger if exists "10_task_resource_insert_trigger" on "public"."task";
+create trigger "10_task_resource_insert_trigger"
+after insert on "public"."task"
+referencing new table as "p9s_new_rows"
+for each statement execute function "task_resource_trigger_function"();
+
+drop trigger if exists "10_task_resource_update_trigger" on "public"."task";
+create trigger "10_task_resource_update_trigger"
+after update on "public"."task"
+referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+for each statement execute function "task_resource_trigger_function"();
+
+drop trigger if exists "10_task_resource_delete_trigger" on "public"."task";
+create trigger "10_task_resource_delete_trigger"
+after delete on "public"."task"
+referencing old table as "p9s_old_rows"
+for each statement execute function "task_resource_trigger_function"();
+
+drop trigger if exists "05_truncate_guard_trigger" on "public"."task";
+create trigger "05_truncate_guard_trigger" before truncate on "public"."task" for each statement execute function "truncate_guard_trigger_function"();
+
+
 -----------------------------------------------------------------------------------------------------------------------
 -- 'resource' functions to enable / disable triggers
 -----------------------------------------------------------------------------------------------------------------------
@@ -1632,26 +1621,26 @@ begin
   alter table "resource_edge" disable trigger "05_resource_edge_guard_update_trigger";
   alter table "resource_edge" disable trigger "05_resource_edge_guard_delete_trigger";
   alter table "resource_edge" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_insert_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_update_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_delete_trigger";
-  alter table "public"."document" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_insert_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_update_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_delete_trigger";
-  alter table "public"."folder" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_insert_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_update_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_delete_trigger";
-  alter table "public"."member" disable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_insert_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_update_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_delete_trigger";
   alter table "public"."organization" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_insert_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_update_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_delete_trigger";
+  alter table "public"."person" disable trigger "05_truncate_guard_trigger";
   alter table "public"."team" disable trigger "10_team_resource_insert_trigger";
   alter table "public"."team" disable trigger "10_team_resource_update_trigger";
   alter table "public"."team" disable trigger "10_team_resource_delete_trigger";
   alter table "public"."team" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_insert_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_update_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_delete_trigger";
+  alter table "public"."project" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_insert_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_update_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_delete_trigger";
+  alter table "public"."task" disable trigger "05_truncate_guard_trigger";
   alter table "assignment_edge" disable trigger "05_assignment_edge_validate_insert_trigger";
   alter table "assignment_edge" disable trigger "05_assignment_edge_validate_update_trigger";
   alter table "assignment_edge" disable trigger "05_truncate_guard_trigger";
@@ -1675,75 +1664,49 @@ begin
   alter table "resource_edge" disable trigger "05_resource_edge_guard_update_trigger";
   alter table "resource_edge" disable trigger "05_resource_edge_guard_delete_trigger";
   alter table "resource_edge" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_insert_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_update_trigger";
-  alter table "public"."document" disable trigger "10_document_resource_delete_trigger";
-  alter table "public"."document" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_insert_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_update_trigger";
-  alter table "public"."folder" disable trigger "10_folder_resource_delete_trigger";
-  alter table "public"."folder" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_insert_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_update_trigger";
-  alter table "public"."member" disable trigger "10_member_resource_delete_trigger";
-  alter table "public"."member" disable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_insert_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_update_trigger";
   alter table "public"."organization" disable trigger "10_organization_resource_delete_trigger";
   alter table "public"."organization" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_insert_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_update_trigger";
+  alter table "public"."person" disable trigger "10_person_resource_delete_trigger";
+  alter table "public"."person" disable trigger "05_truncate_guard_trigger";
   alter table "public"."team" disable trigger "10_team_resource_insert_trigger";
   alter table "public"."team" disable trigger "10_team_resource_update_trigger";
   alter table "public"."team" disable trigger "10_team_resource_delete_trigger";
   alter table "public"."team" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_insert_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_update_trigger";
+  alter table "public"."project" disable trigger "10_project_resource_delete_trigger";
+  alter table "public"."project" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_insert_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_update_trigger";
+  alter table "public"."task" disable trigger "10_task_resource_delete_trigger";
+  alter table "public"."task" disable trigger "05_truncate_guard_trigger";
   alter table "assignment_edge" disable trigger "05_assignment_edge_validate_insert_trigger";
   alter table "assignment_edge" disable trigger "05_assignment_edge_validate_update_trigger";
   alter table "assignment_edge" disable trigger "05_truncate_guard_trigger";
   
-  
-  if exists (select from "public"."document" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'document', 'folder_id', 'folder'
-      using errcode = 'foreign_key_violation';
-  end if;
-  delete from "resource_edge" as "the_edge"
-  using "public"."document" as "the_row"
-  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
-  and "the_edge"."parent_id" is distinct from (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id");
-  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-  select (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
-  from "public"."document" as "the_row"
-  where "the_row"."folder_id" is not null
-  on conflict on constraint "resource_edge_pkey" do nothing;
-
-  
-  delete from "resource_edge" as "the_edge"
-  using "public"."folder" as "the_row"
-  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
-  and "the_edge"."parent_id" is distinct from "the_row"."parent_resource_id";
-  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-  select "the_row"."parent_resource_id", "the_row"."resource_id", ~ b'0'::bit(8), true
-  from "public"."folder" as "the_row"
-  where "the_row"."parent_resource_id" is not null
-  on conflict on constraint "resource_edge_pkey" do nothing;
-
-  
-  if exists (select from "public"."member" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-  delete from "resource_edge" as "the_edge"
-  using "public"."member" as "the_row"
-  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
-  and "the_edge"."parent_id" is distinct from (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
-  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
-  select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
-  from "public"."member" as "the_row"
-  where "the_row"."org_id" is not null
-  on conflict on constraint "resource_edge_pkey" do nothing;
-
   -- No parent column: the home edges of these rows become regular edges
   update "resource_edge" as "the_edge" set "home" = false
   from "public"."organization" as "the_row"
   where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home";
+
+  
+  if exists (select from "public"."person" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+  delete from "resource_edge" as "the_edge"
+  using "public"."person" as "the_row"
+  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
+  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
+  select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
+  from "public"."person" as "the_row"
+  where "the_row"."org_id" is not null
+  on conflict on constraint "resource_edge_pkey" do nothing;
 
   
   if exists (select from "public"."team" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
@@ -1759,6 +1722,36 @@ begin
   from "public"."team" as "the_row"
   where "the_row"."org_id" is not null
   on conflict on constraint "resource_edge_pkey" do nothing;
+
+  
+  if exists (select from "public"."project" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'project', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+  delete from "resource_edge" as "the_edge"
+  using "public"."project" as "the_row"
+  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
+  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
+  select (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
+  from "public"."project" as "the_row"
+  where "the_row"."org_id" is not null
+  on conflict on constraint "resource_edge_pkey" do nothing;
+
+  
+  if exists (select from "public"."task" as "the_row" where "the_row"."project_id" is not null and (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'task', 'project_id', 'project'
+      using errcode = 'foreign_key_violation';
+  end if;
+  delete from "resource_edge" as "the_edge"
+  using "public"."task" as "the_row"
+  where "the_edge"."child_id" = "the_row"."resource_id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id");
+  insert into "resource_edge" ("parent_id", "child_id", "permission", "home")
+  select (select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = "the_row"."project_id"), "the_row"."resource_id", ~ b'0'::bit(8), true
+  from "public"."task" as "the_row"
+  where "the_row"."project_id" is not null
+  on conflict on constraint "resource_edge_pkey" do nothing;
   alter table "resource_edge" enable trigger "10_resource_edge_insert_trigger";
   alter table "resource_edge" enable trigger "10_resource_edge_update_trigger";
   alter table "resource_edge" enable trigger "10_resource_edge_delete_trigger";
@@ -1766,26 +1759,26 @@ begin
   alter table "resource_edge" enable trigger "05_resource_edge_guard_update_trigger";
   alter table "resource_edge" enable trigger "05_resource_edge_guard_delete_trigger";
   alter table "resource_edge" enable trigger "05_truncate_guard_trigger";
-  alter table "public"."document" enable trigger "10_document_resource_insert_trigger";
-  alter table "public"."document" enable trigger "10_document_resource_update_trigger";
-  alter table "public"."document" enable trigger "10_document_resource_delete_trigger";
-  alter table "public"."document" enable trigger "05_truncate_guard_trigger";
-  alter table "public"."folder" enable trigger "10_folder_resource_insert_trigger";
-  alter table "public"."folder" enable trigger "10_folder_resource_update_trigger";
-  alter table "public"."folder" enable trigger "10_folder_resource_delete_trigger";
-  alter table "public"."folder" enable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" enable trigger "10_member_resource_insert_trigger";
-  alter table "public"."member" enable trigger "10_member_resource_update_trigger";
-  alter table "public"."member" enable trigger "10_member_resource_delete_trigger";
-  alter table "public"."member" enable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" enable trigger "10_organization_resource_insert_trigger";
   alter table "public"."organization" enable trigger "10_organization_resource_update_trigger";
   alter table "public"."organization" enable trigger "10_organization_resource_delete_trigger";
   alter table "public"."organization" enable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" enable trigger "10_person_resource_insert_trigger";
+  alter table "public"."person" enable trigger "10_person_resource_update_trigger";
+  alter table "public"."person" enable trigger "10_person_resource_delete_trigger";
+  alter table "public"."person" enable trigger "05_truncate_guard_trigger";
   alter table "public"."team" enable trigger "10_team_resource_insert_trigger";
   alter table "public"."team" enable trigger "10_team_resource_update_trigger";
   alter table "public"."team" enable trigger "10_team_resource_delete_trigger";
   alter table "public"."team" enable trigger "05_truncate_guard_trigger";
+  alter table "public"."project" enable trigger "10_project_resource_insert_trigger";
+  alter table "public"."project" enable trigger "10_project_resource_update_trigger";
+  alter table "public"."project" enable trigger "10_project_resource_delete_trigger";
+  alter table "public"."project" enable trigger "05_truncate_guard_trigger";
+  alter table "public"."task" enable trigger "10_task_resource_insert_trigger";
+  alter table "public"."task" enable trigger "10_task_resource_update_trigger";
+  alter table "public"."task" enable trigger "10_task_resource_delete_trigger";
+  alter table "public"."task" enable trigger "05_truncate_guard_trigger";
   alter table "assignment_edge" enable trigger "05_assignment_edge_validate_insert_trigger";
   alter table "assignment_edge" enable trigger "05_assignment_edge_validate_update_trigger";
   alter table "assignment_edge" enable trigger "05_truncate_guard_trigger";
@@ -1808,18 +1801,18 @@ create or replace function "role_edge_cache_backfill" ()
   as $$
 begin
   perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-  if exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team" union all select "role_id" from "public"."api_key") as "the_id" ("id") group by "the_id"."id" having count(*) > 1) then
+  if exists (select from (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_id" ("id") group by "the_id"."id" having count(*) > 1) then
     raise exception 'p9s: the % id % is used by more than one bound row', 'role',
-      (select "the_id"."id" from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team" union all select "role_id" from "public"."api_key") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
+      (select "the_id"."id" from (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
       using errcode = 'unique_violation';
   end if;
   -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
   -- scans the ids again for every edge
-  if exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
-    or exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
+  if exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+    or exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
     raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
   end if;
-  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_assignment"."role_id")) then
+  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "role_id" from "public"."organization" union all select "role_id" from "public"."person" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_assignment"."role_id")) then
     raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
   end if;
   -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -2397,16 +2390,10 @@ returns void as $$
 begin
 
   if exists (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id"
-    union all
-    select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "public"."api_key" as "the_leaf" on "the_leaf"."role_id" = "the_row"."id") then
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") then
     raise exception 'p9s: the % id % is already used by another row', 'role',
       (select "the_used"."id" from (select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id"
-    union all
-    select "the_row"."id" from unnest("the_ids") as "the_row" ("id")
-    join "public"."api_key" as "the_leaf" on "the_leaf"."role_id" = "the_row"."id") as "the_used" limit 1)
+    join "role_edge_cache" as "the_self" on "the_self"."parent_id" = "the_row"."id" and "the_self"."child_id" = "the_row"."id") as "the_used" limit 1)
       using errcode = 'unique_violation';
   end if;
   -- A new row cannot be referenced by others yet, so its self row needs no lock
@@ -2495,65 +2482,6 @@ revoke execute on function "role_node_delete" ("the_ids" uuid[]) from public;
 
 
 
--- 'member' rows are 'role' nodes
-create or replace function "member_role_trigger_function"()
-returns trigger as $$
-begin
-  if tg_op = 'INSERT' then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-    perform "role_node_insert"(array_agg("the_row"."role_id"), array_agg((select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
-  elsif tg_op = 'UPDATE' then
-    if exists (select "role_id" from "p9s_old_rows" except select "role_id" from "p9s_new_rows") then
-      raise exception 'p9s: the % id of a % row cannot change', 'role', 'member' using errcode = 'integrity_constraint_violation';
-    end if;
-    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
-    -- old row when no parent changed. Counting them is planned as a join of both
-    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
-  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-      perform "role_node_update"(array_agg("the_row"."role_id"), array_agg((select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))
-      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id";
-    end if;
-  else
-    perform "role_node_delete"(array_agg("the_row"."role_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
-  end if;
-  return null;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "member_role_trigger_function" () from public;
-
-
-
-drop trigger if exists "10_member_role_insert_trigger" on "public"."member";
-create trigger "10_member_role_insert_trigger"
-after insert on "public"."member"
-referencing new table as "p9s_new_rows"
-for each statement execute function "member_role_trigger_function"();
-
-drop trigger if exists "10_member_role_update_trigger" on "public"."member";
-create trigger "10_member_role_update_trigger"
-after update on "public"."member"
-referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
-for each statement execute function "member_role_trigger_function"();
-
-drop trigger if exists "10_member_role_delete_trigger" on "public"."member";
-create trigger "10_member_role_delete_trigger"
-after delete on "public"."member"
-referencing old table as "p9s_old_rows"
-for each statement execute function "member_role_trigger_function"();
-
-drop trigger if exists "05_truncate_guard_trigger" on "public"."member";
-create trigger "05_truncate_guard_trigger" before truncate on "public"."member" for each statement execute function "truncate_guard_trigger_function"();
-
-
 -- 'organization' rows are 'role' nodes
 create or replace function "organization_role_trigger_function"()
 returns trigger as $$
@@ -2595,6 +2523,65 @@ for each statement execute function "organization_role_trigger_function"();
 
 drop trigger if exists "05_truncate_guard_trigger" on "public"."organization";
 create trigger "05_truncate_guard_trigger" before truncate on "public"."organization" for each statement execute function "truncate_guard_trigger_function"();
+
+
+-- 'person' rows are 'role' nodes
+create or replace function "person_role_trigger_function"()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+    perform "role_node_insert"(array_agg("the_row"."role_id"), array_agg((select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"))) from "p9s_new_rows" as "the_row" having count(*) > 0;
+  elsif tg_op = 'UPDATE' then
+    if exists (select "role_id" from "p9s_old_rows" except select "role_id" from "p9s_new_rows") then
+      raise exception 'p9s: the % id of a % row cannot change', 'role', 'person' using errcode = 'integrity_constraint_violation';
+    end if;
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
+  if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+      perform "role_node_update"(array_agg("the_row"."role_id"), array_agg((select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id")))
+      from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id";
+    end if;
+  else
+    perform "role_node_delete"(array_agg("the_row"."role_id")) from "p9s_old_rows" as "the_row" having count(*) > 0;
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = "public", pg_temp;
+
+revoke execute on function "person_role_trigger_function" () from public;
+
+
+
+drop trigger if exists "10_person_role_insert_trigger" on "public"."person";
+create trigger "10_person_role_insert_trigger"
+after insert on "public"."person"
+referencing new table as "p9s_new_rows"
+for each statement execute function "person_role_trigger_function"();
+
+drop trigger if exists "10_person_role_update_trigger" on "public"."person";
+create trigger "10_person_role_update_trigger"
+after update on "public"."person"
+referencing old table as "p9s_old_rows" new table as "p9s_new_rows"
+for each statement execute function "person_role_trigger_function"();
+
+drop trigger if exists "10_person_role_delete_trigger" on "public"."person";
+create trigger "10_person_role_delete_trigger"
+after delete on "public"."person"
+referencing old table as "p9s_old_rows"
+for each statement execute function "person_role_trigger_function"();
+
+drop trigger if exists "05_truncate_guard_trigger" on "public"."person";
+create trigger "05_truncate_guard_trigger" before truncate on "public"."person" for each statement execute function "truncate_guard_trigger_function"();
 
 
 -- 'team' rows are 'role' nodes
@@ -2653,14 +2640,14 @@ begin
   alter table "role_edge" disable trigger "05_role_edge_guard_update_trigger";
   alter table "role_edge" disable trigger "05_role_edge_guard_delete_trigger";
   alter table "role_edge" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" disable trigger "10_member_role_insert_trigger";
-  alter table "public"."member" disable trigger "10_member_role_update_trigger";
-  alter table "public"."member" disable trigger "10_member_role_delete_trigger";
-  alter table "public"."member" disable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_insert_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_update_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_delete_trigger";
   alter table "public"."organization" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" disable trigger "10_person_role_insert_trigger";
+  alter table "public"."person" disable trigger "10_person_role_update_trigger";
+  alter table "public"."person" disable trigger "10_person_role_delete_trigger";
+  alter table "public"."person" disable trigger "05_truncate_guard_trigger";
   alter table "public"."team" disable trigger "10_team_role_insert_trigger";
   alter table "public"."team" disable trigger "10_team_role_update_trigger";
   alter table "public"."team" disable trigger "10_team_role_delete_trigger";
@@ -2685,38 +2672,38 @@ begin
   alter table "role_edge" disable trigger "05_role_edge_guard_update_trigger";
   alter table "role_edge" disable trigger "05_role_edge_guard_delete_trigger";
   alter table "role_edge" disable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" disable trigger "10_member_role_insert_trigger";
-  alter table "public"."member" disable trigger "10_member_role_update_trigger";
-  alter table "public"."member" disable trigger "10_member_role_delete_trigger";
-  alter table "public"."member" disable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_insert_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_update_trigger";
   alter table "public"."organization" disable trigger "10_organization_role_delete_trigger";
   alter table "public"."organization" disable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" disable trigger "10_person_role_insert_trigger";
+  alter table "public"."person" disable trigger "10_person_role_update_trigger";
+  alter table "public"."person" disable trigger "10_person_role_delete_trigger";
+  alter table "public"."person" disable trigger "05_truncate_guard_trigger";
   alter table "public"."team" disable trigger "10_team_role_insert_trigger";
   alter table "public"."team" disable trigger "10_team_role_update_trigger";
   alter table "public"."team" disable trigger "10_team_role_delete_trigger";
   alter table "public"."team" disable trigger "05_truncate_guard_trigger";
   
-  
-  if exists (select from "public"."member" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-  delete from "role_edge" as "the_edge"
-  using "public"."member" as "the_row"
-  where "the_edge"."child_id" = "the_row"."role_id" and "the_edge"."home"
-  and "the_edge"."parent_id" is distinct from (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
-  insert into "role_edge" ("parent_id", "child_id", "permission", "home")
-  select (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."role_id", ~ b'0'::bit(8), true
-  from "public"."member" as "the_row"
-  where "the_row"."org_id" is not null
-  on conflict on constraint "role_edge_pkey" do nothing;
-
   -- No parent column: the home edges of these rows become regular edges
   update "role_edge" as "the_edge" set "home" = false
   from "public"."organization" as "the_row"
   where "the_edge"."child_id" = "the_row"."role_id" and "the_edge"."home";
+
+  
+  if exists (select from "public"."person" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'person', 'org_id', 'organization'
+      using errcode = 'foreign_key_violation';
+  end if;
+  delete from "role_edge" as "the_edge"
+  using "public"."person" as "the_row"
+  where "the_edge"."child_id" = "the_row"."role_id" and "the_edge"."home"
+  and "the_edge"."parent_id" is distinct from (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id");
+  insert into "role_edge" ("parent_id", "child_id", "permission", "home")
+  select (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id"), "the_row"."role_id", ~ b'0'::bit(8), true
+  from "public"."person" as "the_row"
+  where "the_row"."org_id" is not null
+  on conflict on constraint "role_edge_pkey" do nothing;
 
   -- No parent column: the home edges of these rows become regular edges
   update "role_edge" as "the_edge" set "home" = false
@@ -2729,14 +2716,14 @@ begin
   alter table "role_edge" enable trigger "05_role_edge_guard_update_trigger";
   alter table "role_edge" enable trigger "05_role_edge_guard_delete_trigger";
   alter table "role_edge" enable trigger "05_truncate_guard_trigger";
-  alter table "public"."member" enable trigger "10_member_role_insert_trigger";
-  alter table "public"."member" enable trigger "10_member_role_update_trigger";
-  alter table "public"."member" enable trigger "10_member_role_delete_trigger";
-  alter table "public"."member" enable trigger "05_truncate_guard_trigger";
   alter table "public"."organization" enable trigger "10_organization_role_insert_trigger";
   alter table "public"."organization" enable trigger "10_organization_role_update_trigger";
   alter table "public"."organization" enable trigger "10_organization_role_delete_trigger";
   alter table "public"."organization" enable trigger "05_truncate_guard_trigger";
+  alter table "public"."person" enable trigger "10_person_role_insert_trigger";
+  alter table "public"."person" enable trigger "10_person_role_update_trigger";
+  alter table "public"."person" enable trigger "10_person_role_delete_trigger";
+  alter table "public"."person" enable trigger "05_truncate_guard_trigger";
   alter table "public"."team" enable trigger "10_team_role_insert_trigger";
   alter table "public"."team" enable trigger "10_team_role_update_trigger";
   alter table "public"."team" enable trigger "10_team_role_delete_trigger";
@@ -3244,25 +3231,6 @@ grant execute on function "assignment_trigger_disable" () to "app_backend";
 -- The graph as the current user sees it
 -----------------------------------------------------------------------------------------------------------------------
 
-create or replace function "current_role_node" ()
-  returns uuid
-  as $$
-declare
-  "the_user_id" uuid := "current_role_id"();
-begin
-  return coalesce(
-    (select "the_leaf"."role_parent_id" from "public"."api_key" as "the_leaf" where "the_leaf"."role_id" = "the_user_id"),
-    "the_user_id"
-  );
-end
-$$ language plpgsql stable security definer set search_path = "public", pg_temp;
-
-
-revoke execute on function "current_role_node" () from public;
-
-grant execute on function "current_role_node" () to "app_user";
-grant execute on function "current_role_node" () to "app_backend";
-
 -- Every way the current user reaches a resource, with the bits it gives. A resource the user reaches several ways has
 -- the OR of their bits.
 create or replace view "current_resource_access" with (security_barrier) as
@@ -3271,7 +3239,7 @@ select
   ("the_resource_edge"."permission" & "the_assignment_edge"."permission")::bit(8) as "permission"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"());
+where "the_assignment_edge"."role_id" = "current_role_id"();
 
 select pg_temp.p9s_set_privileges('"current_resource_access"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3283,7 +3251,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 0)::bit = b'1' and ("the_assignment_edge"."permission" << 0)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 0)::bit = b'1' and ("the_assignment_edge"."permission" << 0)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_0"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3292,7 +3260,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 1)::bit = b'1' and ("the_assignment_edge"."permission" << 1)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 1)::bit = b'1' and ("the_assignment_edge"."permission" << 1)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_1"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3301,7 +3269,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 2)::bit = b'1' and ("the_assignment_edge"."permission" << 2)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 2)::bit = b'1' and ("the_assignment_edge"."permission" << 2)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_2"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3310,7 +3278,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 3)::bit = b'1' and ("the_assignment_edge"."permission" << 3)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 3)::bit = b'1' and ("the_assignment_edge"."permission" << 3)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_3"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3319,7 +3287,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 4)::bit = b'1' and ("the_assignment_edge"."permission" << 4)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 4)::bit = b'1' and ("the_assignment_edge"."permission" << 4)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_4"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3328,7 +3296,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 5)::bit = b'1' and ("the_assignment_edge"."permission" << 5)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 5)::bit = b'1' and ("the_assignment_edge"."permission" << 5)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_5"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3337,7 +3305,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 6)::bit = b'1' and ("the_assignment_edge"."permission" << 6)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 6)::bit = b'1' and ("the_assignment_edge"."permission" << 6)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_6"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3346,7 +3314,7 @@ select
   "the_resource_edge"."child_id" as "resource_id"
 from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 7)::bit = b'1' and ("the_assignment_edge"."permission" << 7)::bit = b'1';
+where "the_assignment_edge"."role_id" = "current_role_id"() and ("the_resource_edge"."permission" << 7)::bit = b'1' and ("the_assignment_edge"."permission" << 7)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_7"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3356,7 +3324,7 @@ select pg_temp.p9s_set_privileges('"current_resource_access_7"'::regclass, array
 create or replace view "current_assignment" with (security_barrier) as
 select "the_assignment_edge"."resource_id", "the_assignment_edge"."permission"
 from "assignment_edge_cache" as "the_assignment_edge"
-where "the_assignment_edge"."role_id" = (select "current_role_node"());
+where "the_assignment_edge"."role_id" = "current_role_id"();
 
 select pg_temp.p9s_set_privileges('"current_assignment"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3373,7 +3341,7 @@ select pg_temp.p9s_set_privileges('"current_resource_edge"'::regclass, array['ap
 create or replace view "current_role" with (security_barrier) as
 select "the_edge"."parent_id" as "role_id", "the_edge"."permission"
 from "role_edge_cache" as "the_edge"
-where "the_edge"."child_id" = (select "current_role_node"());
+where "the_edge"."child_id" = "current_role_id"();
 
 select pg_temp.p9s_set_privileges('"current_role"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
@@ -3387,9 +3355,9 @@ from "resource_edge_cache" as "the_resource_edge"
 join "assignment_edge" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
 where (
   (select has_table_privilege(current_user, '"resource_edge_cache"'::regclass, 'select'))
-  or (exists (select from "public"."document" as "the_row" where "the_row"."resource_id" = "the_resource_edge"."child_id") and (
+  or (exists (select from "public"."project" as "the_row" where "the_row"."resource_id" = "the_resource_edge"."child_id") and (
     (pg_has_role(current_user, 'app_user', 'member') and exists (select from "current_resource_access_0" as "the_manager" where "the_manager"."resource_id" = "the_resource_edge"."child_id"))))
-  or (exists (select from "public"."folder" as "the_row" where "the_row"."resource_id" = "the_resource_edge"."child_id") and (
+  or (exists (select from "public"."task" as "the_row" where "the_row"."resource_id" = "the_resource_edge"."child_id") and (
     (pg_has_role(current_user, 'app_user', 'member') and exists (select from "current_resource_access_0" as "the_manager" where "the_manager"."resource_id" = "the_resource_edge"."child_id"))))
 );
 
@@ -3404,20 +3372,12 @@ from (
     ("the_resource_edge"."permission" & "the_assignment_edge"."permission")::bit(8) as "permission"
   from "resource_edge_cache" as "the_resource_edge"
   join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
-  union all
-  select "the_node_access"."resource_id", "the_leaf"."role_id", "the_node_access"."permission"
-  from (
-  select "the_resource_edge"."child_id" as "resource_id", "the_assignment_edge"."role_id",
-    ("the_resource_edge"."permission" & "the_assignment_edge"."permission")::bit(8) as "permission"
-  from "resource_edge_cache" as "the_resource_edge"
-  join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id") as "the_node_access"
-  join "public"."api_key" as "the_leaf" on "the_leaf"."role_parent_id" = "the_node_access"."role_id"
 ) as "the_access"
 where (
   (select has_table_privilege(current_user, '"resource_edge_cache"'::regclass, 'select'))
-  or (exists (select from "public"."document" as "the_row" where "the_row"."resource_id" = "the_access"."resource_id") and (
+  or (exists (select from "public"."project" as "the_row" where "the_row"."resource_id" = "the_access"."resource_id") and (
     (pg_has_role(current_user, 'app_user', 'member') and exists (select from "current_resource_access_0" as "the_manager" where "the_manager"."resource_id" = "the_access"."resource_id"))))
-  or (exists (select from "public"."folder" as "the_row" where "the_row"."resource_id" = "the_access"."resource_id") and (
+  or (exists (select from "public"."task" as "the_row" where "the_row"."resource_id" = "the_access"."resource_id") and (
     (pg_has_role(current_user, 'app_user', 'member') and exists (select from "current_resource_access_0" as "the_manager" where "the_manager"."resource_id" = "the_access"."resource_id"))))
 );
 
@@ -3465,28 +3425,16 @@ grant execute on function "resource_permission" (uuid, uuid) to "app_user";
 grant execute on function "resource_permission" (uuid, uuid) to "app_backend";
 
 
-create or replace function "document_resource_parent" ("the_key" "public"."document"."folder_id"%type)
-  returns uuid
-  as $$
-  select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
-
-
-revoke execute on function "document_resource_parent" ("public"."document"."folder_id"%type) from public;
-
-grant execute on function "document_resource_parent" ("public"."document"."folder_id"%type) to "app_user";
-
-
-create or replace function "member_resource_parent" ("the_key" "public"."member"."org_id"%type)
+create or replace function "person_resource_parent" ("the_key" "public"."person"."org_id"%type)
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "member_resource_parent" ("public"."member"."org_id"%type) from public;
+revoke execute on function "person_resource_parent" ("public"."person"."org_id"%type) from public;
 
-grant execute on function "member_resource_parent" ("public"."member"."org_id"%type) to "app_user";
+grant execute on function "person_resource_parent" ("public"."person"."org_id"%type) to "app_user";
 
 
 create or replace function "team_resource_parent" ("the_key" "public"."team"."org_id"%type)
@@ -3499,6 +3447,30 @@ $$ language sql stable security definer set search_path = "public", pg_temp;
 revoke execute on function "team_resource_parent" ("public"."team"."org_id"%type) from public;
 
 grant execute on function "team_resource_parent" ("public"."team"."org_id"%type) to "app_user";
+
+
+create or replace function "project_resource_parent" ("the_key" "public"."project"."org_id"%type)
+  returns uuid
+  as $$
+  select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
+$$ language sql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "project_resource_parent" ("public"."project"."org_id"%type) from public;
+
+grant execute on function "project_resource_parent" ("public"."project"."org_id"%type) to "app_user";
+
+
+create or replace function "task_resource_parent" ("the_key" "public"."task"."project_id"%type)
+  returns uuid
+  as $$
+  select "the_parent"."resource_id" from "public"."project" as "the_parent" where "the_parent"."id" = $1
+$$ language sql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "task_resource_parent" ("public"."task"."project_id"%type) from public;
+
+grant execute on function "task_resource_parent" ("public"."task"."project_id"%type) to "app_user";
 
 
 create or replace function "resource_parent_validate" ("the_parent" uuid, "the_child" uuid, "the_insert_bit" integer)
@@ -3523,194 +3495,6 @@ grant execute on function "resource_parent_validate" (uuid, uuid, integer) to "a
 
 
 
-drop policy if exists "audit_event_app_user_select_policy" on "public"."audit_event";
-create policy "audit_event_app_user_select_policy" on "public"."audit_event" 
-as permissive for select to "app_user" 
-using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
-)
-;
-
-
-drop policy if exists "audit_event_app_user_insert_policy" on "public"."audit_event";
-create policy "audit_event_app_user_insert_policy" on "public"."audit_event"
-as permissive for insert to "app_user"
-with check (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
-);
-
-
-drop policy if exists "audit_event_app_user_update_policy" on "public"."audit_event";
-create policy "audit_event_app_user_update_policy" on "public"."audit_event" 
-as permissive for update to "app_user" 
-using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
-)
-with check (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
-);
-
-
-drop policy if exists "audit_event_app_user_delete_policy" on "public"."audit_event";
-create policy "audit_event_app_user_delete_policy" on "public"."audit_event" 
-as permissive for delete to "app_user" 
-using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
-)
-;
-
-
-drop policy if exists "comment_app_user_select_policy" on "public"."comment";
-create policy "comment_app_user_select_policy" on "public"."comment" 
-as permissive for select to "app_user" 
-using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
-)
-;
-
-
-drop policy if exists "comment_app_user_insert_policy" on "public"."comment";
-create policy "comment_app_user_insert_policy" on "public"."comment"
-as permissive for insert to "app_user"
-with check (
-  exists (select from "current_resource_access_4" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
-);
-
-
-drop policy if exists "comment_app_user_update_policy" on "public"."comment";
-create policy "comment_app_user_update_policy" on "public"."comment" 
-as permissive for update to "app_user" 
-using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
-)
-with check (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
-);
-
-
-drop policy if exists "comment_app_user_delete_policy" on "public"."comment";
-create policy "comment_app_user_delete_policy" on "public"."comment" 
-as permissive for delete to "app_user" 
-using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
-)
-;
-
-
-drop policy if exists "document_app_user_select_policy" on "public"."document";
-create policy "document_app_user_select_policy" on "public"."document" 
-as permissive for select to "app_user" 
-using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
-)
-;
-
-
-drop policy if exists "document_app_user_insert_policy" on "public"."document";
-create policy "document_app_user_insert_policy" on "public"."document"
-as permissive for insert to "app_user"
-with check (
-  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "document_resource_parent"("document"."folder_id"))
-);
-
-
-drop policy if exists "document_app_user_update_policy" on "public"."document";
-create policy "document_app_user_update_policy" on "public"."document" 
-as permissive for update to "app_user" 
-using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
-)
-with check (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
-  and "resource_parent_validate"("document_resource_parent"("document"."folder_id"), "document"."resource_id", 1)
-);
-
-
-drop policy if exists "document_app_user_delete_policy" on "public"."document";
-create policy "document_app_user_delete_policy" on "public"."document" 
-as permissive for delete to "app_user" 
-using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
-)
-;
-
-
-drop policy if exists "folder_app_user_select_policy" on "public"."folder";
-create policy "folder_app_user_select_policy" on "public"."folder" 
-as permissive for select to "app_user" 
-using (
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
-)
-;
-
-
-drop policy if exists "folder_app_user_insert_policy" on "public"."folder";
-create policy "folder_app_user_insert_policy" on "public"."folder"
-as permissive for insert to "app_user"
-with check (
-  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "folder"."parent_resource_id")
-);
-
-
-drop policy if exists "folder_app_user_update_policy" on "public"."folder";
-create policy "folder_app_user_update_policy" on "public"."folder" 
-as permissive for update to "app_user" 
-using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
-)
-with check (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
-  and "resource_parent_validate"("folder"."parent_resource_id", "folder"."resource_id", 1)
-);
-
-
-drop policy if exists "folder_app_user_delete_policy" on "public"."folder";
-create policy "folder_app_user_delete_policy" on "public"."folder" 
-as permissive for delete to "app_user" 
-using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
-)
-;
-
-
-drop policy if exists "member_app_user_select_policy" on "public"."member";
-create policy "member_app_user_select_policy" on "public"."member" 
-as permissive for select to "app_user" 
-using (
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
-)
-;
-
-
-drop policy if exists "member_app_user_insert_policy" on "public"."member";
-create policy "member_app_user_insert_policy" on "public"."member"
-as permissive for insert to "app_user"
-with check (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member_resource_parent"("member"."org_id"))
-);
-
-
-drop policy if exists "member_app_user_update_policy" on "public"."member";
-create policy "member_app_user_update_policy" on "public"."member" 
-as permissive for update to "app_user" 
-using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
-)
-with check (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
-  and "resource_parent_validate"("member_resource_parent"("member"."org_id"), "member"."resource_id", 7)
-);
-
-
-drop policy if exists "member_app_user_delete_policy" on "public"."member";
-create policy "member_app_user_delete_policy" on "public"."member" 
-as permissive for delete to "app_user" 
-using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
-)
-;
-
-
 drop policy if exists "organization_app_user_select_policy" on "public"."organization";
 create policy "organization_app_user_select_policy" on "public"."organization" 
 as permissive for select to "app_user" 
@@ -3720,22 +3504,40 @@ using (
 ;
 
 
-drop policy if exists "organization_app_user_update_policy" on "public"."organization";
-create policy "organization_app_user_update_policy" on "public"."organization" 
-as permissive for update to "app_user" 
+drop policy if exists "person_app_user_select_policy" on "public"."person";
+create policy "person_app_user_select_policy" on "public"."person" 
+as permissive for select to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "person"."resource_id")
 )
+;
+
+
+drop policy if exists "person_app_user_insert_policy" on "public"."person";
+create policy "person_app_user_insert_policy" on "public"."person"
+as permissive for insert to "app_user"
 with check (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "person_resource_parent"("person"."org_id"))
 );
 
 
-drop policy if exists "organization_app_user_delete_policy" on "public"."organization";
-create policy "organization_app_user_delete_policy" on "public"."organization" 
+drop policy if exists "person_app_user_update_policy" on "public"."person";
+create policy "person_app_user_update_policy" on "public"."person" 
+as permissive for update to "app_user" 
+using (
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "person"."resource_id")
+)
+with check (
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "person"."resource_id")
+  and "resource_parent_validate"("person_resource_parent"("person"."org_id"), "person"."resource_id", 7)
+);
+
+
+drop policy if exists "person_app_user_delete_policy" on "public"."person";
+create policy "person_app_user_delete_policy" on "public"."person" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "person"."resource_id")
 )
 ;
 
@@ -3777,30 +3579,140 @@ using (
 )
 ;
 
+
+drop policy if exists "project_app_user_select_policy" on "public"."project";
+create policy "project_app_user_select_policy" on "public"."project" 
+as permissive for select to "app_user" 
+using (
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "project"."resource_id")
+)
+;
+
+
+drop policy if exists "project_app_user_insert_policy" on "public"."project";
+create policy "project_app_user_insert_policy" on "public"."project"
+as permissive for insert to "app_user"
+with check (
+  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "project_resource_parent"("project"."org_id"))
+);
+
+
+drop policy if exists "project_app_user_update_policy" on "public"."project";
+create policy "project_app_user_update_policy" on "public"."project" 
+as permissive for update to "app_user" 
+using (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "project"."resource_id")
+)
+with check (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "project"."resource_id")
+  and "resource_parent_validate"("project_resource_parent"("project"."org_id"), "project"."resource_id", 1)
+);
+
+
+drop policy if exists "project_app_user_delete_policy" on "public"."project";
+create policy "project_app_user_delete_policy" on "public"."project" 
+as permissive for delete to "app_user" 
+using (
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "project"."resource_id")
+)
+;
+
+
+drop policy if exists "task_app_user_select_policy" on "public"."task";
+create policy "task_app_user_select_policy" on "public"."task" 
+as permissive for select to "app_user" 
+using (
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "task"."resource_id")
+)
+;
+
+
+drop policy if exists "task_app_user_insert_policy" on "public"."task";
+create policy "task_app_user_insert_policy" on "public"."task"
+as permissive for insert to "app_user"
+with check (
+  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "task_resource_parent"("task"."project_id"))
+);
+
+
+drop policy if exists "task_app_user_update_policy" on "public"."task";
+create policy "task_app_user_update_policy" on "public"."task" 
+as permissive for update to "app_user" 
+using (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "task"."resource_id")
+)
+with check (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "task"."resource_id")
+  and "resource_parent_validate"("task_resource_parent"("task"."project_id"), "task"."resource_id", 1)
+);
+
+
+drop policy if exists "task_app_user_delete_policy" on "public"."task";
+create policy "task_app_user_delete_policy" on "public"."task" 
+as permissive for delete to "app_user" 
+using (
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "task"."resource_id")
+)
+;
+
+
+drop policy if exists "comment_app_user_select_policy" on "public"."comment";
+create policy "comment_app_user_select_policy" on "public"."comment" 
+as permissive for select to "app_user" 
+using (
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+)
+;
+
+
+drop policy if exists "comment_app_user_insert_policy" on "public"."comment";
+create policy "comment_app_user_insert_policy" on "public"."comment"
+as permissive for insert to "app_user"
+with check (
+  exists (select from "current_resource_access_4" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+);
+
+
+drop policy if exists "comment_app_user_update_policy" on "public"."comment";
+create policy "comment_app_user_update_policy" on "public"."comment" 
+as permissive for update to "app_user" 
+using (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+)
+with check (
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+);
+
+
+drop policy if exists "comment_app_user_delete_policy" on "public"."comment";
+create policy "comment_app_user_delete_policy" on "public"."comment" 
+as permissive for delete to "app_user" 
+using (
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+)
+;
+
     
 -----------------------------------------------------------------------------------------------------------------------
 -- Enable RLS on tables
 -----------------------------------------------------------------------------------------------------------------------
 
-  alter table "public"."audit_event" enable row level security;
-  
-
-  alter table "public"."comment" enable row level security;
-  
-
-  alter table "public"."document" enable row level security;
-  
-
-  alter table "public"."folder" enable row level security;
-  
-
-  alter table "public"."member" enable row level security;
-  
-
   alter table "public"."organization" enable row level security;
   
 
+  alter table "public"."person" enable row level security;
+  
+
   alter table "public"."team" enable row level security;
+  
+
+  alter table "public"."project" enable row level security;
+  
+
+  alter table "public"."task" enable row level security;
+  
+
+  alter table "public"."comment" enable row level security;
   
 -- Views of bits that policies have stopped checking
 do $$
@@ -3820,7 +3732,7 @@ $$;
 
 -- Earlier versions mapped any role id, policies have stopped calling it by now
 drop function if exists "current_role_node" (uuid);
-
+drop function if exists "current_role_node" ();
     
 
   
@@ -3852,9 +3764,9 @@ create or replace function "resource_share_check_app_user" ("the_resource_id" uu
   as $$
 begin
   return 
-    (exists (select from "public"."document" as "the_row" where "the_row"."resource_id" = "the_resource_id")
+    (exists (select from "public"."project" as "the_row" where "the_row"."resource_id" = "the_resource_id")
       and exists (select from "current_resource_access_5" as "the_sharer" where "the_sharer"."resource_id" = "the_resource_id")) or
-    (exists (select from "public"."folder" as "the_row" where "the_row"."resource_id" = "the_resource_id")
+    (exists (select from "public"."task" as "the_row" where "the_row"."resource_id" = "the_resource_id")
       and exists (select from "current_resource_access_5" as "the_sharer" where "the_sharer"."resource_id" = "the_resource_id"));
 end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
@@ -3921,38 +3833,153 @@ grant execute on function "resource_unshare" (uuid, uuid) to "app_user";
 -- Views of all nodes
 -----------------------------------------------------------------------------------------------------------------------
 
+-- Smart comments for PostGraphile. Internal objects are hidden from the GraphQL schema, whatever their privileges
+create or replace function pg_temp.p9s_comment_relation(target text, comment text)
+returns void as $$
+declare
+  "the_kind" "char" := (select "relkind" from pg_class where "oid" = to_regclass(target));
+begin
+  if "the_kind" in ('r', 'p', 'v') then
+    execute format('comment on %s %s is %L', case "the_kind" when 'v' then 'view' else 'table' end, to_regclass(target), comment);
+  end if;
+end;
+$$ language plpgsql;
 
-drop function if exists "document_permission" ("public"."document");
-drop function if exists "folder_permission" ("public"."folder");
-drop function if exists "member_permission" ("public"."member");
-drop function if exists "organization_permission" ("public"."organization");
-drop function if exists "team_permission" ("public"."team");
+create or replace function pg_temp.p9s_comment_functions(target text, comment text)
+returns void as $$
+declare
+  "the_function" regprocedure;
+begin
+  for "the_function" in select "oid"::regprocedure from pg_proc where "proname" = target and "pronamespace" = current_schema()::regnamespace loop
+    execute format('comment on %s %s is %L', case when (select "prokind" from pg_proc where "oid" = "the_function") = 'a' then 'aggregate' else 'function' end, "the_function", comment);
+  end loop;
+end;
+$$ language plpgsql;
+
+select pg_temp.p9s_comment_relation(quote_ident("the_name"), '@behavior -*'), pg_temp.p9s_comment_functions("the_name", '@behavior -*')
+from unnest(array['resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'resource_parent_id', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'role_parent_id', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'resource_person_fkey', 'role_person_fkey', 'person_resource_trigger_function', '10_person_resource_insert_trigger', '10_person_resource_update_trigger', '10_person_resource_delete_trigger', 'person_role_trigger_function', '10_person_role_insert_trigger', '10_person_role_update_trigger', '10_person_role_delete_trigger', 'person_resource_parent', 'person_role_parent', 'person_resource_parent_trigger_function', '10_person_resource_parent_trigger', 'person_role_parent_trigger_function', '10_person_role_parent_trigger', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'resource_project_fkey', 'role_project_fkey', 'project_resource_trigger_function', '10_project_resource_insert_trigger', '10_project_resource_update_trigger', '10_project_resource_delete_trigger', 'project_role_trigger_function', '10_project_role_insert_trigger', '10_project_role_update_trigger', '10_project_role_delete_trigger', 'project_resource_parent', 'project_role_parent', 'project_resource_parent_trigger_function', '10_project_resource_parent_trigger', 'project_role_parent_trigger_function', '10_project_role_parent_trigger', 'resource_task_fkey', 'role_task_fkey', 'task_resource_trigger_function', '10_task_resource_insert_trigger', '10_task_resource_update_trigger', '10_task_resource_delete_trigger', 'task_role_trigger_function', '10_task_role_insert_trigger', '10_task_role_update_trigger', '10_task_role_delete_trigger', 'task_resource_parent', 'task_role_parent', 'task_resource_parent_trigger_function', '10_task_resource_parent_trigger', 'task_role_parent_trigger_function', '10_task_role_parent_trigger', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'or_bitmap_8', 'truncate_guard_trigger_function', 'current_role_node', 'current_resource_access_0', 'current_resource_access_1', 'current_resource_access_2', 'current_resource_access_3', 'current_resource_access_4', 'current_resource_access_5', 'current_resource_access_6', 'current_resource_access_7', 'resource_share_check_app_user']::text[]) as "the_name";
+
+
+create or replace function "organization_permission" ("the_row" "public"."organization")
+  returns bit(8)
+  as $$
+  select "resource_permission"("the_row"."resource_id")
+$$ language sql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "organization_permission" ("public"."organization") from public;
+
+grant execute on function "organization_permission" ("public"."organization") to "app_user";
+grant execute on function "organization_permission" ("public"."organization") to "app_backend";
+
+create or replace function "person_permission" ("the_row" "public"."person")
+  returns bit(8)
+  as $$
+  select "resource_permission"("the_row"."resource_id")
+$$ language sql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "person_permission" ("public"."person") from public;
+
+grant execute on function "person_permission" ("public"."person") to "app_user";
+grant execute on function "person_permission" ("public"."person") to "app_backend";
+
+create or replace function "team_permission" ("the_row" "public"."team")
+  returns bit(8)
+  as $$
+  select "resource_permission"("the_row"."resource_id")
+$$ language sql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "team_permission" ("public"."team") from public;
+
+grant execute on function "team_permission" ("public"."team") to "app_user";
+grant execute on function "team_permission" ("public"."team") to "app_backend";
+
+create or replace function "project_permission" ("the_row" "public"."project")
+  returns bit(8)
+  as $$
+  select "resource_permission"("the_row"."resource_id")
+$$ language sql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "project_permission" ("public"."project") from public;
+
+grant execute on function "project_permission" ("public"."project") to "app_user";
+grant execute on function "project_permission" ("public"."project") to "app_backend";
+
+create or replace function "task_permission" ("the_row" "public"."task")
+  returns bit(8)
+  as $$
+  select "resource_permission"("the_row"."resource_id")
+$$ language sql stable set search_path = "public", pg_temp;
+
+
+revoke execute on function "task_permission" ("public"."task") from public;
+
+grant execute on function "task_permission" ("public"."task") to "app_user";
+grant execute on function "task_permission" ("public"."task") to "app_backend";
+
 do $$
 begin
   if current_setting('server_version_num')::int >= 150000 then
     execute '
 create or replace view "resource_node" with (security_invoker = true) as
-select "the_row"."resource_id" as "id", ''document''::text as "table_name" from "public"."document" as "the_row"
-union all
-select "the_row"."resource_id" as "id", ''folder''::text as "table_name" from "public"."folder" as "the_row"
-union all
-select "the_row"."resource_id" as "id", ''member''::text as "table_name" from "public"."member" as "the_row"
-union all
 select "the_row"."resource_id" as "id", ''organization''::text as "table_name" from "public"."organization" as "the_row"
 union all
-select "the_row"."resource_id" as "id", ''team''::text as "table_name" from "public"."team" as "the_row"';
+select "the_row"."resource_id" as "id", ''person''::text as "table_name" from "public"."person" as "the_row"
+union all
+select "the_row"."resource_id" as "id", ''team''::text as "table_name" from "public"."team" as "the_row"
+union all
+select "the_row"."resource_id" as "id", ''project''::text as "table_name" from "public"."project" as "the_row"
+union all
+select "the_row"."resource_id" as "id", ''task''::text as "table_name" from "public"."task" as "the_row"';
     perform pg_temp.p9s_set_privileges('"resource_node"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+    comment on view "resource_node" is '@primaryKey id
+@behavior -insert -update -delete
+@foreignKey (id) references public.organization (resource_id)|@fieldName organization|@foreignFieldName resourceNode
+@foreignKey (id) references public.person (resource_id)|@fieldName person|@foreignFieldName resourceNode
+@foreignKey (id) references public.team (resource_id)|@fieldName team|@foreignFieldName resourceNode
+@foreignKey (id) references public.project (resource_id)|@fieldName project|@foreignFieldName resourceNode
+@foreignKey (id) references public.task (resource_id)|@fieldName task|@foreignFieldName resourceNode';
     execute '
 create or replace view "role_node" with (security_invoker = true) as
-select "the_row"."role_id" as "id", ''member''::text as "table_name" from "public"."member" as "the_row"
-union all
 select "the_row"."role_id" as "id", ''organization''::text as "table_name" from "public"."organization" as "the_row"
+union all
+select "the_row"."role_id" as "id", ''person''::text as "table_name" from "public"."person" as "the_row"
 union all
 select "the_row"."role_id" as "id", ''team''::text as "table_name" from "public"."team" as "the_row"';
     perform pg_temp.p9s_set_privileges('"role_node"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
-    if to_regclass('"resource_node"') is not null then
-      drop function if exists "resource_node_permission" ("resource_node");
-    end if;
+    comment on view "role_node" is '@primaryKey id
+@behavior -insert -update -delete
+@foreignKey (id) references public.organization (role_id)|@fieldName organization|@foreignFieldName roleNode
+@foreignKey (id) references public.person (role_id)|@fieldName person|@foreignFieldName roleNode
+@foreignKey (id) references public.team (role_id)|@fieldName team|@foreignFieldName roleNode';
+    perform pg_temp.p9s_comment_relation('"current_resource_access"', '@behavior -insert -update -delete
+@foreignKey (resource_id) references public.resource_node (id)|@fieldName resource');
+    perform pg_temp.p9s_comment_relation('"current_assignment"', '@behavior -insert -update -delete
+@foreignKey (resource_id) references public.resource_node (id)|@fieldName resource');
+    perform pg_temp.p9s_comment_relation('"current_resource_edge"', '@behavior -insert -update -delete
+@foreignKey (parent_id) references public.resource_node (id)|@fieldName parent
+@foreignKey (child_id) references public.resource_node (id)|@fieldName child');
+    perform pg_temp.p9s_comment_relation('"current_role"', '@behavior -insert -update -delete
+@foreignKey (role_id) references public.role_node (id)|@fieldName role');
+    perform pg_temp.p9s_comment_relation('"resource_access"', '@behavior -insert -update -delete
+@foreignKey (resource_id) references public.resource_node (id)|@fieldName resource
+@foreignKey (role_id) references public.role_node (id)|@fieldName role
+@foreignKey (assigned_resource_id) references public.resource_node (id)|@fieldName assignedResource');
+    perform pg_temp.p9s_comment_relation('"resource_role_access"', '@behavior -insert -update -delete
+@foreignKey (resource_id) references public.resource_node (id)|@fieldName resource
+@foreignKey (role_id) references public.role_node (id)|@fieldName role');
+    execute '
+create or replace function "resource_node_permission" ("the_row" "resource_node")
+  returns bit(8)
+  as $p9s$
+  select "resource_permission"("the_row"."id")
+$p9s$ language sql stable set search_path = "public", pg_temp';
+    revoke execute on function "resource_node_permission" ("resource_node") from public;
+    grant execute on function "resource_node_permission" ("resource_node") to "app_user";
+    grant execute on function "resource_node_permission" ("resource_node") to "app_backend";
   end if;
 end
 $$;
@@ -3966,32 +3993,11 @@ $$;
 -- Leaf tables
 -----------------------------------------------------------------------------------------------------------------------
 
-drop trigger if exists "10_document_resource_parent_trigger" on "public"."document";
-drop trigger if exists "10_folder_resource_parent_trigger" on "public"."folder";
-drop trigger if exists "10_member_resource_parent_trigger" on "public"."member";
 drop trigger if exists "10_organization_resource_parent_trigger" on "public"."organization";
+drop trigger if exists "10_person_resource_parent_trigger" on "public"."person";
 drop trigger if exists "10_team_resource_parent_trigger" on "public"."team";
-
-do $$
-begin
-  if exists (select from pg_trigger where "tgrelid" = '"public"."audit_event"'::regclass and "tgname" = '10_audit_event_resource_insert_trigger') then
-    perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    if exists (select from "resource_edge" as "the_edge" join "public"."audit_event" as "the_row" on "the_edge"."parent_id" = "the_row"."resource_id") then
-      raise exception 'p9s: rows of % are parents of other resources, so % cannot become a resource leaf table. Move their children first.', 'audit_event', 'audit_event'
-        using errcode = 'dependent_objects_still_exist';
-    end if;
-    drop trigger "10_audit_event_resource_insert_trigger" on "public"."audit_event";
-    drop trigger if exists "10_audit_event_resource_update_trigger" on "public"."audit_event";
-    drop trigger if exists "10_audit_event_resource_delete_trigger" on "public"."audit_event";
-    drop trigger if exists "05_truncate_guard_trigger" on "public"."audit_event";
-    drop function if exists "audit_event_resource_trigger_function" ();
-    -- Home edges can only be deleted with the triggers off. The bootstrap turns them back on.
-    perform "resource_trigger_disable"();
-    delete from "assignment_edge" as "the_assignment" using "public"."audit_event" as "the_row" where "the_assignment"."resource_id" = "the_row"."resource_id";
-    delete from "resource_edge" as "the_edge" using "public"."audit_event" as "the_row" where "the_edge"."child_id" = "the_row"."resource_id";
-  end if;
-end
-$$;
+drop trigger if exists "10_project_resource_parent_trigger" on "public"."project";
+drop trigger if exists "10_task_resource_parent_trigger" on "public"."task";
 
 do $$
 begin
@@ -4014,33 +4020,12 @@ begin
 end
 $$;
 
-create or replace function "audit_event_resource_parent_trigger_function"()
-returns trigger as $$
-begin
-  new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = new."org_id");
-  if new."org_id" is not null and new."resource_parent_id" is null then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'audit_event', 'org_id', 'organization'
-      using errcode = 'foreign_key_violation';
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "audit_event_resource_parent_trigger_function" () from public;
-
-
-drop trigger if exists "10_audit_event_resource_parent_trigger" on "public"."audit_event";
-create trigger "10_audit_event_resource_parent_trigger" before insert or update of "org_id", "resource_parent_id" on "public"."audit_event" for each row execute function "audit_event_resource_parent_trigger_function"();
-update "public"."audit_event" as "the_row" set "resource_parent_id" = "the_parent"."resource_id"
-from "public"."organization" as "the_parent"
-where "the_parent"."id" = "the_row"."org_id" and "the_row"."resource_parent_id" is distinct from "the_parent"."resource_id";
-
 create or replace function "comment_resource_parent_trigger_function"()
 returns trigger as $$
 begin
-  new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."document" as "the_parent" where "the_parent"."id" = new."document_id");
-  if new."document_id" is not null and new."resource_parent_id" is null then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'comment', 'document_id', 'document'
+  new."resource_parent_id" := (select "the_parent"."resource_id" from "public"."task" as "the_parent" where "the_parent"."id" = new."task_id");
+  if new."task_id" is not null and new."resource_parent_id" is null then
+    raise exception 'p9s: % rows have a % that matches no row of %', 'comment', 'task_id', 'task'
       using errcode = 'foreign_key_violation';
   end if;
   return new;
@@ -4051,63 +4036,16 @@ revoke execute on function "comment_resource_parent_trigger_function" () from pu
 
 
 drop trigger if exists "10_comment_resource_parent_trigger" on "public"."comment";
-create trigger "10_comment_resource_parent_trigger" before insert or update of "document_id", "resource_parent_id" on "public"."comment" for each row execute function "comment_resource_parent_trigger_function"();
+create trigger "10_comment_resource_parent_trigger" before insert or update of "task_id", "resource_parent_id" on "public"."comment" for each row execute function "comment_resource_parent_trigger_function"();
 update "public"."comment" as "the_row" set "resource_parent_id" = "the_parent"."resource_id"
-from "public"."document" as "the_parent"
-where "the_parent"."id" = "the_row"."document_id" and "the_row"."resource_parent_id" is distinct from "the_parent"."resource_id";
+from "public"."task" as "the_parent"
+where "the_parent"."id" = "the_row"."task_id" and "the_row"."resource_parent_id" is distinct from "the_parent"."resource_id";
 
-drop trigger if exists "10_member_role_parent_trigger" on "public"."member";
 drop trigger if exists "10_organization_role_parent_trigger" on "public"."organization";
+drop trigger if exists "10_person_role_parent_trigger" on "public"."person";
 drop trigger if exists "10_team_role_parent_trigger" on "public"."team";
 
-do $$
-begin
-  if exists (select from pg_trigger where "tgrelid" = '"public"."api_key"'::regclass and "tgname" = '10_api_key_role_insert_trigger') then
-    perform pg_advisory_xact_lock(hashtext('p9s:public:'));
-    if exists (select from "role_edge" as "the_edge" join "public"."api_key" as "the_row" on "the_edge"."parent_id" = "the_row"."role_id") then
-      raise exception 'p9s: rows of % are parents of other roles, so % cannot become a role leaf table. Move their children first.', 'api_key', 'api_key'
-        using errcode = 'dependent_objects_still_exist';
-    end if;
-    drop trigger "10_api_key_role_insert_trigger" on "public"."api_key";
-    drop trigger if exists "10_api_key_role_update_trigger" on "public"."api_key";
-    drop trigger if exists "10_api_key_role_delete_trigger" on "public"."api_key";
-    drop trigger if exists "05_truncate_guard_trigger" on "public"."api_key";
-    drop function if exists "api_key_role_trigger_function" ();
-    -- Home edges can only be deleted with the triggers off. The bootstrap turns them back on.
-    perform "role_trigger_disable"();
-    delete from "assignment_edge" as "the_assignment" using "public"."api_key" as "the_row" where "the_assignment"."role_id" = "the_row"."role_id";
-    delete from "role_edge" as "the_edge" using "public"."api_key" as "the_row" where "the_edge"."child_id" = "the_row"."role_id";
-  end if;
-end
-$$;
 
-create or replace function "api_key_role_parent_trigger_function"()
-returns trigger as $$
-begin
-  if tg_op = 'UPDATE' then
-    if new."role_id" is distinct from old."role_id" then
-      raise exception 'p9s: the role id of a % row cannot change', 'api_key' using errcode = 'integrity_constraint_violation';
-    end if;
-  elsif exists (select from "role_edge_cache" as "the_self" where "the_self"."parent_id" = new."role_id" and "the_self"."child_id" = new."role_id") then
-    raise exception 'p9s: the role id % is already used by another row', new."role_id" using errcode = 'unique_violation';
-  end if;
-  new."role_parent_id" := (select "the_parent"."role_id" from "public"."member" as "the_parent" where "the_parent"."id" = new."member_id");
-  if new."member_id" is not null and new."role_parent_id" is null then
-    raise exception 'p9s: % rows have a % that matches no row of %', 'api_key', 'member_id', 'member'
-      using errcode = 'foreign_key_violation';
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer set search_path = "public", pg_temp;
-
-revoke execute on function "api_key_role_parent_trigger_function" () from public;
-
-
-drop trigger if exists "10_api_key_role_parent_trigger" on "public"."api_key";
-create trigger "10_api_key_role_parent_trigger" before insert or update of "role_id", "member_id", "role_parent_id" on "public"."api_key" for each row execute function "api_key_role_parent_trigger_function"();
-update "public"."api_key" as "the_row" set "role_parent_id" = "the_parent"."role_id"
-from "public"."member" as "the_parent"
-where "the_parent"."id" = "the_row"."member_id" and "the_row"."role_parent_id" is distinct from "the_parent"."role_id";
 
 
   
