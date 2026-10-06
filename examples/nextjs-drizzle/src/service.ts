@@ -338,15 +338,19 @@ export const countReadable = (actor: Actor) =>
 
 // Folders and documents whose name matches, among those RLS shows the actor.
 // Postgres checks RLS before any filter that is not leakproof, like ilike, and row by row when there are other
-// filters: `offset 0` keeps the readable documents a subquery of their own, which it checks in one join, then filters
+// filters: `offset 0` keeps the readable documents a subquery of their own, which it checks in one join. A second one
+// around the organization's check keeps it from being planned for the few matches ilike guesses, then it filters
 export const search = (actor: Actor, query: string, limit = 50) =>
   asRole(actor, async (tx) => ({
     folders: await rows<FolderRow>(tx, sql`
       select ${folderColumns} from folder f where f.org_id = ${actor.org.id} and f.name ilike ${like(query)} order by f.name limit ${limit}`),
     documents: await rows<DocumentRow>(tx, sql`
       select ${documentColumns}
-      from (select id, title, content, folder_id, resource_id, updated_at from document offset 0) d
-      where (d.title ilike ${like(query)} or d.content ilike ${like(query)}) and ${inOrganization(actor, sql`d.resource_id`)}
+      from (
+        select * from (select id, title, content, folder_id, resource_id, updated_at from document offset 0) d
+        where ${inOrganization(actor, sql`d.resource_id`)} offset 0
+      ) d
+      where d.title ilike ${like(query)} or d.content ilike ${like(query)}
       order by d.title ilike ${like(query)} desc, d.updated_at desc limit ${limit}`),
   }));
 
