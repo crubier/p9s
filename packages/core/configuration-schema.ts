@@ -250,6 +250,16 @@ export const parentsConfigSchema = z.union([parentConfigSchema, z.array(parentCo
 export const parentsOf = (parents: ParentsConfig | undefined): ParentConfig[] =>
   parents === undefined ? [] : Array.isArray(parents) ? parents : [parents];
 
+// Operators that pg_trgm or full-text indexes serve, and that are not leakproof, so that RLS never runs them on the
+// index. `@@` matches a tsvector column with a tsquery, the others text columns with text.
+export const searchOperators = ["like", "ilike", "~", "~*", "%", "@@"] as const;
+
+// A search through the indexes of some columns: rows match when one of their columns matches the value
+export const searchConfigSchema = z.object({
+  columns: z.array(z.string()).min(1),
+  operator: z.enum(searchOperators),
+});
+
 // Table config schema (for CompleteConfig.tables array entries)
 export const tableConfigSchema = z.object({
   schema: z.string(),
@@ -272,6 +282,9 @@ export const tableConfigSchema = z.object({
   // A row whose column of this name is not null is soft deleted. Nodes leave the graph with their edges and
   // assignments until the column is null again, leaf rows are hidden from users.
   softDelete: z.string().optional(),
+  // Each search is a function named after the table and its key, like document_search for `search`, that matches
+  // through the indexes as the owner, and returns the matching rows the user can read
+  search: z.record(z.string(), searchConfigSchema).optional(),
 });
 
 // Engine config base schema (without refinements, for partial/optional use)
@@ -406,6 +419,13 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
         path: ["tables", tableIndex, "softDelete"],
       });
     }
+    if (table.search !== undefined && Object.keys(table.search).length > 0 && !(table.isResource && Object.values(table.permission).some(bits => bits.select != null))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `A search returns the rows the select policies let through: ${table.name} needs to be a resource table with a select bit`,
+        path: ["tables", tableIndex, "search"],
+      });
+    }
     for (const [kind, parentKey, flag, leafKey] of [["resource", "resourceParent", "isResource", "resourceLeaf"], ["role", "roleParent", "isRole", "roleLeaf"]] as const) {
       if (table[leafKey] && !(table[flag] && parentsOf(table[parentKey]).length > 0)) {
         ctx.addIssue({
@@ -437,6 +457,7 @@ export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
 export type NamingConfig = z.infer<typeof namingConfigSchema>;
 export type ParentConfig = z.infer<typeof parentConfigSchema>;
 export type ParentsConfig = z.infer<typeof parentsConfigSchema>;
+export type SearchConfig = z.infer<typeof searchConfigSchema>;
 export type TableConfig = z.infer<typeof tableConfigSchema>;
 export type EngineConfig = z.infer<typeof engineConfigSchema>;
 export type MigrationConfig = z.infer<typeof migrationConfigSchema>;

@@ -131,6 +131,7 @@ Each table entry defines how a database table integrates with the permission sys
 | `roleLeaf`       | `boolean` | Rows are not nodes and act with the permissions of their parent, see below    |
 | `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
 | `softDelete`     | `string`  | Nullable column, like `deleted_at`, that soft deletes a row when set, see below |
+| `search`         | `object`  | Searches through indexes, by name: the columns they match and the operator, see below |
 | `permission`     | `object`  | For each user role, the bit checked for each operation, and optionally the `manageAccess` bit that lets them see who has access to a row, see [seeing the access of others](./security-model#seeing-the-access-of-others), and the `share` bit that lets them share it, see [sharing](./security-model#sharing) |
 
 #### Parent columns
@@ -219,6 +220,37 @@ Users soft delete a row by setting the column, which needs the `delete` bit on i
 
 Rows written while the triggers were disabled are sorted out by `resource_trigger_enable()`, which every migration calls: adding `softDelete` to a table whose column is already set moves those rows out of the graph, and removing it from every table of a tree brings them back and drops the tables aside.
 
+#### Searches
+
+RLS checks a policy before any filter that is not leakproof, like `ilike`, `~`, the trigram `%` or full-text `@@`, so their indexes are never used through RLS: a search reads every row of the table and checks it, see [querying through RLS](./querying#filters-that-are-not-leakproof). `search` declares searches that go through the indexes:
+
+```typescript
+{
+  name: "document",
+  isResource: true,
+  resourceId: "resource_id",
+  resourceParent: { column: "folder_id", table: "folder", key: "id" },
+  search: {
+    search: { columns: ["title", "content"], operator: "ilike" },
+  },
+  permission: {
+    authenticated: { select: 0, insert: 1, update: 2, delete: 3 },
+  },
+}
+```
+
+Each search is a function named after the table and its key, here `document_search(the_value text)`. It returns the rows of the table where one of the columns matches the value, among those the current user can read, and queries filter, order and page them like a table:
+
+```sql
+create extension if not exists pg_trgm;
+create index on document using gin (title gin_trgm_ops);
+create index on document using gin (content gin_trgm_ops);
+
+select id, title from document_search('%budget%') where org_id = $1 order by updated_at desc limit 50;
+```
+
+The operator is `like`, `ilike`, `~`, `~*` or `%`, on text columns with a `text` value, which a [`pg_trgm`](https://www.postgresql.org/docs/current/pgtrgm.html) index serves, or `@@`, on `tsvector` columns with a `tsquery` value, which a GIN index serves. p9s does not create the indexes. The search matches through them as the owner, checks the rows that match against the select policy of the user, and reads those the user can read through RLS: it costs about what matches, readable or not, rather than the whole table. [Searches](./security-model#searches) explains why it shows no more than a filter through RLS would. Each user role with the `select` bit on the table can run it, and a migration drops the searches the config no longer declares.
+
 ## Validation
 
 Configuration is validated at runtime using Zod schemas. Key validations include:
@@ -229,6 +261,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - A `resourceParent` needs `isResource`, a `roleParent` needs `isRole`, and a parent `table` must be a table of the same kind. Several parents need a column each
 - A `resourceLeaf` table needs `isResource` and a `resourceParent`, a `roleLeaf` table needs `isRole` and a `roleParent`, and neither can be the parent table of another table of the same kind
 - `softDelete` needs a resource or role table
+- `search` needs a resource table with a `select` bit
 
 ```typescript
 import { validateCompleteConfig } from "@p9s/core";

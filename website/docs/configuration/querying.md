@@ -49,6 +49,29 @@ limit 50;
 
 That took 0.4 s.
 
+### Searches through an index
+
+A fenced search still reads every row the user can read. A [search](./overview#searches) declared in the config matches through a trigram or full-text index instead, and checks only the rows that match:
+
+```sql
+select id, title
+from document_search('%' || $1 || '%') as d
+where d.org_id = $2
+order by d.updated_at desc
+limit 50;
+```
+
+In the example app, for the member who reads 108,000 documents, with trigram indexes on the titles and contents of the 181,000 documents of every organization:
+
+| Searched for  | Documents that match | Fenced | `document_search` |
+| ------------- | -------------------- | ------ | ----------------- |
+| "zebra"       | 0                    | 380 ms | 2 ms              |
+| "hiring plan" | 279                  | 390 ms | 18 ms             |
+| "roadmap"     | 11,000               | 400 ms | 290 ms            |
+| "budget"      | 76,000               | 600 ms | 730 ms            |
+
+A search costs about what matches in the whole table, readable or not, plus reading back those the user can read: rare words take milliseconds, and a word in nearly half the documents takes a little longer than the fenced search.
+
 ## The views of the current user
 
 Users read their own part of the graph through [views](./security-model#what-users-see-of-the-graph) that are security barriers. Postgres looks the rows of such a view up by the ids it is given, constants or scalar subqueries, in the index:

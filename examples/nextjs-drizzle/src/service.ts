@@ -354,18 +354,15 @@ export const countReadable = (actor: Actor) =>
     return counted!;
   });
 
-// Folders and documents whose name matches, among those RLS shows the actor.
-// Postgres checks RLS before any filter that is not leakproof, like ilike, planned for the few matches ilike guesses:
-// row by row. `offset 0` keeps the readable documents of the organization a subquery of their own, which it checks
-// in one join, then it filters
+// Folders and documents whose name matches, among those RLS shows the actor. Postgres checks RLS before any filter that
+// is not leakproof, like ilike, so it never matches through an index. The search functions of p9s do, then keep the
+// matches the actor can read and read them through RLS
 export const search = (actor: Actor, query: string, limit = 50) =>
   asRole(actor, async (tx) => ({
     folders: await rows<FolderRow>(tx, sql`
-      select ${folderColumns} from folder f where f.org_id = ${actor.org.id} and f.name ilike ${like(query)} order by f.name limit ${limit}`),
+      select ${folderColumns} from folder_search(${like(query)}) f where f.org_id = ${actor.org.id} order by f.name limit ${limit}`),
     documents: await rows<DocumentRow>(tx, sql`
-      select ${documentColumns}
-      from (select id, title, content, folder_id, resource_id, updated_at from document where org_id = ${actor.org.id} offset 0) d
-      where d.title ilike ${like(query)} or d.content ilike ${like(query)}
+      select ${documentColumns} from document_search(${like(query)}) d where d.org_id = ${actor.org.id}
       order by d.title ilike ${like(query)} desc, d.updated_at desc limit ${limit}`),
   }));
 

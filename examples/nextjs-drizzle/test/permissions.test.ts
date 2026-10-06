@@ -169,6 +169,23 @@ describe.skipIf(!rootUrl)("example app", () => {
     expect(await service.actorFromApiKey(seeded.apiKey)).toBeUndefined();
   });
 
+  test("search finds the names, titles and contents each person can read", async () => {
+    const { alice, bob, dave } = seeded.actors;
+    const found = async (actor: typeof alice, query: string) => {
+      const { folders, documents } = await service.search(actor, query);
+      return { folders: names(folders), documents: titles(documents) };
+    };
+    expect((await found(alice, "board")).folders).toEqual(["Board"]);
+    expect(await found(alice, "board deck")).toEqual({ folders: [], documents: ["Q3 board deck"] });
+    expect(await found(alice, "burn is down")).toEqual({ folders: [], documents: ["Q3 board deck"] });
+    expect(await found(bob, "board deck")).toEqual({ folders: [], documents: [] });
+    expect((await found(bob, "board")).folders).toEqual([]);
+    // Bob was given the hiring plan on its own, not the folder it is in
+    expect(await found(bob, "HIRING")).toEqual({ folders: [], documents: ["Engineering hiring plan"] });
+    expect(await found(dave, "hiring")).toEqual({ folders: [], documents: [] });
+    expect((await found(dave, "expense")).documents).toEqual(["Expense policy"]);
+  });
+
   test("a page checks rows one by one, and lists what the member can read when that takes too long", async () => {
     const { alice } = seeded.actors;
     const settings = sql`select current_setting('p9s.check_rows', true) as "checkRows", current_setting('statement_timeout') as timeout`;

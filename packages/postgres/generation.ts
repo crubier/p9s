@@ -2100,6 +2100,108 @@ $$ language plpgsql stable ${definer(naming)};
 ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, integer)`, users)}
 ` : sql``;
 
+  const parentOf = (table: CompleteConfig<User>["tables"][number], name: SQL) => {
+    const binding = bindings.get(table.name);
+    return binding && hasParent(binding) ? (table.resourceLeaf ? parentOfLeaf(binding, name) : parentOfInPolicy(binding, name)) : undefined;
+  };
+
+  // What the select policy of a user lets through, for the policy and for the searches. Postgres checks a policy row
+  // by row, or lists once every resource the user has the bit on and looks rows up in that list, whichever it expects
+  // to be cheaper for the rows the scan returns. Under a limit, it still expects every row of the scan, and lists.
+  // With p9s.check_rows on, reads check the ancestors of the rows they return instead: offset 0 keeps the check from
+  // being turned into a list.
+  const selectUsing = (table: CompleteConfig<User>["tables"][number], user: User) => {
+    const { name, resourceId } = naming.tables[table.name]!;
+    const bit = table.permission[user]!.select;
+    const target = table.resourceLeaf ? parentOf(table, name)! : sql`${name}.${resourceId}`;
+    const softDelete = bindings.get(table.name)?.softDelete;
+    const deletedCheck = softDelete && !table.resourceLeaf && sql`
+  or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
+    return sql`
+  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
+    select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = ${target} offset 0
+  ) else ${accessCheck(target, bit)} end${deletedCheck || sql``}`;
+  };
+
+  // RLS never runs an operator that is not leakproof, like ilike or @@, before a policy, so the indexes that serve it
+  // go unused. A search matches through them as the owner, keeps the rows the select policy of the user lets through,
+  // and gives their ctids to the function users call, which reads these rows as the caller, through RLS, so that the
+  // other policies and the column privileges of the table apply too.
+  const searches = config.tables.flatMap(table => Object.entries(table.search ?? {}).map(([key, search]) => {
+    const searchers = config.engine.users.filter(user => table.isResource && table.permission[user]?.select != null);
+    const argument = search.operator === "@@" ? sql`tsquery` : sql`text`;
+    return { table, searchers, argument, search, fn: identifier(`${table.name}_${key}`), of: (user: string) => identifier(`${table.name}_${key}_${user}`) };
+  }));
+  // Run with execute, Postgres plans for the value and the rows it gets: listing what the user can read, or checking
+  // each row, for as many rows as match, and as many as come back
+  const dynamic = (query: SQL) => {
+    const { text, values } = compile(query);
+    if (values && values.length > 0) {
+      throw new Error("p9s: a search query cannot have bind parameters");
+    }
+    return textLiteral(text);
+  };
+  const searchSql = join(searches.map(({ table, searchers, argument, search, fn, of }) => {
+    const { schema, name } = naming.tables[table.name]!;
+    const match = join(search.columns.map(column => sql`${name}.${identifier(column)} ${raw(search.operator)} $1`), " or ");
+    return sql`${join(searchers.map(user => sql`
+-- The rows of ${raw(table.name)} matching the value that ${raw(user)} can read, by ctid
+create or replace function ${of(user)} ("the_value" ${argument})
+  returns setof tid
+  as $$
+begin
+  return query execute ${dynamic(sql`
+  select ${name}.ctid from ${schema}.${name} as ${name}
+  where (${match})
+  and (${selectUsing(table, user)})`)} using "the_value";
+end
+$$ language plpgsql stable ${definer(naming)};
+
+${grantExecute(sql`${of(user)} (${argument})`, [user], everyone)}
+`), ``)}
+-- The rows of ${raw(table.name)} whose ${raw(search.columns.join(", "))} match the value with ${raw(search.operator)}, among those the current user can read
+create or replace function ${fn} ("the_value" ${argument})
+  returns setof ${schema}.${name}
+  as $$
+declare
+  "the_rows" tid[] := '{}';
+begin${join(searchers.map(user => sql`
+  if pg_has_role(current_user, ${textLiteral(user)}, 'member') then
+    "the_rows" := "the_rows" || array(select ${of(user)}("the_value"));
+  end if;`), ``)}
+  return query execute ${dynamic(sql`select "the_row".* from ${schema}.${name} as "the_row" where "the_row".ctid = any ($1)`)} using "the_rows";
+end
+$$ language plpgsql stable security invoker set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${fn} (${argument})`, searchers, everyone)}
+`;
+  }), `\n`);
+  // Searches of the bound tables that the config has stopped declaring, and their functions for each user
+  const searchPatterns = config.tables.flatMap(table => users.map(user => sql`(${textLiteral(`${table.name}_%_${user}`.replace(/_/g, "\\_"))}, ${textLiteral(user)})`));
+  const currentSearches = searches.flatMap(({ searchers, argument, fn, of }) => [sql`${fn}(${argument})`, ...searchers.map(user => sql`${of(user)}(${argument})`)]);
+  const staleSearches = searchPatterns.length === 0 ? sql`` : sql`
+-- Searches the config has stopped declaring
+do $$
+declare
+  "the_search" record;
+begin
+  for "the_search" in
+    select "the_function".oid::regprocedure as "function", left("the_function".proname, length("the_function".proname) - length("the_user") - 1) as "public_name", "the_function".proargtypes[0]::regtype as "argument"
+    from pg_proc as "the_function"
+    join (values ${join(searchPatterns, ", ")}) as "the_pattern" ("pattern", "the_user") on "the_function".proname like "the_pattern"."pattern"
+    where "the_function".pronamespace = current_schema()::regnamespace and "the_function".prosecdef and "the_function".proretset
+    and "the_function".prorettype = 'tid'::regtype and "the_function".pronargs = 1
+    and not "the_function".oid = any (array[${join(currentSearches.map(signature => sql`${textLiteral(compile(signature).text)}::regprocedure`), ", ")}]::oid[])
+  loop
+    execute format('drop function %s', "the_search"."function");
+    if to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) is not null
+      and not to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) = any (array[${join(currentSearches.map(signature => sql`${textLiteral(compile(signature).text)}::regprocedure`), ", ")}]::oid[]) then
+      execute format('drop function %I(%s)', "the_search"."public_name", "the_search"."argument");
+    end if;
+  end loop;
+end
+$$;`;
+
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
 -- Table policies
@@ -2152,21 +2254,13 @@ with check (${accessCheck(parent, bit)}
         const deleteBit = userBits.delete;
         const softDeleteCheck = softDelete && sql`
   and (${name}.${softDelete} is null${deleteBit == null ? sql`` : sql` or ${accessCheck(table.resourceLeaf ? parent! : sql`${name}.${resourceId}`, deleteBit)}`})`;
-        const deletedCheck = softDelete && !table.resourceLeaf && (operation === "select" || operation === "delete") && sql`
+        const deletedCheck = softDelete && !table.resourceLeaf && operation === "delete" && sql`
   or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
-        // Postgres checks a policy row by row, or lists once every resource the user has the bit on and looks rows up
-        // in that list, whichever it expects to be cheaper for the rows the scan returns. Under a limit, it still
-        // expects every row of the scan, and lists. With p9s.check_rows on, reads check the ancestors of the rows they
-        // return instead: offset 0 keeps the check from being turned into a list.
-        const selectCheck = operation === "select" && sql`
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = ${target} offset 0
-  ) else ${ownCheck} end`;
         return [sql`
 ${dropPolicy}
 create policy ${policyName} on ${schema}.${name} 
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
-using (${selectCheck || ownCheck}${deletedCheck || sql``}
+using (${operation === "select" ? selectUsing(table, user as User) : sql`${ownCheck}${deletedCheck || sql``}`}
 )
 ${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
 )` : sql``};
@@ -2211,6 +2305,12 @@ $$;
 -- Earlier versions mapped any role id, policies have stopped calling it by now
 drop function if exists ${currentRoleNodeFunction} (${idType});
 ${roleLeaves.length === 0 ? sql`drop function if exists ${currentRoleNodeFunction} ();` : sql``}
+${searches.length === 0 ? sql`` : sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Searches
+-----------------------------------------------------------------------------------------------------------------------
+${searchSql}`}
+${staleSearches}
     `;
 }
 
@@ -2479,6 +2579,7 @@ union all
     ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
     ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
     ...config.engine.users.map(user => `${nameOf(naming.restoreFunction)}_${user}`),
+    ...config.tables.flatMap(table => Object.keys(table.search ?? {}).flatMap(key => config.engine.users.map(user => `${table.name}_${key}_${user}`))),
   ])].filter(name => !visible.has(name));
   // PostGraphile skips overloaded functions, like resource_permission: it reads the permissions of the current user on
   // each row through these, as a permission field of each resource type

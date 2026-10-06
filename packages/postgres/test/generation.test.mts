@@ -2518,6 +2518,29 @@ test('Default Migration', () => {
     -- Earlier versions mapped any role id, policies have stopped calling it by now
     drop function if exists "current_role_node" (integer);
     drop function if exists "current_role_node" ();
+
+
+    -- Searches the config has stopped declaring
+    do $$
+    declare
+      "the_search" record;
+    begin
+      for "the_search" in
+        select "the_function".oid::regprocedure as "function", left("the_function".proname, length("the_function".proname) - length("the_user") - 1) as "public_name", "the_function".proargtypes[0]::regtype as "argument"
+        from pg_proc as "the_function"
+        join (values ('human\\_user\\_%\\_user1', 'user1'), ('blog\\_post\\_%\\_user1', 'user1')) as "the_pattern" ("pattern", "the_user") on "the_function".proname like "the_pattern"."pattern"
+        where "the_function".pronamespace = current_schema()::regnamespace and "the_function".prosecdef and "the_function".proretset
+        and "the_function".prorettype = 'tid'::regtype and "the_function".pronargs = 1
+        and not "the_function".oid = any (array[]::oid[])
+      loop
+        execute format('drop function %s', "the_search"."function");
+        if to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) is not null
+          and not to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) = any (array[]::oid[]) then
+          execute format('drop function %I(%s)', "the_search"."public_name", "the_search"."argument");
+        end if;
+      end loop;
+    end
+    $$;
         
 
       

@@ -43,6 +43,13 @@
       "when": 1791270961318,
       "tag": "0005_folder_parents",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791275471555,
+      "tag": "0006_search",
+      "breakpoints": true
     }
   ]
 }

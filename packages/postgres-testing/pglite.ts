@@ -3,6 +3,7 @@ import type { SQL } from "pg-sql2";
 import { generateRandomString, orderByIdChildParent } from '@p9s/core-testing';
 import { PGlite, type Results } from '@electric-sql/pglite'
 import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 
 
 
@@ -73,7 +74,7 @@ export const setupTests = () => {
     const { database_admin_username, database_admin_password, database_user_username, database_user_password, database_writer_username, database_name } = context;
 
     const rootClient = await PGlite.create({
-      extensions: { uuid_ossp }
+      extensions: { uuid_ossp, pg_trgm }
     });
 
     if ((await rootClient.query(compile(sql`select rolname from pg_roles where rolname = ${literal(database_admin_username)}`).text)).rows.length <= 0) {
@@ -99,7 +100,7 @@ export const setupTests = () => {
       loadDataDir: dataDirDump,
       username: database_admin_username,
       database: database_name,
-      extensions: { uuid_ossp }
+      extensions: { uuid_ossp, pg_trgm }
 
     });
 

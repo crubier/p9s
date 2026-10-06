@@ -12,6 +12,7 @@ import type {
   ParentsConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
+  SearchConfig,
 } from "./configuration-schema";
 
 import { identifier } from "pg-sql2";
@@ -27,8 +28,9 @@ export type {
   ParentsConfig,
   PermissionPerOperation,
   PermissionPerOperationNaming,
+  SearchConfig,
 };
-export { parentsOf } from "./configuration-schema";
+export { parentsOf, searchOperators } from "./configuration-schema";
 
 // Generic types that extend the zod base types with User parameter for compile-time safety
 export type TableNamingConfigEntry<User extends string> = Omit<TableNamingConfigEntryBase, 'permission'> & {
@@ -309,7 +311,7 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   ]);
 
   return {
-    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, roleLeaf, softDelete, ...customNames }) => {
+    tables: Object.fromEntries(config.tables.map(({ name, schema: tableSchema, isResource, isRole, permission, resourceParent, resourceLeaf, roleParent, roleLeaf, softDelete, search, ...customNames }) => {
 
       const result = {
         schema: `${tableSchema ?? schema}`,

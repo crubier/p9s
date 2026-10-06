@@ -33,8 +33,15 @@ export const p9sConfig = generateConfigurationFromDrizzleSchema(schema, {
     // Keys act with the permissions of their member
     api_key: { isResource: false, isRole: true, roleId: "role_id", roleLeaf: true, roleParent: { column: "member_id", table: "member", key: "id" } },
     // In its parent folder, or else at the top of the organization
-    folder: { isResource: true, resourceId: "resource_id", resourceParent: [{ column: "parent_id", table: "folder", key: "id" }, organization], permission: content },
-    document: { isResource: true, resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" }, permission: content },
+    // folder_search and document_search match names, titles and contents through their trigram indexes
+    folder: {
+      isResource: true, resourceId: "resource_id", resourceParent: [{ column: "parent_id", table: "folder", key: "id" }, organization], permission: content,
+      search: { search: { columns: ["name"], operator: "ilike" } },
+    },
+    document: {
+      isResource: true, resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" }, permission: content,
+      search: { search: { columns: ["title", "content"], operator: "ilike" } },
+    },
     comment: {
       isResource: true, resourceLeaf: true, resourceParent: { column: "document_id", table: "document", key: "id" },
       permission: { app_user: { select: BIT.read, insert: BIT.comment, update: BIT.edit, delete: BIT.delete } },

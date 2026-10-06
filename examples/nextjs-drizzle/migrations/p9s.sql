@@ -3937,6 +3937,114 @@ $$;
 -- Earlier versions mapped any role id, policies have stopped calling it by now
 drop function if exists "current_role_node" (uuid);
 
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Searches
+-----------------------------------------------------------------------------------------------------------------------
+
+-- The rows of document matching the value that app_user can read, by ctid
+create or replace function "document_search_app_user" ("the_value" text)
+  returns setof tid
+  as $$
+begin
+  return query execute '
+  select "document".ctid from "public"."document" as "document"
+  where ("document"."title" ilike $1 or "document"."content" ilike $1)
+  and (
+  case when (select current_setting(''p9s.check_rows'', true)) = ''on'' then exists (
+    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id") end)' using "the_value";
+end
+$$ language plpgsql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "document_search_app_user" (text) from public;
+select pg_temp.p9s_revoke_execute('"document_search_app_user" (text)', array['app_backend']::text[]);
+grant execute on function "document_search_app_user" (text) to "app_user";
+
+-- The rows of document whose title, content match the value with ilike, among those the current user can read
+create or replace function "document_search" ("the_value" text)
+  returns setof "public"."document"
+  as $$
+declare
+  "the_rows" tid[] := '{}';
+begin
+  if pg_has_role(current_user, 'app_user', 'member') then
+    "the_rows" := "the_rows" || array(select "document_search_app_user"("the_value"));
+  end if;
+  return query execute 'select "the_row".* from "public"."document" as "the_row" where "the_row".ctid = any ($1)' using "the_rows";
+end
+$$ language plpgsql stable security invoker set search_path = "public", pg_temp;
+
+
+revoke execute on function "document_search" (text) from public;
+select pg_temp.p9s_revoke_execute('"document_search" (text)', array['app_backend']::text[]);
+grant execute on function "document_search" (text) to "app_user";
+
+
+-- The rows of folder matching the value that app_user can read, by ctid
+create or replace function "folder_search_app_user" ("the_value" text)
+  returns setof tid
+  as $$
+begin
+  return query execute '
+  select "folder".ctid from "public"."folder" as "folder"
+  where ("folder"."name" ilike $1)
+  and (
+  case when (select current_setting(''p9s.check_rows'', true)) = ''on'' then exists (
+    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id" offset 0
+  ) else 
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id") end)' using "the_value";
+end
+$$ language plpgsql stable security definer set search_path = "public", pg_temp;
+
+
+revoke execute on function "folder_search_app_user" (text) from public;
+select pg_temp.p9s_revoke_execute('"folder_search_app_user" (text)', array['app_backend']::text[]);
+grant execute on function "folder_search_app_user" (text) to "app_user";
+
+-- The rows of folder whose name match the value with ilike, among those the current user can read
+create or replace function "folder_search" ("the_value" text)
+  returns setof "public"."folder"
+  as $$
+declare
+  "the_rows" tid[] := '{}';
+begin
+  if pg_has_role(current_user, 'app_user', 'member') then
+    "the_rows" := "the_rows" || array(select "folder_search_app_user"("the_value"));
+  end if;
+  return query execute 'select "the_row".* from "public"."folder" as "the_row" where "the_row".ctid = any ($1)' using "the_rows";
+end
+$$ language plpgsql stable security invoker set search_path = "public", pg_temp;
+
+
+revoke execute on function "folder_search" (text) from public;
+select pg_temp.p9s_revoke_execute('"folder_search" (text)', array['app_backend']::text[]);
+grant execute on function "folder_search" (text) to "app_user";
+
+
+-- Searches the config has stopped declaring
+do $$
+declare
+  "the_search" record;
+begin
+  for "the_search" in
+    select "the_function".oid::regprocedure as "function", left("the_function".proname, length("the_function".proname) - length("the_user") - 1) as "public_name", "the_function".proargtypes[0]::regtype as "argument"
+    from pg_proc as "the_function"
+    join (values ('account\_%\_app\_user', 'app_user'), ('api\_key\_%\_app\_user', 'app_user'), ('audit\_event\_%\_app\_user', 'app_user'), ('comment\_%\_app\_user', 'app_user'), ('document\_%\_app\_user', 'app_user'), ('folder\_%\_app\_user', 'app_user'), ('member\_%\_app\_user', 'app_user'), ('organization\_%\_app\_user', 'app_user'), ('session\_%\_app\_user', 'app_user'), ('team\_%\_app\_user', 'app_user'), ('user\_%\_app\_user', 'app_user'), ('verification\_%\_app\_user', 'app_user')) as "the_pattern" ("pattern", "the_user") on "the_function".proname like "the_pattern"."pattern"
+    where "the_function".pronamespace = current_schema()::regnamespace and "the_function".prosecdef and "the_function".proretset
+    and "the_function".prorettype = 'tid'::regtype and "the_function".pronargs = 1
+    and not "the_function".oid = any (array['"document_search"(text)'::regprocedure, '"document_search_app_user"(text)'::regprocedure, '"folder_search"(text)'::regprocedure, '"folder_search_app_user"(text)'::regprocedure]::oid[])
+  loop
+    execute format('drop function %s', "the_search"."function");
+    if to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) is not null
+      and not to_regprocedure(format('%I(%s)', "the_search"."public_name", "the_search"."argument")) = any (array['"document_search"(text)'::regprocedure, '"document_search_app_user"(text)'::regprocedure, '"folder_search"(text)'::regprocedure, '"folder_search_app_user"(text)'::regprocedure]::oid[]) then
+      execute format('drop function %I(%s)', "the_search"."public_name", "the_search"."argument");
+    end if;
+  end loop;
+end
+$$;
     
 
   

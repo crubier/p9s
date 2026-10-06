@@ -2750,6 +2750,40 @@ exports[`Configuration JSON Schemas tableConfigSchema 1`] = `
     "schema": {
       "type": "string",
     },
+    "search": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string",
+            },
+            "minItems": 1,
+            "type": "array",
+          },
+          "operator": {
+            "enum": [
+              "like",
+              "ilike",
+              "~",
+              "~*",
+              "%",
+              "@@",
+            ],
+            "type": "string",
+          },
+        },
+        "required": [
+          "columns",
+          "operator",
+        ],
+        "type": "object",
+      },
+      "propertyNames": {
+        "type": "string",
+      },
+      "type": "object",
+    },
     "softDelete": {
       "type": "string",
     },
@@ -4981,6 +5015,40 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
           "schema": {
             "type": "string",
           },
+          "search": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "columns": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "minItems": 1,
+                  "type": "array",
+                },
+                "operator": {
+                  "enum": [
+                    "like",
+                    "ilike",
+                    "~",
+                    "~*",
+                    "%",
+                    "@@",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "columns",
+                "operator",
+              ],
+              "type": "object",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
           "softDelete": {
             "type": "string",
           },
@@ -6175,6 +6243,40 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
           },
           "schema": {
             "type": "string",
+          },
+          "search": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "columns": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "minItems": 1,
+                  "type": "array",
+                },
+                "operator": {
+                  "enum": [
+                    "like",
+                    "ilike",
+                    "~",
+                    "~*",
+                    "%",
+                    "@@",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "columns",
+                "operator",
+              ],
+              "type": "object",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
           },
           "softDelete": {
             "type": "string",

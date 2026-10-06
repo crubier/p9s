@@ -172,6 +172,17 @@ with check (role_id in (select role_id from team where org_id = current_org_id()
 
 Graph writers keep writing any assignment, through a policy that lets them do anything. The policies only exist when a table has a `share` bit: otherwise row level security stays off on `assignment_edge`, and users have no privilege on it. In the example app, with 180,000 documents, a member shares a document in 6 to 7 ms with `resource_share`, against 4 ms for the same assignment written by a graph writer: checking the share bit and the bits of the member adds 2 to 3 ms, most of the rest is the audit trigger of the example. The share bit is checked by a `security definer` function of p9s, so that the policies of the table of the resource do not apply: a user with the share bit but not the select bit can still share, and Postgres looks the one resource up rather than listing every row the user can read.
 
+## Searches
+
+A [search](./overview#searches) matches through indexes, which RLS never lets a filter that is not leakproof use, so it reads the table as the owner. It still shows a user what a filter through RLS would, and nothing of the rows they cannot read:
+
+- Each user role with the `select` bit on the table gets its own security definer function, like `document_search_app_user`, which only that role can run. It matches as the owner and keeps the rows the select policy of that role lets through, with the expression of the policy, soft deleted rows included. It returns their `ctid`, not their values.
+- `document_search` runs as the caller. It calls the function of each user role the caller is a member of, then reads the rows at these ctids as the caller. Comparing ctids is leakproof, so Postgres finds the rows by ctid first, then checks every policy of the table for the caller, the application's own included, and the column privileges: a search reads every column, which needs `select` on the table.
+- The value is a parameter, never SQL. The errors of an operator, like an invalid regular expression, come from the value and not from the rows.
+- Like the restore functions, the functions of each role tell who the current user is with `getCurrentUserId`, which runs as the owner there: it should read the request, like a setting, rather than `current_user`.
+
+A search tells one thing a filter through RLS does not: how long it takes depends on how many rows match, readable or not, as with any index. Postgres makes a similar trade-off with unique constraints and foreign keys, which tell whether a row the user cannot see exists. A user who times many searches could estimate how many rows they cannot read match a value. Only declare a search where that is acceptable.
+
 ## Soft deleted rows
 
 With `softDelete` on a table, see [soft delete](./overview#soft-delete), the policies of the table change for its rows:

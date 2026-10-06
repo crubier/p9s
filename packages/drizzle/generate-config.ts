@@ -1,5 +1,5 @@
 import type { Table } from "drizzle-orm";
-import type { Config, ParentsConfig, TableConfig } from "@p9s/core";
+import type { Config, ParentsConfig, SearchConfig, TableConfig } from "@p9s/core";
 
 type DrizzleTable = Table<any>;
 
@@ -21,6 +21,7 @@ export interface DrizzleP9sOptions<User extends string> {
       roleParent?: ParentsConfig;
       roleLeaf?: boolean;
       softDelete?: string;
+      search?: Record<string, SearchConfig>;
       permission?: { [user in User]?: Partial<{ select: number; insert: number; update: number; delete: number; manageAccess: number; share: number }> };
     };
   };
@@ -118,6 +119,9 @@ export function generateConfigurationFromDrizzleSchema<User extends string>(
     }
     if (tableOptions.softDelete) {
       tableConfig.softDelete = tableOptions.softDelete;
+    }
+    if (tableOptions.search) {
+      tableConfig.search = tableOptions.search;
     }
 
     if (tableOptions.permission) {

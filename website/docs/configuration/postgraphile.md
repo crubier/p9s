@@ -34,7 +34,7 @@ const config = {
 
 - **A `permission` field on each resource table.** PostGraphile skips functions with overloads, and `resource_permission` has two, so the migration adds `<table>_permission(row)` for each resource table, and `resource_node_permission(node)`. PostGraphile serves each as a `permission` field of its type, with the bits of the current user on the row: `allProjects { nodes { name permission } }`. A table with a `permission` column of its own clashes with that field.
 
-- **The internal objects hidden.** Edge tables, caches, the views of each bit, triggers and helper functions get `@behavior -*`: the API has none of them. Edges and assignments are written by graph writers, not through the API, except through `resource_share` and `resource_unshare`, which stay: users with the `share` bit call them as `resourceShare` and `resourceUnshare` mutations, see [sharing](./security-model#sharing).
+- **The internal objects hidden.** Edge tables, caches, the views of each bit, triggers and helper functions get `@behavior -*`: the API has none of them. Edges and assignments are written by graph writers, not through the API, except through `resource_share` and `resource_unshare`, which stay: users with the `share` bit call them as `resourceShare` and `resourceUnshare` mutations, see [sharing](./security-model#sharing). [Searches](./overview#searches) stay too, as query fields like `documentSearch(theValue)`, while their functions for each user role are hidden.
 
 ## What it needs
 

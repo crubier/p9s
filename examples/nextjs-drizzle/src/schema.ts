@@ -161,6 +161,8 @@ export const folder = pgTable(
     foreignKey({ name: "folder_parent_org_fk", columns: [table.parentId, table.orgId], foreignColumns: [table.id, table.orgId] }).onDelete("cascade"),
     index("folder_parent_id_idx").on(table.parentId),
     unique("folder_id_org_id_unique").on(table.id, table.orgId),
+    // For folder_search, which matches names through it: RLS never runs ilike before its policies, so never on an index
+    index("folder_name_trgm_idx").using("gin", table.name.op("gin_trgm_ops")),
   ],
 );
 
@@ -186,6 +188,9 @@ export const document = pgTable(
     foreignKey({ name: "document_folder_org_fk", columns: [table.folderId, table.orgId], foreignColumns: [folder.id, folder.orgId] }).onDelete("cascade"),
     index("document_folder_id_idx").on(table.folderId),
     index("document_updated_at_idx").on(table.updatedAt, table.id),
+    // For document_search
+    index("document_title_trgm_idx").using("gin", table.title.op("gin_trgm_ops")),
+    index("document_content_trgm_idx").using("gin", table.content.op("gin_trgm_ops")),
   ],
 );
 
