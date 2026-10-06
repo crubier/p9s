@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ACCESS_LEVELS, can, includes, type AccessLevel } from "@/lib/permissions";
+import { ACCESS_LEVELS, can, capabilities, includes, type AccessLevel } from "@/lib/permissions";
 import type { AccessRow, Principal } from "@/src/service";
+import { PermissionBadge } from "./permission-badge";
 import { useAction } from "./use-action";
 
 const ICONS = { everyone: IconWorld, team: IconUsers, member: IconUser };
@@ -112,6 +113,11 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
             Access given here, and on the folders above, which it inherits. {canShare ? "You can give access up to your own." : "You cannot share it."}
           </DialogDescription>
         </DialogHeader>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Your access</span>
+          <PermissionBadge permission={permission} />
+          <span className="text-muted-foreground text-xs">{capabilities(permission).join(", ") || "nothing"}</span>
+        </div>
         {canShare && (
           <form
             className="flex gap-2"

@@ -3,7 +3,6 @@ import { ItemActions } from "@/components/item-actions";
 import { ItemList } from "@/components/item-list";
 import { NewItemButton } from "@/components/new-item-button";
 import { PageBody, PageHeader } from "@/components/page-header";
-import { PermissionBadge } from "@/components/permission-badge";
 import { ShareDialog } from "@/components/share-dialog";
 import { Button } from "@/components/ui/button";
 import { can } from "@/lib/permissions";
@@ -21,18 +20,7 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
 
   return (
     <>
-      <PageHeader path={[{ label: actor.org.name, href: base }, ...path.map((item) => ({ label: item.name, href: item.id === id ? undefined : `${base}/f/${item.id}` }))]}>
-        <PermissionBadge permission={folder.permission} />
-        <ShareDialog orgSlug={slug} resourceId={folder.resourceId} name={folder.name} permission={folder.permission} access={access} />
-        <ItemActions
-          orgSlug={slug}
-          kind="folder"
-          id={id}
-          name={folder.name}
-          permission={folder.permission}
-          parentHref={parent ? `${base}/f/${parent.id}` : base}
-        />
-      </PageHeader>
+      <PageHeader path={[{ label: actor.org.name, href: base }, ...path.map((item) => ({ label: item.name, href: item.id === id ? undefined : `${base}/f/${item.id}` }))]} />
       <PageBody className="flex max-w-4xl flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <h1 className="flex-1 text-xl font-semibold">{folder.name}</h1>
@@ -50,6 +38,15 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
               </NewItemButton>
             </>
           )}
+          <ShareDialog orgSlug={slug} resourceId={folder.resourceId} name={folder.name} permission={folder.permission} access={access} />
+          <ItemActions
+            orgSlug={slug}
+            kind="folder"
+            id={id}
+            name={folder.name}
+            permission={folder.permission}
+            parentHref={parent ? `${base}/f/${parent.id}` : base}
+          />
         </div>
         <ItemList
           orgSlug={slug}
