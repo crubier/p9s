@@ -97,6 +97,8 @@ Checking costs 5 to 10 µs for each row the scan walks, listing about 1 µs for 
 | Count of those posts                                          | 23 ms  | 170 ms              |
 | First page of 50, for a user who reads 200 posts of 5,600 (benchmarks) | 2.6 ms | 33 ms      |
 
+In the example app, on Neon, a member reads 108,000 of the 132,000 documents of their organization: their first page takes 4 ms instead of 115 ms, and counting them 3.4 s instead of 0.23 s.
+
 An application rarely knows the share of rows a user can read beforehand. Since a check only costs time while it goes, a short `statement_timeout` bounds it: in a savepoint, run the page with the setting on and a timeout of a few milliseconds, and if Postgres cancels it, roll back to the savepoint and run it again with the setting off. A user who reads few rows then pays the timeout on top of a listing that is cheap for them. Rolling back to the savepoint also restores both settings, which a read does not need to keep. The [example app](https://github.com/crubier/p9s/blob/main/examples/nextjs-drizzle/src/db.ts) does this in `pageRows`.
 
 The setting changes how a policy checks rows, not which rows it lets through, so a user setting it only changes how fast their reads are. It is read once per statement. Off, the policy runs as before, at the same speed.
