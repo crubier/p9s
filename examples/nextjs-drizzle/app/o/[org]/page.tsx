@@ -15,7 +15,7 @@ export default async function OrganizationHome({ params }: { params: Promise<{ o
   return (
     <>
       <PageHeader path={[{ label: actor.org.name }]} />
-      <PageBody className="flex max-w-4xl flex-col gap-8 p-6">
+      <PageBody className="flex flex-col gap-8 p-6">
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold">Spaces</h2>
           <ItemList

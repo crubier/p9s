@@ -64,7 +64,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "Audit log" }]} />
-      <PageBody className="flex max-w-5xl flex-col gap-4 p-6">
+      <PageBody className="flex flex-col gap-4 p-6">
         <p className="text-muted-foreground max-w-3xl text-sm">
           Triggers record what members change, shares and team memberships included, in a table that is a p9s leaf of the organization: RLS shows it
           to admins only. Changes made with an API key, or by an admin acting as a member, say so.

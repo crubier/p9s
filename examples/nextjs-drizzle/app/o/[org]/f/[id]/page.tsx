@@ -21,7 +21,7 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: base }, ...path.map((item) => ({ label: item.name, href: item.id === id ? undefined : `${base}/f/${item.id}` }))]} />
-      <PageBody className="flex max-w-4xl flex-col gap-4 p-6">
+      <PageBody className="flex flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <h1 className="flex-1 text-xl font-semibold">{folder.name}</h1>
           {can(folder.permission, "create") && (

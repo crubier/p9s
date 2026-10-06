@@ -19,7 +19,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ org: 
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: base }, ...path.map((item) => ({ label: item.name, href: `${base}/f/${item.id}` })), { label: document.title }]} />
-      <PageBody className="flex max-w-3xl flex-col gap-8 p-6">
+      <PageBody className="flex flex-col gap-8 p-6">
         <DocumentEditor
           key={document.updatedAt}
           orgSlug={slug}

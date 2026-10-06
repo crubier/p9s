@@ -23,7 +23,7 @@ export default async function MembersPage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader path={[{ label: actor.org.name, href: `/o/${slug}` }, { label: "Members and teams" }]} />
-      <PageBody className="flex max-w-4xl flex-col gap-8 p-6">
+      <PageBody className="flex flex-col gap-8 p-6">
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="font-semibold">Members</h2>
