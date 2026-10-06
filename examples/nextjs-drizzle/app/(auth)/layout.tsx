@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         p9s example
       </div>
-      <div className="w-full max-w-sm">{children}</div>
+      <div className="w-full max-w-md">{children}</div>
     </div>
   );
 }

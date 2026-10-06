@@ -94,6 +94,6 @@ export const mockExamples = (users: number) =>
       name: org.name,
       first: org.first,
       last: org.last,
-      accounts: numbers.filter((n) => n <= org.last).map((n) => ({ email: mockEmail(n), who: describeMockMember(mockMember(org, n)) })),
+      accounts: numbers.filter((n) => n <= org.last).map((n) => ({ name: mockName(n), email: mockEmail(n), who: describeMockMember(mockMember(org, n)) })),
     };
   });
