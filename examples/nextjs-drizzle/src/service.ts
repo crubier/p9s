@@ -389,7 +389,14 @@ export const searchPrincipals = (actor: Actor, query: string, limit = 20) =>
 const principalsWithRoles = (tx: Tx, actor: Actor, roleIds: string[]) =>
   rows<Principal>(tx, principals(actor, sql`"roleId" = any(${uuids(roleIds)})`));
 
-export interface AccessRow extends Principal { permission: string; level: AccessLevel | undefined; direct: boolean; from: string | null }
+export interface AccessRow extends Principal {
+  permission: string;
+  level: AccessLevel | undefined;
+  direct: boolean;
+  // Where inherited access is given: a folder above, or the organization when `fromFolderId` is null
+  from: string | null;
+  fromFolderId: string | null;
+}
 
 // The assignments that give access to a resource: on the resource itself, or on a folder or organization above it
 export const listAccess = (actor: Actor, resourceId: string) =>
@@ -402,10 +409,10 @@ export const listAccess = (actor: Actor, resourceId: string) =>
     if (!assignments.length) return [];
     const found = new Map((await principalsWithRoles(tx, actor, assignments.map((row) => row.roleId))).map((principal) => [principal.roleId, principal]));
     const sources = new Map(
-      (await rows<{ resourceId: string; name: string }>(tx, sql`
-        select resource_id as "resourceId", name from folder where resource_id = any(${uuids(assignments.map((row) => row.resourceId))})
+      (await rows<{ resourceId: string; name: string; folderId: string | null }>(tx, sql`
+        select resource_id as "resourceId", name, id as "folderId" from folder where resource_id = any(${uuids(assignments.map((row) => row.resourceId))})
         union all
-        select resource_id, name from organization where id = ${actor.org.id}`)).map((row) => [row.resourceId, row.name]),
+        select resource_id, name, null from organization where id = ${actor.org.id}`)).map((row) => [row.resourceId, row]),
     );
     const kinds = { member: 0, team: 1, everyone: 2 };
     return assignments
@@ -413,7 +420,8 @@ export const listAccess = (actor: Actor, resourceId: string) =>
         const principal = found.get(row.roleId);
         if (!principal) return [];
         const direct = row.resourceId === resourceId;
-        return [{ ...principal, permission: row.permission, level: levelOf(row.permission), direct, from: direct ? null : sources.get(row.resourceId) ?? null }];
+        const source = direct ? undefined : sources.get(row.resourceId);
+        return [{ ...principal, permission: row.permission, level: levelOf(row.permission), direct, from: source?.name ?? null, fromFolderId: source?.folderId ?? null }];
       })
       .sort((a, b) => Number(b.direct) - Number(a.direct) || kinds[a.kind] - kinds[b.kind] || a.name.localeCompare(b.name));
   });
@@ -427,6 +435,9 @@ export const share = (actor: Actor, resourceId: string, roleId: string, level: A
     const requested = ACCESS_LEVELS[level].permission;
     if (!includes(granted, requested)) throw new ForbiddenError("You can only give access you have yourself.");
     if (!(await principalsWithRoles(tx, actor, [roleId])).length) throw new NotFoundError("No such member or team.");
+    const [existing] = await rows<{ permission: string }>(tx, sql`
+      select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
+    if (existing && !includes(granted, existing.permission)) throw new ForbiddenError("You cannot change access you don't have yourself.");
     await switchToGraphWriter(tx);
     await tx.execute(sql`
       insert into assignment_edge (resource_id, role_id, permission) values (${resourceId}, ${roleId}, ${requested}::bit(8))

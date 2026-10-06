@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { HeaderSearch } from "./header-search";
 
 export function PageHeader({ path, children }: { path: { label: string; href?: string }[]; children?: React.ReactNode }) {
   return (
@@ -27,7 +28,10 @@ export function PageHeader({ path, children }: { path: { label: string; href?: s
           ))}
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ml-auto flex items-center gap-2">{children}</div>
+      <div className="ml-auto flex items-center gap-2">
+        {children}
+        <HeaderSearch />
+      </div>
     </header>
   );
 }

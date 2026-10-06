@@ -10,7 +10,6 @@ import {
   IconLock,
   IconLogout,
   IconPlus,
-  IconSearch,
   IconTable,
   IconUsers,
 } from "@tabler/icons-react";
@@ -31,7 +30,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -98,18 +96,6 @@ export function AppSidebar({ org, organizations, user, spaces, isAdmin, canCreat
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
-        <form
-          className="relative"
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const query = new FormData(event.currentTarget).get("q");
-            router.push(`${base}/search?q=${encodeURIComponent(String(query ?? ""))}`);
-          }}
-        >
-          <IconSearch className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
-          <SidebarInput name="q" placeholder="Search" aria-label="Search folders and documents" className="pl-8" />
-        </form>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

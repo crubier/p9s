@@ -130,7 +130,12 @@ describe.skipIf(!rootUrl)("example app", () => {
       ["Design", "commenter", null],
       ["Engineering", "editor", null],
     ]);
-    expect((await service.listAccess(alice, runbooks.resourceId)).find((row) => row.name === "Engineering")!.from).toBe("Engineering");
+    const inherited = (await service.listAccess(alice, runbooks.resourceId)).find((row) => row.name === "Engineering")!;
+    expect([inherited.from, inherited.fromFolderId]).toEqual(["Engineering", engineering.id]);
+    expect(access.find((row) => row.name === "Admins")!.fromFolderId).toBeNull();
+    // Sharing again changes the access given, down as well as up
+    await service.share(erin, runbooks.resourceId, dave.roleId, "viewer");
+    expect((await service.listAccess(erin, runbooks.resourceId)).find((row) => row.name === "Dave Sales")!.level).toBe("viewer");
     const engineeringTeam = (await service.listTeams(alice)).find((team) => team.name === "Engineering")!;
     await expect(service.unshare(erin, engineering.resourceId, engineeringTeam.roleId)).rejects.toThrow("cannot change");
     await service.unshare(erin, runbooks.resourceId, dave.roleId);

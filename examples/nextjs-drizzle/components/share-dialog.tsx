@@ -1,6 +1,7 @@
 "use client";
 
 import { IconShare, IconTrash, IconUser, IconUsers, IconWorld, IconX } from "@tabler/icons-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { searchPrincipals, share, unshare } from "@/app/o/[org]/actions";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,23 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
   const [level, setLevel] = useState<AccessLevel>("viewer");
   const { pending, run } = useAction();
   const grantable = (Object.keys(ACCESS_LEVELS) as AccessLevel[]).filter((key) => includes(permission, ACCESS_LEVELS[key].permission));
+  const sharers = [...new Set(access.filter((row) => can(row.permission, "share")).map((row) => row.name))];
+  const label = (row: AccessRow) => (row.level ? ACCESS_LEVELS[row.level].label : row.permission);
+
+  const levelPicker = (value: AccessLevel, onChange: (level: AccessLevel) => void, props: { disabled?: boolean; ariaLabel: string; size?: "sm" }) => (
+    <Select value={value} onValueChange={(next) => onChange(next as AccessLevel)} disabled={props.disabled}>
+      <SelectTrigger className="w-36" size={props.size} aria-label={props.ariaLabel}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(grantable.includes(value) ? grantable : [...grantable, value]).map((key) => (
+          <SelectItem key={key} value={key} disabled={!grantable.includes(key)}>
+            {ACCESS_LEVELS[key].label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <Dialog>
@@ -108,9 +126,12 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Who has access to {name}</DialogTitle>
+          <DialogTitle>{canShare ? `Share ${name}` : `Who has access to ${name}`}</DialogTitle>
           <DialogDescription>
-            Access given here, and on the folders above, which it inherits. {canShare ? "You can give access up to your own." : "You cannot share it."}
+            Access given on a folder applies to everything inside it.{" "}
+            {canShare
+              ? "Add people or teams, change what they can do, or remove them. You can give up to your own access."
+              : `Only people with Full access can share it${sharers.length ? `, like ${sharers.slice(0, 3).join(", ")}` : ""}.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -127,36 +148,50 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
             }}
           >
             <PrincipalPicker orgSlug={orgSlug} value={principal} onChange={setPrincipal} />
-            <Select value={level} onValueChange={(value) => setLevel(value as AccessLevel)}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {grantable.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {ACCESS_LEVELS[key].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={pending || !principal}>Share</Button>
+            {levelPicker(level, setLevel, { ariaLabel: "Access to give" })}
+            <Button type="submit" disabled={pending || !principal}>
+              Share
+            </Button>
           </form>
         )}
         <ul className="-mx-1 max-h-[50vh] divide-y overflow-y-auto px-1">
           {access.map((row) => {
             const Icon = ICONS[row.kind];
+            const editable = row.direct && canShare;
             return (
               <li key={`${row.roleId}:${row.from}`} className="flex items-center gap-3 py-2">
                 <Icon className="text-muted-foreground size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{row.name}</div>
                   <div className="text-muted-foreground truncate text-xs">
-                    {row.direct ? "Given here" : row.from ? `From ${row.from}` : "From a folder you cannot see"}
+                    {row.direct ? (
+                      "Given here"
+                    ) : row.fromFolderId ? (
+                      <>
+                        From{" "}
+                        <Link className="text-foreground underline" href={`/o/${orgSlug}/f/${row.fromFolderId}`}>
+                          {row.from}
+                        </Link>
+                        , change it there
+                      </>
+                    ) : row.from ? (
+                      `From ${row.from}, for every space`
+                    ) : (
+                      "From a folder you cannot see"
+                    )}
                     {row.detail && ` · ${row.detail}`}
                   </div>
                 </div>
-                <span className="text-sm">{row.level ? ACCESS_LEVELS[row.level].label : row.permission}</span>
-                {row.direct && canShare && (
+                {editable && row.level ? (
+                  levelPicker(row.level, (next) => run(() => share(orgSlug, resourceId, row.roleId, next), "Access changed"), {
+                    disabled: pending || !includes(permission, row.permission),
+                    ariaLabel: `Access of ${row.name}`,
+                    size: "sm",
+                  })
+                ) : (
+                  <span className="text-sm">{label(row)}</span>
+                )}
+                {editable && (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -170,6 +205,7 @@ export function ShareDialog({ orgSlug, resourceId, name, permission, access }: S
               </li>
             );
           })}
+          {!access.length && <li className="text-muted-foreground py-2 text-sm">Nobody else has access yet.</li>}
         </ul>
       </DialogContent>
     </Dialog>
