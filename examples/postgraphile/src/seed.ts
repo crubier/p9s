@@ -1,10 +1,10 @@
-import type { AccessLevel } from "../lib/permissions";
-import { auth } from "./auth";
-import { pool } from "./db";
-import { graphql, pgl } from "./graphql";
-import { memberIdentity, type Identity } from "./identity";
-import { seedMock } from "./mock/generate";
-import { DEFAULT_MOCK_USERS, MOCK_PASSWORD, mockEmail, mockExamples } from "./mock/people";
+import type { AccessLevel } from "../lib/permissions.js";
+import { auth } from "./auth.js";
+import { pool } from "./db.js";
+import { graphql, pgl } from "./graphql.js";
+import { memberIdentity, type Identity } from "./identity.js";
+import { seedMock } from "./mock/generate.js";
+import { DEFAULT_MOCK_USERS, MOCK_PASSWORD, mockEmail, mockExamples } from "./mock/people.js";
 
 export const PASSWORD = "password1234";
 

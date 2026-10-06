@@ -1,6 +1,6 @@
 import { createMigration } from "@p9s/postgres";
 import { compile } from "pg-sql2";
-import { BIT, BITMAP_SIZE } from "../lib/permissions";
+import { BIT, BITMAP_SIZE } from "../lib/permissions.js";
 
 // Whoever can read a folder or a document sees who else has access to it, like in the "Share" dialog, and whoever
 // has the share bit gives access to it, with bits they have

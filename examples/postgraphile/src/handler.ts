@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { toNodeHandler } from "better-auth/node";
 import { grafserv } from "postgraphile/grafserv/node";
-import { auth } from "./auth";
-import { pgl } from "./graphql";
+import { auth } from "./auth.js";
+import { pgl } from "./graphql.js";
 
 const graphql = pgl.createServ(grafserv).createHandler();
 const signIn = toNodeHandler(auth);

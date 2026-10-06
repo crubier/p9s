@@ -1,4 +1,4 @@
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 // The tables, the p9s migration that binds them to the permission graph, the functions of the API, then the audit
 // triggers, which attach to the edge tables of p9s. All are safe to run again.

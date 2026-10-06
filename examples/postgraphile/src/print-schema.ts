@@ -1,6 +1,6 @@
 import { printSchema } from "postgraphile/graphql";
-import { pool } from "./db";
-import { pgl } from "./graphql";
+import { pool } from "./db.js";
+import { pgl } from "./graphql.js";
 
 // Writes the GraphQL schema PostGraphile builds from the database, to review what it exposes, and for the types of
 // the operations of the app

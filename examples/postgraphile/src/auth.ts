@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 // On Vercel, every deployment answers on its own URL, its branch's, and the production domain
 const vercelOrigins = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]

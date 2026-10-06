@@ -4,8 +4,8 @@ import { defaultMaskError } from "postgraphile/grafserv";
 import { GraphQLError } from "postgraphile/graphql";
 import { PostGraphileAmberPreset } from "postgraphile/presets/amber";
 import { wrapPlans } from "postgraphile/utils";
-import { pool } from "./db";
-import { CHECK_ROWS_HEADER, identify, ORG_HEADER, pgSettingsOf, type Identity } from "./identity";
+import { pool } from "./db.js";
+import { CHECK_ROWS_HEADER, identify, ORG_HEADER, pgSettingsOf, type Identity } from "./identity.js";
 
 declare global {
   namespace Grafast {

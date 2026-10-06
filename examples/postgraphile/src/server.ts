@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
-import { handle, servesPath } from "./handler";
+import { handle, servesPath } from "./handler.js";
 
 // One server for the app, GraphQL and GraphiQL. In development Vite serves the pages, and reloads them; otherwise
 // they are the files `vite build` wrote to dist

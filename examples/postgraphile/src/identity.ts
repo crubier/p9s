@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import { fromNodeHeaders } from "better-auth/node";
-import { BIT } from "../lib/permissions";
-import { auth } from "./auth";
-import { pool } from "./db";
+import { BIT } from "../lib/permissions.js";
+import { auth } from "./auth.js";
+import { pool } from "./db.js";
 
 // The organization a request is made in, by its slug. The app sends it with every request, GraphiQL with the headers of
 // the links that open it

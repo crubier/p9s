@@ -1,8 +1,8 @@
 import { postgraphile } from "postgraphile";
 import { grafast } from "postgraphile/grafast";
 import type { ExecutionResult } from "postgraphile/graphql";
-import { maskError, preset } from "./graphile.config";
-import type { Identity } from "./identity";
+import { maskError, preset } from "./graphile.config.js";
+import type { Identity } from "./identity.js";
 
 export const pgl = postgraphile(preset);
 

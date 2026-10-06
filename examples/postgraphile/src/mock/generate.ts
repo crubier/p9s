@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { hashPassword } from "better-auth/crypto";
-import { ACCESS_LEVELS, type AccessLevel } from "../../lib/permissions";
-import { pool } from "../db";
-import { fromApiKey, hashApiKey, memberIdentity, type Identity } from "../identity";
-import { api } from "../seed";
-import { DOCUMENTS_PER_MEMBER, MOCK_PASSWORD, mockEmail, mockMember, mockName, mockOrganizations, type MockMember, type MockOrganization } from "./people";
+import { ACCESS_LEVELS, type AccessLevel } from "../../lib/permissions.js";
+import { pool } from "../db.js";
+import { fromApiKey, hashApiKey, memberIdentity, type Identity } from "../identity.js";
+import { api } from "../seed.js";
+import { DOCUMENTS_PER_MEMBER, MOCK_PASSWORD, mockEmail, mockMember, mockName, mockOrganizations, type MockMember, type MockOrganization } from "./people.js";
 
 // Mock organizations, the same on every run: thousands of members in teams, spaces with nested folders, documents,
 // comments, shares and API keys, then a month of activity.
