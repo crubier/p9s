@@ -1,10 +1,8 @@
-import { IconFilePlus, IconFolderPlus } from "@tabler/icons-react";
 import { ItemActions } from "@/components/item-actions";
 import { ItemList } from "@/components/item-list";
-import { NewItemButton } from "@/components/new-item-button";
+import { AddMenu } from "@/components/new-item-button";
 import { PageBody, PageHeader } from "@/components/page-header";
 import { ShareDialog } from "@/components/share-dialog";
-import { Button } from "@/components/ui/button";
 import { can } from "@/lib/permissions";
 import { getFolder, listAccess } from "@/src/service";
 import { requireActor } from "@/src/session";
@@ -24,20 +22,7 @@ export default async function FolderPage({ params }: { params: Promise<{ org: st
       <PageBody className="flex flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <h1 className="flex-1 text-xl font-semibold">{folder.name}</h1>
-          {can(folder.permission, "create") && (
-            <>
-              <NewItemButton orgSlug={slug} kind="folder" parentId={id}>
-                <Button variant="outline" size="sm">
-                  <IconFolderPlus /> New folder
-                </Button>
-              </NewItemButton>
-              <NewItemButton orgSlug={slug} kind="document" parentId={id}>
-                <Button size="sm">
-                  <IconFilePlus /> New document
-                </Button>
-              </NewItemButton>
-            </>
-          )}
+          {can(folder.permission, "create") && <AddMenu orgSlug={slug} parentId={id} />}
           <ShareDialog orgSlug={slug} resourceId={folder.resourceId} name={folder.name} permission={folder.permission} access={access} />
           <ItemActions
             orgSlug={slug}
