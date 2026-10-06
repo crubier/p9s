@@ -494,6 +494,7 @@ export const createMigrationGraphTables = <User extends string>(kind: Kind, nami
   const { type: idType } = getIdType(config);
   const { orBitmap } = naming;
   const { users, writers, everyone } = getRoles(config);
+  const pkeyColumns = kind === "resource" ? [childId, parentId] : [parentId, childId];
 
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
@@ -538,12 +539,28 @@ create table if not exists ${edgeCache} (
   ${parentId} ${idType} not null,
   ${childId} ${idType} not null,
   ${permission} bit(${literal(size)}),
-  constraint ${edgeCachePkey} primary key (${parentId}, ${childId})
+  constraint ${edgeCachePkey} primary key (${join(pkeyColumns, ", ")})
 );
+${kind === "resource" ? sql`
+-- The ancestors of a resource are looked up by the primary key, its descendants by the parent index. With the parent
+-- first, Postgres 18 could look ancestors up with a skip scan of the primary key, which it expects to take one search
+-- per distinct parent, a single one with the estimate below, and which takes one per parent.
+do $$
+begin
+  if (select "the_column"."attname" from pg_index as "the_index"
+    join pg_attribute as "the_column" on "the_column"."attrelid" = "the_index"."indrelid" and "the_column"."attnum" = "the_index"."indkey"[0]
+    where "the_index"."indexrelid" = ${textLiteral(compile(edgeCachePkey).text)}::regclass) <> ${textLiteral(nameOf(childId))} then
+    alter table ${edgeCache} drop constraint ${edgeCachePkey}, add constraint ${edgeCachePkey} primary key (${join(pkeyColumns, ", ")});
+  end if;
+end
+$$;
 
 create index if not exists ${edgeCacheParentIdIndex} on ${edgeCache} (${parentId});
 
-create index if not exists ${edgeCacheChildIdIndex} on ${edgeCache} (${childId});
+drop index if exists ${edgeCacheChildIdIndex};` : sql`
+create index if not exists ${edgeCacheParentIdIndex} on ${edgeCache} (${parentId});
+
+create index if not exists ${edgeCacheChildIdIndex} on ${edgeCache} (${childId});`}
 ${kind === "resource" ? sql`
 -- Policies either check the ancestors of each row, or list once every resource the user can see, from the ones
 -- assigned to them. Postgres estimates the descendants of an assigned resource as the cache rows per distinct parent,
@@ -734,8 +751,27 @@ ${join(kinds.flatMap(kind => getIdBindings(kind, naming, config).map(binding => 
 
 
 export const createMigrationViews = <User extends string>(kind: Kind, naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { parentId, childId, permission, edgeCacheParentCompute, edgeCacheView } = naming[kind];
+  const { parentId, childId, permission, edgeCacheParentCompute, edgeCacheChildCompute, edgeCacheView } = naming[kind];
   const { users, writers } = getRoles(config);
+  const { assignment } = naming;
+  if (kind === "resource" && config.engine.resourceCache === "assigned") {
+    return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- ${literal(kind)} view of the cached transitive edges, computed from scratch
+-----------------------------------------------------------------------------------------------------------------------
+-- A self row for every resource, and the rows below each resource that has assignments
+create or replace view ${edgeCacheView} as
+select "the_node"."id" as ${parentId}, "the_node"."id" as ${childId}, (${ones(config)})::bit(${literal(config.engine.permission.bitmap.size)}) as ${permission}
+from (${boundIds(kind, naming, config)}) as "the_node" ("id")
+union all
+select "child_permissions".${parentId}, "child_permissions".${childId}, "child_permissions".${permission}
+from (select distinct "the_assignment".${assignment.resourceId} as "id" from ${assignment.edge} as "the_assignment") as "the_assigned",
+  lateral ${edgeCacheChildCompute} ("the_assigned"."id") as "child_permissions"
+where "child_permissions".${childId} <> "child_permissions".${parentId};
+
+${setPrivileges(edgeCacheView, writers, [], users)}
+`;
+  }
   return sql`
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(kind)} view of all transitive edges, computed from scratch
@@ -825,6 +861,12 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
   const bindings = getBindings(kind, naming, config);
   const assignmentId = kind === "resource" ? assignment.resourceId : assignment.roleId;
   const allBits = ones(config);
+  const assignedOnly = kind === "resource" && config.engine.resourceCache === "assigned";
+  // With an assigned-only cache, the rows ending at an unaffected node are those of its assigned ancestors, which are
+  // the only ones the affected nodes need too. The assigned upstream nodes are looked up once: compared row by row,
+  // Postgres would hash every assignment.
+  const kept = (parent: SQL, child: SQL) => assignedOnly ? sql`
+      and (${parent} = ${child} or ${isIn(parent, sql`select ${parentId} from "assigned"`)})` : sql``;
 
   // A cache row (ancestor, descendant) can only change when a changed edge parent -> child lies on one of its paths,
   // before or after the change. Its descendant is then the child or below it, an "affected" node. Its ancestor reaches
@@ -848,7 +890,11 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
     select "the_edge".${parentId}
     from ${edge} as "the_edge"
     join "upstream" on "the_edge".${childId} = "upstream".${parentId}
-  ),
+  ),${assignedOnly ? sql`
+  "assigned" (${parentId}) as (
+    select "upstream".${parentId} from "upstream"
+    where exists (select from ${assignment.edge} as "the_assignment" where "the_assignment".${assignment.resourceId} = "upstream".${parentId})
+  ),` : sql``}
   "walk" (${parentId}, ${childId}, ${permission}, "inside", "depth", "path") as (
     select "affected".${parentId}, "affected".${parentId}, ${allBits}, true, 0, array["affected".${parentId}]
     from "affected"
@@ -872,7 +918,7 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
       select "walk".${parentId}, "walk".${childId}, "walk".${permission}
       from "walk"
       where "walk"."inside"
-      and ${isIn(sql`"walk".${parentId}`, sql`select ${parentId} from "upstream"`)}
+      and ${isIn(sql`"walk".${parentId}`, sql`select ${parentId} from "upstream"`)}${kept(sql`"walk".${parentId}`, sql`"walk".${childId}`)}
       union all
       -- Filtered after the join: on the cache lookup, Postgres would count building the hash of "upstream" once per
       -- walked node, and prefer comparing every walked node with the whole cache.
@@ -884,7 +930,7 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
         where not "walk"."inside"
         offset 0
       ) as "the_ancestor"
-      where ${isIn(sql`"the_ancestor".${parentId}`, sql`select ${parentId} from "upstream"`)}
+      where ${isIn(sql`"the_ancestor".${parentId}`, sql`select ${parentId} from "upstream"`)}${kept(sql`"the_ancestor".${parentId}`, sql`"the_ancestor".${childId}`)}
     ) as "the_path"
     group by ("the_path".${parentId}, "the_path".${childId})
   ),
@@ -1188,10 +1234,43 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
   const triggersByTable: Array<[SQL, SQL[]]> = [
     [edge, [edgeInsertTrigger, edgeUpdateTrigger, edgeDeleteTrigger, edgeGuardInsertTrigger, edgeGuardUpdateTrigger, edgeGuardDeleteTrigger, truncateGuardTrigger]],
     ...bindings.map(({ table, triggers }): [SQL, SQL[]] => [table, [triggers.insert, triggers.update, triggers.delete, truncateGuardTrigger]]),
-    ...(kind === "resource" ? [[assignment.edge, [assignment.edgeValidateInsertTrigger, assignment.edgeValidateUpdateTrigger, truncateGuardTrigger]] as [SQL, SQL[]]] : []),
+    ...(kind === "resource" ? [[assignment.edge, [assignment.edgeValidateInsertTrigger, assignment.edgeValidateUpdateTrigger, truncateGuardTrigger,
+      ...(assignedOnly ? [assignment.resourceCacheInsertTrigger, assignment.resourceCacheUpdateTrigger, assignment.resourceCacheDeleteTrigger] : [])]] as [SQL, SQL[]]] : []),
   ];
   const toggleTriggers = (action: SQL) => join(triggersByTable.flatMap(([table, triggers]) =>
     triggers.map(trigger => sql`alter table ${table} ${action} trigger ${trigger};`)), `\n  `);
+
+  // With an assigned-only cache, a resource gets the rows of its descendants with its first assignment, and loses them
+  // with its last one. An assigned resource has a row for each of its descendants, so one row other than its self row
+  // tells that it has them. These triggers run before those of the combined assignment cache, which reads these rows.
+  const unassignedResources = sql`select distinct "the_old".${assignment.resourceId} as "id" from "p9s_old_rows" as "the_old"
+    where not exists (select from ${assignment.edge} as "the_assignment" where "the_assignment".${assignment.resourceId} = "the_old".${assignment.resourceId})`;
+  const newlyAssignedResources = sql`select distinct "the_new".${assignment.resourceId} as "id" from "p9s_new_rows" as "the_new"
+    where not exists (select from ${edgeCache} as "the_edge_cache"
+      where "the_edge_cache".${parentId} = "the_new".${assignment.resourceId} and "the_edge_cache".${childId} <> "the_new".${assignment.resourceId})`;
+  const dropDescendants = sql`
+  delete from ${edgeCache} as "the_edge_cache"
+  using (${unassignedResources}) as "the_resource"
+  where "the_edge_cache".${parentId} = "the_resource"."id" and "the_edge_cache".${childId} <> "the_resource"."id";`;
+  const addDescendants = sql`
+  insert into ${edgeCache} (${parentId}, ${childId}, ${permission})
+  select "the_descendant".${parentId}, "the_descendant".${childId}, "the_descendant".${permission}
+  from (${newlyAssignedResources}) as "the_resource",
+    lateral ${naming[kind].edgeCacheChildCompute} ("the_resource"."id") as "the_descendant"
+  where "the_descendant".${childId} <> "the_descendant".${parentId}
+  on conflict on constraint ${edgeCachePkey} do nothing;`;
+  const assignmentTrigger = (functionName: SQL, triggerName: SQL, event: TriggerEvent, body: SQL) =>
+    statementTrigger(naming, config, functionName, triggerName, assignment.edge, event, body, indexLookupsOnly);
+  const assignedCacheTriggers = sql`
+drop trigger if exists ${assignment.resourceCacheInsertTrigger} on ${assignment.edge};
+drop trigger if exists ${assignment.resourceCacheUpdateTrigger} on ${assignment.edge};
+drop trigger if exists ${assignment.resourceCacheDeleteTrigger} on ${assignment.edge};${assignedOnly ? sql`
+${assignmentTrigger(assignment.resourceCacheInsertTriggerFunction, assignment.resourceCacheInsertTrigger, "insert", addDescendants)}
+${assignmentTrigger(assignment.resourceCacheUpdateTriggerFunction, assignment.resourceCacheUpdateTrigger, "update", sql`${dropDescendants}${addDescendants}`)}
+${assignmentTrigger(assignment.resourceCacheDeleteTriggerFunction, assignment.resourceCacheDeleteTrigger, "delete", dropDescendants)}` : sql`
+drop function if exists ${assignment.resourceCacheInsertTriggerFunction} ();
+drop function if exists ${assignment.resourceCacheUpdateTriggerFunction} ();
+drop function if exists ${assignment.resourceCacheDeleteTriggerFunction} ();`}`;
 
   // Rows written while the triggers were disabled get their home edges, and home edges follow their parent column
   const homeEdgeFixups = join(bindings.map(binding => hasParent(binding) ? sql`
@@ -1279,7 +1358,7 @@ ${grantExecute(sql`${edgeCacheBackfill} ()`, writers)}
 ${edgeTrigger(edgeInsertTriggerFunction, edgeInsertTrigger, "insert")}
 ${edgeTrigger(edgeUpdateTriggerFunction, edgeUpdateTrigger, "update")}
 ${edgeTrigger(edgeDeleteTriggerFunction, edgeDeleteTrigger, "delete")}
-
+${kind === "resource" ? assignedCacheTriggers : sql``}
 drop trigger if exists ${truncateGuardTrigger} on ${edge};
 create trigger ${truncateGuardTrigger} before truncate on ${edge} for each statement execute function ${naming.truncateGuardFunction}();
 
@@ -1927,7 +2006,8 @@ create or replace view ${currentAssignmentView} with (security_barrier) as${assi
 ${setPrivileges(currentAssignmentView, everyone, [])}
 
 -- The edges of the resource cache between two resources the current user reaches, to tell what is below what. The
--- cache has a row for every ancestor, bits or not, so whoever reaches a resource reaches what is below it
+-- cache has a row for every ancestor, bits or not, so whoever reaches a resource reaches what is below it.${config.engine.resourceCache === "assigned" ? sql`
+-- With resourceCache "assigned", only the ancestors that have assignments have rows.` : sql``}
 create or replace view ${currentResourceEdgeView} with (security_barrier) as
 select "the_edge".${resource.parentId}, "the_edge".${resource.childId}, "the_edge".${resource.permission}
 from ${resource.edgeCache} as "the_edge"

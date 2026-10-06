@@ -41,6 +41,12 @@ jobs:
         run: bun run test
         env:
           P9S_TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
+      - name: Postgres package tests with resourceCache assigned
+        run: bun test
+        working-directory: packages/postgres
+        env:
+          P9S_TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
+          P9S_TEST_RESOURCE_CACHE: assigned
       - name: Benchmark smoke run
         run: bun run bench --url "$DATABASE_URL" --sizes 4 --reps 3 --warmup 1 --out bench-results
       - uses: actions/upload-artifact@v4

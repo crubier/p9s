@@ -605,6 +605,24 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "permission": {
       "type": "string",
     },
+    "resourceCacheDeleteTrigger": {
+      "type": "string",
+    },
+    "resourceCacheDeleteTriggerFunction": {
+      "type": "string",
+    },
+    "resourceCacheInsertTrigger": {
+      "type": "string",
+    },
+    "resourceCacheInsertTriggerFunction": {
+      "type": "string",
+    },
+    "resourceCacheUpdateTrigger": {
+      "type": "string",
+    },
+    "resourceCacheUpdateTriggerFunction": {
+      "type": "string",
+    },
     "resourceFkey": {
       "type": "string",
     },
@@ -653,6 +671,12 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "combinedEdgeUpdateTrigger",
     "combinedEdgeDeleteTriggerFunction",
     "combinedEdgeDeleteTrigger",
+    "resourceCacheInsertTriggerFunction",
+    "resourceCacheInsertTrigger",
+    "resourceCacheUpdateTriggerFunction",
+    "resourceCacheUpdateTrigger",
+    "resourceCacheDeleteTriggerFunction",
+    "resourceCacheDeleteTrigger",
     "enableTriggerFunction",
     "disableTriggerFunction",
     "edgePolicy",
@@ -780,6 +804,24 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "permission": {
           "type": "string",
         },
+        "resourceCacheDeleteTrigger": {
+          "type": "string",
+        },
+        "resourceCacheDeleteTriggerFunction": {
+          "type": "string",
+        },
+        "resourceCacheInsertTrigger": {
+          "type": "string",
+        },
+        "resourceCacheInsertTriggerFunction": {
+          "type": "string",
+        },
+        "resourceCacheUpdateTrigger": {
+          "type": "string",
+        },
+        "resourceCacheUpdateTriggerFunction": {
+          "type": "string",
+        },
         "resourceFkey": {
           "type": "string",
         },
@@ -828,6 +870,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "combinedEdgeUpdateTrigger",
         "combinedEdgeDeleteTriggerFunction",
         "combinedEdgeDeleteTrigger",
+        "resourceCacheInsertTriggerFunction",
+        "resourceCacheInsertTrigger",
+        "resourceCacheUpdateTriggerFunction",
+        "resourceCacheUpdateTrigger",
+        "resourceCacheDeleteTriggerFunction",
+        "resourceCacheDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
         "edgePolicy",
@@ -1755,6 +1803,24 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "permission": {
           "type": "string",
         },
+        "resourceCacheDeleteTrigger": {
+          "type": "string",
+        },
+        "resourceCacheDeleteTriggerFunction": {
+          "type": "string",
+        },
+        "resourceCacheInsertTrigger": {
+          "type": "string",
+        },
+        "resourceCacheInsertTriggerFunction": {
+          "type": "string",
+        },
+        "resourceCacheUpdateTrigger": {
+          "type": "string",
+        },
+        "resourceCacheUpdateTriggerFunction": {
+          "type": "string",
+        },
         "resourceFkey": {
           "type": "string",
         },
@@ -1803,6 +1869,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "combinedEdgeUpdateTrigger",
         "combinedEdgeDeleteTriggerFunction",
         "combinedEdgeDeleteTrigger",
+        "resourceCacheInsertTriggerFunction",
+        "resourceCacheInsertTrigger",
+        "resourceCacheUpdateTriggerFunction",
+        "resourceCacheUpdateTrigger",
+        "resourceCacheDeleteTriggerFunction",
+        "resourceCacheDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
         "edgePolicy",
@@ -2968,6 +3040,24 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "permission": {
               "type": "string",
             },
+            "resourceCacheDeleteTrigger": {
+              "type": "string",
+            },
+            "resourceCacheDeleteTriggerFunction": {
+              "type": "string",
+            },
+            "resourceCacheInsertTrigger": {
+              "type": "string",
+            },
+            "resourceCacheInsertTriggerFunction": {
+              "type": "string",
+            },
+            "resourceCacheUpdateTrigger": {
+              "type": "string",
+            },
+            "resourceCacheUpdateTriggerFunction": {
+              "type": "string",
+            },
             "resourceFkey": {
               "type": "string",
             },
@@ -3016,6 +3106,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "combinedEdgeUpdateTrigger",
             "combinedEdgeDeleteTriggerFunction",
             "combinedEdgeDeleteTrigger",
+            "resourceCacheInsertTriggerFunction",
+            "resourceCacheInsertTrigger",
+            "resourceCacheUpdateTriggerFunction",
+            "resourceCacheUpdateTrigger",
+            "resourceCacheDeleteTriggerFunction",
+            "resourceCacheDeleteTrigger",
             "enableTriggerFunction",
             "disableTriggerFunction",
             "edgePolicy",
@@ -3778,6 +3874,14 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
     "postgraphile": {
       "type": "boolean",
     },
+    "resourceCache": {
+      "default": "full",
+      "enum": [
+        "full",
+        "assigned",
+      ],
+      "type": "string",
+    },
     "schema": {
       "type": "string",
     },
@@ -3796,6 +3900,7 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
     "authentication",
     "id",
     "combineAssignmentsWith",
+    "resourceCache",
     "naming",
   ],
   "type": "object",
@@ -4004,6 +4109,24 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "permission": {
                   "type": "string",
                 },
+                "resourceCacheDeleteTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheDeleteTriggerFunction": {
+                  "type": "string",
+                },
+                "resourceCacheInsertTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "resourceCacheUpdateTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheUpdateTriggerFunction": {
+                  "type": "string",
+                },
                 "resourceFkey": {
                   "type": "string",
                 },
@@ -4052,6 +4175,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "combinedEdgeUpdateTrigger",
                 "combinedEdgeDeleteTriggerFunction",
                 "combinedEdgeDeleteTrigger",
+                "resourceCacheInsertTriggerFunction",
+                "resourceCacheInsertTrigger",
+                "resourceCacheUpdateTriggerFunction",
+                "resourceCacheUpdateTrigger",
+                "resourceCacheDeleteTriggerFunction",
+                "resourceCacheDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
                 "edgePolicy",
@@ -4814,6 +4943,14 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
         "postgraphile": {
           "type": "boolean",
         },
+        "resourceCache": {
+          "default": "full",
+          "enum": [
+            "full",
+            "assigned",
+          ],
+          "type": "string",
+        },
         "schema": {
           "type": "string",
         },
@@ -4832,6 +4969,7 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
         "authentication",
         "id",
         "combineAssignmentsWith",
+        "resourceCache",
         "naming",
       ],
       "type": "object",
@@ -5246,6 +5384,24 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "permission": {
                   "type": "string",
                 },
+                "resourceCacheDeleteTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheDeleteTriggerFunction": {
+                  "type": "string",
+                },
+                "resourceCacheInsertTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheInsertTriggerFunction": {
+                  "type": "string",
+                },
+                "resourceCacheUpdateTrigger": {
+                  "type": "string",
+                },
+                "resourceCacheUpdateTriggerFunction": {
+                  "type": "string",
+                },
                 "resourceFkey": {
                   "type": "string",
                 },
@@ -5294,6 +5450,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "combinedEdgeUpdateTrigger",
                 "combinedEdgeDeleteTriggerFunction",
                 "combinedEdgeDeleteTrigger",
+                "resourceCacheInsertTriggerFunction",
+                "resourceCacheInsertTrigger",
+                "resourceCacheUpdateTriggerFunction",
+                "resourceCacheUpdateTrigger",
+                "resourceCacheDeleteTriggerFunction",
+                "resourceCacheDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
                 "edgePolicy",
@@ -6055,6 +6217,14 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
         },
         "postgraphile": {
           "type": "boolean",
+        },
+        "resourceCache": {
+          "default": "full",
+          "enum": [
+            "full",
+            "assigned",
+          ],
+          "type": "string",
         },
         "schema": {
           "type": "string",

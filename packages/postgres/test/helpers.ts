@@ -20,17 +20,24 @@ export interface TestContext {
   database_writer_username: string;
 }
 
+export type ResourceCacheMode = "full" | "assigned";
+export const resourceCacheModes: ResourceCacheMode[] = ["full", "assigned"];
+// Runs the suites that do not set it with another resource cache
+export const defaultResourceCache = (process.env.P9S_TEST_RESOURCE_CACHE ?? "full") as ResourceCacheMode;
+
 export interface BlogOptions {
   combineAssignmentsWith?: CombineMode;
   idMode?: IdMode;
+  resourceCache?: ResourceCacheMode;
 }
 
 // Groups are the nodes the graph tests wire together. Posts live in a resource group, through their group_id column.
-export const blogMigrationConfig = (ctx: TestContext, { combineAssignmentsWith = "none", idMode = "integer" }: BlogOptions = {}) => ({
+export const blogMigrationConfig = (ctx: TestContext, { combineAssignmentsWith = "none", idMode = "integer", resourceCache = defaultResourceCache }: BlogOptions = {}) => ({
   engine: {
     permission: { bitmap: { size: BITMAP_SIZE }, maxDepth: { resource: 32, role: 32 } },
     authentication: { getCurrentUserId: "current_role_id" },
     combineAssignmentsWith,
+    resourceCache,
     id: { mode: idMode },
     users: [ctx.database_user_username],
     graphWriters: [ctx.database_writer_username],
@@ -444,6 +451,25 @@ export const cacheMismatches = async (ctx: TestContext, combineAssignmentsWith: 
 };
 
 export const noMismatches = { resource: 0, role: 0, assignment: 0 };
+
+// With resourceCache "assigned", the rows of the full closure whose ancestor is the descendant itself or has assignments
+export const assignedCacheMismatches = async (ctx: TestContext) => {
+  const [, rows] = await ctx.runTestQuery(sql`
+    set jit = off;
+    with "expected" as (
+      select "the_closure".* from (select "id" from "resource_group" union all select "resource_id" from "blog_post") as "the_node",
+        lateral "resource_edge_cache_parent_compute" ("the_node"."id") as "the_closure"
+      where "the_closure"."parent_id" = "the_closure"."child_id"
+      or exists (select from "assignment_edge" where "assignment_edge"."resource_id" = "the_closure"."parent_id")
+    )
+    select count(*)::int as "n" from (
+      (select "parent_id", "child_id", "permission" from "resource_edge_cache" except all select "parent_id", "child_id", "permission" from "expected")
+      union all
+      (select "parent_id", "child_id", "permission" from "expected" except all select "parent_id", "child_id", "permission" from "resource_edge_cache")
+    ) as "the_diff";
+    reset jit;`);
+  return rows[0].n as number;
+};
 
 // Edges in the database that differ from the mirror, home flag included
 export const edgeMismatches = async (ctx: TestContext, graph: Graph) => {

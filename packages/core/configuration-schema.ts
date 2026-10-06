@@ -155,6 +155,13 @@ export const assignmentNamingConfigSchema = z.object({
   combinedEdgeUpdateTrigger: z.string(),
   combinedEdgeDeleteTriggerFunction: z.string(),
   combinedEdgeDeleteTrigger: z.string(),
+  // With resourceCache "assigned": the cache rows below a resource exist while it has assignments
+  resourceCacheInsertTriggerFunction: z.string(),
+  resourceCacheInsertTrigger: z.string(),
+  resourceCacheUpdateTriggerFunction: z.string(),
+  resourceCacheUpdateTrigger: z.string(),
+  resourceCacheDeleteTriggerFunction: z.string(),
+  resourceCacheDeleteTrigger: z.string(),
   enableTriggerFunction: z.string(),
   disableTriggerFunction: z.string(),
   // Prefix of the policies of the assignment table, followed by the user and the operation, or by "writer"
@@ -311,6 +318,9 @@ export const engineConfigBaseSchema = z.object({
     mode: z.enum(["integer", "uuid"]),
   }),
   combineAssignmentsWith: z.enum(["none", "role", "resource"]),
+  // "full" caches every (ancestor, descendant) pair of resources. "assigned" only caches the pairs whose ancestor has
+  // assignments, which are the ones permissions come from, and a self row per resource.
+  resourceCache: z.enum(["full", "assigned"]).default("full"),
   // For PostGraphile: smart comments with the keys of the node views and of the views of p9s, the internal tables and
   // functions hidden from the GraphQL schema, and a permission field on each resource table
   postgraphile: z.boolean().optional(),

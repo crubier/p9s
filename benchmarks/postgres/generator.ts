@@ -28,11 +28,13 @@ export interface Context {
 
 export type IdMode = "integer" | "uuid";
 export type CombineMode = "none" | "role" | "resource";
+export type ResourceCacheMode = "full" | "assigned";
 
 export interface BenchmarkOptions {
   benchmarkSizeFactor?: number;
   idMode?: IdMode;
   combineAssignmentsWith?: CombineMode;
+  resourceCache?: ResourceCacheMode;
   // Timed repetitions per read or write scenario, run after `warmup` untimed ones
   reps?: number;
   warmup?: number;
@@ -133,6 +135,7 @@ export async function runPostgresBenchmark(context: Context, {
   benchmarkSizeFactor = 5,
   idMode = "uuid",
   combineAssignmentsWith = "none",
+  resourceCache = "full",
   reps = 30,
   warmup = 3,
   baseline = true,
@@ -277,7 +280,8 @@ export async function runPostgresBenchmark(context: Context, {
       id: {
         mode: idMode
       },
-      combineAssignmentsWith
+      combineAssignmentsWith,
+      resourceCache,
     },
     tables: [
       { name: "company", isRole: true, roleId: "role_id" },
@@ -865,6 +869,36 @@ export async function runPostgresBenchmark(context: Context, {
       `
     });
   }
+  // With resourceCache "assigned", the first assignment of a resource caches its descendants, and the last one drops
+  // them. The other assignments of the resource are removed untimed first.
+  const withArticle = (noun: string) => `${/^[aeiou]/.test(noun) ? "an" : "a"} ${noun}`;
+  const unassignedScenarios: Array<{ name: string, statement: (i: number) => { setup: SQL, statement: SQL } }> = [];
+  for (let d = 0; d < resourceTree.levelInfo.length - 1; d++) {
+    const level = resourceTree.levelInfo[d]!;
+    let descendants = 0, width = 1;
+    for (const { fanOut } of resourceTree.levelInfo.slice(d + 1)) descendants += (width *= fanOut);
+    unassignedScenarios.push({
+      name: `assignment: first share of ${withArticle(resourceLevelNames[d]!)} (${descendants} below)`,
+      statement: () => {
+        const resource = pick(level);
+        return {
+          setup: sql`delete from "assignment_edge" where "resource_id" = ${nodeId(resource)}`,
+          statement: sql`insert into "assignment_edge" ("role_id", "resource_id", "permission") values (${nodeId(pick(users))}, ${nodeId(resource)}, ${bitmap(0.5, 2)})`,
+        };
+      }
+    }, {
+      name: `assignment: revoke the last share of ${withArticle(resourceLevelNames[d]!)}`,
+      statement: () => {
+        const resource = pick(level), user = pick(users);
+        return {
+          setup: sql`
+            delete from "assignment_edge" where "resource_id" = ${nodeId(resource)};
+            insert into "assignment_edge" ("role_id", "resource_id", "permission") values (${nodeId(user)}, ${nodeId(resource)}, ${bitmap(0.5, 2)})`,
+          statement: sql`delete from "assignment_edge" where "resource_id" = ${nodeId(resource)} and "role_id" = ${nodeId(user)}`,
+        };
+      }
+    });
+  }
   writeScenarios.push(
     {
       name: "assignment: revoke",
@@ -925,6 +959,7 @@ export async function runPostgresBenchmark(context: Context, {
     }
   };
   await measureWrites(writeScenarios);
+  await measureWrites(unassignedScenarios);
 
   // Business-row writes, the way an application creates, moves and deletes its rows. The application user acts as a
   // role assigned all bits on a few projects and folders spread over the tree, which it can then write. Objects are
@@ -1213,7 +1248,7 @@ export async function runPostgresBenchmark(context: Context, {
   logger.log("Total time (seconds):", (performance.now() - startTime) / 1000);
 
   return {
-    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, reps, warmup, baseline, concurrency, concurrencySeconds, commentsPerPost, comments, keysPerUser, keys },
+    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, resourceCache, reps, warmup, baseline, concurrency, concurrencySeconds, commentsPerPost, comments, keysPerUser, keys },
     dataset: {
       resourceNodes: resourceTree.totalNodes,
       resourceEdges: resourceTree.totalEdges,

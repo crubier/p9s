@@ -6,7 +6,7 @@ import path from 'node:path';
 import { query as sql } from 'pg-sql2';
 import { setupTests as setupPgTests } from '@p9s/postgres-testing/pg';
 import { setupTests as setupPgliteTests } from '@p9s/postgres-testing/pglite';
-import { runPostgresBenchmark, type BenchmarkResult, type CombineMode, type CommentMode, type Context, type IdMode, type KeyMode } from './generator';
+import { runPostgresBenchmark, type BenchmarkResult, type CombineMode, type CommentMode, type Context, type IdMode, type KeyMode, type ResourceCacheMode } from './generator';
 
 const usage = `
 Usage: bun run.ts [options]
@@ -17,6 +17,8 @@ Usage: bun run.ts [options]
   --ids <integer,uuid>    Id modes (default: integer,uuid)
   --combine <none,role,resource>
                           Assignment combination modes (default: none,role)
+  --resource-cache <full,assigned>
+                          Resource cache modes (default: full)
   --reps <n>              Timed repetitions per read and write scenario (default: 30)
   --warmup <n>            Untimed repetitions before each scenario (default: 3)
   --no-baseline           Skip the no-cache baseline reads
@@ -37,6 +39,7 @@ const { values: args } = parseArgs({
     sizes: { type: 'string', default: '5' },
     ids: { type: 'string', default: 'integer,uuid' },
     combine: { type: 'string', default: 'none,role' },
+    'resource-cache': { type: 'string', default: 'full' },
     reps: { type: 'string', default: '30' },
     warmup: { type: 'string', default: '3' },
     'no-baseline': { type: 'boolean', default: false },
@@ -60,6 +63,7 @@ const list = (value: string) => value.split(',').map(v => v.trim()).filter(Boole
 const sizes = list(args.sizes!).map(Number);
 const ids = list(args.ids!) as IdMode[];
 const combines = list(args.combine!) as CombineMode[];
+const resourceCaches = list(args['resource-cache']!) as ResourceCacheMode[];
 const reps = Number(args.reps);
 const warmup = Number(args.warmup);
 const db = args.db as 'pg' | 'pglite';
@@ -106,8 +110,8 @@ let server: Awaited<ReturnType<typeof readServerInfo>> | undefined;
 try {
   for (const benchmarkSizeFactor of sizes) {
     for (const idMode of ids) {
-      for (const combineAssignmentsWith of combines) {
-        console.log(`\n▶ ${db} size=${benchmarkSizeFactor} id=${idMode} combine=${combineAssignmentsWith} comments=${comments} keys=${keys}`);
+      for (const [combineAssignmentsWith, resourceCache] of combines.flatMap(combine => resourceCaches.map(cache => [combine, cache] as const))) {
+        console.log(`\n▶ ${db} size=${benchmarkSizeFactor} id=${idMode} combine=${combineAssignmentsWith} resourceCache=${resourceCache} comments=${comments} keys=${keys}`);
         const { context, setup, teardown } = setupTests();
         await setup();
         try {
@@ -116,6 +120,7 @@ try {
             benchmarkSizeFactor,
             idMode,
             combineAssignmentsWith,
+            resourceCache,
             reps,
             warmup,
             baseline: !args['no-baseline'],
@@ -140,7 +145,7 @@ try {
   }
 }
 
-const label = ({ options }: BenchmarkResult) => `${options.benchmarkSizeFactor}/${options.idMode}/${options.combineAssignmentsWith}`;
+const label = ({ options }: BenchmarkResult) => `${options.benchmarkSizeFactor}/${options.idMode}/${options.combineAssignmentsWith}${options.resourceCache === "assigned" ? "/assigned" : ""}`;
 const ms = (value: number) => value < 10 ? value.toFixed(2) : value.toFixed(0);
 const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
 

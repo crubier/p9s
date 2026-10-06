@@ -88,6 +88,7 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
+| `resourceCache`                   | `'full' \| 'assigned'`           | Cache every (ancestor, descendant) pair of resources, or only those below resources that have assignments (default: `'full'`), see [resource cache](#resource-cache) |
 | `postgraphile`                    | `boolean`                        | Smart comments and `permission` fields for PostGraphile, see [PostGraphile](./postgraphile) |
 
 `getCurrentUserId` must exist before the migration runs, for example:
@@ -102,9 +103,18 @@ With role leaf tables, p9s calls it from `current_role_node()`, which runs as th
 
 The caches follow paths of up to `maxDepth` edges. A write that would make a longer path, like adding a row under the deepest folder or moving a folder under another, fails with `p9s: the resource edge 4 -> 5 makes a path of more than 16 edges`, and so does enabling the triggers again after a bulk load with a longer path. Paths are counted without going twice through a node, so a cycle does not make a tree deeper than its longest path. The check costs a walk up from the new edge and down from it, a few hundredths of a millisecond per write in the [benchmarks](../benchmarks).
 
-Postgres runs the triggers of a table that fire on the same event in the order of their names. p9s names its triggers `05_…`, `10_…` and `20_…`, so with `naming: { triggerPrefix: "p9s_" }` they become `p9s_05_…`, and run after triggers named `a_…` to `o_…` and before `q_…` to `z_…`. Changing the prefix renames the p9s triggers on the next migration.
+Postgres runs the triggers of a table that fire on the same event in the order of their names. p9s names its triggers `05_…`, `07_…`, `10_…` and `20_…`, so with `naming: { triggerPrefix: "p9s_" }` they become `p9s_05_…`, and run after triggers named `a_…` to `o_…` and before `q_…` to `z_…`. Changing the prefix renames the p9s triggers on the next migration.
 
 With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` of every (user, resource) pair reachable through an assignment, and RLS policies read it instead of joining the role cache. Reads get cheaper and assignment or role changes get more expensive, see [Benchmarks](../benchmarks).
+
+#### Resource cache
+
+Permissions only come from the resources that have assignments, and the policies only read the cache rows that start at one of them. With `resourceCache: "assigned"`, p9s only keeps those rows, and a self row for every resource. In the example app, where 870 of 190,000 resources are shared, that is 573,000 of 1.32 million rows. Reads and writes in the tree cost the same, see [the benchmarks](../benchmarks#caching-only-below-assignments). What changes:
+
+- The first assignment of a resource caches everything below it, and removing its last assignment drops those rows. Sharing a workspace of 1,110 resources for the first time takes 6 ms instead of 0.2 ms, an organization of 11,110 resources 63 ms.
+- `current_resource_edge`, and `resource_edge_cache` for graph writers, only tell whether a resource is below another when the one above has assignments. To tell whether a folder would move inside itself, walk up its new parents, as the example app does.
+
+The role cache keeps every pair, as `current_role` lists every role above the user. It is small: 10,000 rows in the example app, against 34,000 in the `assignment_edge_cache` of `combineAssignmentsWith: "role"`, which is also maintained from it.
 
 ### Migration Configuration
 

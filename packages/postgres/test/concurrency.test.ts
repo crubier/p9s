@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, raw } from "pg-sql2";
 import type { Client } from '@p9s/postgres-testing/pg';
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
-import { cacheMismatches, noMismatches, setupBlog } from './helpers';
+import { assignedCacheMismatches, cacheMismatches, noMismatches, setupBlog } from './helpers';
 
 const ROUNDS = 20;
 
@@ -29,7 +29,7 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
   const count = async (query: ReturnType<typeof sql>) => (await context.runTestQuery(query))[0][0].n as number;
 
   test('inserting both halves of a path at once still caches the whole path', async () => {
-    await setupBlog(context);
+    await setupBlog(context, { resourceCache: "full" });
     await context.exec(sql`insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 3))})`);
     for (let i = 0; i < ROUNDS; i++) {
       const [x, y, z] = [3 * i + 1, 3 * i + 2, 3 * i + 3];
@@ -58,7 +58,7 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
   });
 
   test('creating a row under a group while the group gains a parent caches the whole path', async () => {
-    await setupBlog(context);
+    await setupBlog(context, { resourceCache: "full" });
     await context.exec(sql`insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 2))})`);
     for (let i = 0; i < ROUNDS; i++) {
       const [x, y] = [2 * i + 1, 2 * i + 2];
@@ -88,5 +88,24 @@ describe.skipIf(!testDatabaseUrl)('concurrent graph writes (real Postgres only)'
     }
     expect(await cacheMismatches(context, "role")).toEqual(noMismatches);
     expect(await count(sql`select count(*)::int as "n" from "assignment_edge_cache" where "role_id" = 2 * "resource_id"`)).toBe(ROUNDS);
+  });
+
+  test('with resourceCache "assigned", assigning a group while it gains a child caches the child', async () => {
+    await setupBlog(context, { combineAssignmentsWith: "resource", resourceCache: "assigned" });
+    await context.exec(sql`
+      insert into "resource_group" ("id") select generate_series(1, ${raw(String(ROUNDS * 2))});
+      insert into "role_group" ("id") values (1);
+    `);
+    for (let i = 0; i < ROUNDS; i++) {
+      const [x, y] = [2 * i + 1, 2 * i + 2];
+      await race(
+        `insert into "assignment_edge" ("resource_id", "role_id", "permission") values (${x}, 1, b'1111')`,
+        `insert into "resource_edge" values (${x}, ${y}, b'1111')`,
+      );
+    }
+    expect(await assignedCacheMismatches(context)).toBe(0);
+    expect(await cacheMismatches(context, "resource")).toEqual(noMismatches);
+    expect(await count(sql`select count(*)::int as "n" from "assignment_edge_cache" where "role_id" = 1 and "resource_id" % 2 = 0`)).toBe(ROUNDS);
+    expect(await count(sql`select count(*)::int as "n" from "resource_edge_cache" where "child_id" = "parent_id" + 1`)).toBe(ROUNDS);
   });
 });

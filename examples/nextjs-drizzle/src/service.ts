@@ -295,11 +295,15 @@ export const renameFolder = (actor: Actor, folderId: string, name: string) =>
 export const moveFolder = (actor: Actor, folderId: string, parentId: string) =>
   asRole(actor, async (tx) => {
     await assertFolderInOrganization(tx, actor, parentId);
+    // The cache only has rows below shared resources, so walk up the folders of the new parent. Those between the
+    // folder and a parent inside it are below the folder, which the actor reads.
     const [inside] = await rows<{ inside: boolean }>(tx, sql`
-      select exists (
-        select 1 from current_resource_edge c
-        where c.parent_id = (select resource_id from folder where id = ${folderId}) and c.child_id = (select resource_id from folder where id = ${parentId})
-      ) as inside`);
+      with recursive up (id) as (
+        select ${parentId}::uuid
+        union
+        select f.parent_id from folder f join up on f.id = up.id where f.parent_id is not null
+      )
+      select exists (select 1 from up where id = ${folderId}::uuid) as inside`);
     if (inside?.inside) throw new ForbiddenError("A folder cannot be moved into itself.");
     affected(await tx.update(folder).set({ parentId }).where(and(eq(folder.id, folderId), eq(folder.orgId, actor.org.id))));
   });

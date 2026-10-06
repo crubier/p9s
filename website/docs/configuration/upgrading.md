@@ -17,6 +17,10 @@ Application users used to read the edge, assignment and cache tables whole. They
 - To read who is in a team, read the role tables as a graph writer, after checking that the user may know.
 - To share on behalf of users, give the tables a `share` bit and let users call `resource_share` and `resource_unshare`, see [sharing](./security-model#sharing). Row level security is then on for `assignment_edge`: graph writers get a policy that lets them write anything, other roles granted the table by hand need a policy of their own.
 
+## The resource cache key
+
+The primary key of `resource_edge_cache` is now `(child_id, parent_id)`, and its index on `child_id` is gone, as the primary key serves those lookups. The migration rebuilds the key once, which takes a few seconds per million cache rows. With the parent first, Postgres 18 could look the ancestors of a resource up with a skip scan of the key, expecting a single search where it took one per parent: 3 ms instead of 0.2 ms to get the permissions of a resource, in the benchmarks.
+
 ## From node tables
 
 Earlier versions of p9s kept every node in a `resource_node` or `role_node` table. A business row referenced its node through a foreign key, and the application created the node and its edges before the row. Now every row of a bound table is a node itself, and the node tables are gone.

@@ -26,7 +26,7 @@ Application users have no privilege on the edge, assignment and cache tables, no
 | `current_resource_access` | `(resource_id, permission)` for every way the current user reaches a resource: through an assignment of one of their roles, then edges down to the resource. `permission` has the bits on every segment of that way. A resource reached several ways has the OR of their bits, which is what `resource_permission(resource_id)` returns. |
 | `current_resource_access_<n>` | `(resource_id)` of the resources the current user has bit `n` on, for each bit `n` that a policy checks. Policies read these. |
 | `current_assignment` | `(resource_id, permission)` for every resource assigned to the current user or to a role above them, with the bits these assignments give: what was shared with them, whatever is below. |
-| `current_resource_edge` | `(parent_id, child_id, permission)` from the resource cache, for the resource pairs the current user reaches both ends of: whether a document is in a folder, the folders of a space. |
+| `current_resource_edge` | `(parent_id, child_id, permission)` from the resource cache, for the resource pairs the current user reaches both ends of: whether a document is in a folder, the folders of a space. With `resourceCache: "assigned"`, only the pairs whose parent has assignments. |
 | `current_role` | `(role_id, permission)` for the role of the current user and every role above it, with the bits of the way up: the teams of a user. |
 | `resource_access`, `resource_role_access` | Who has access to a resource, for users with its `manageAccess` bit, see [seeing the access of others](#seeing-the-access-of-others). |
 

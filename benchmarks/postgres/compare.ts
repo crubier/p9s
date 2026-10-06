@@ -53,7 +53,7 @@ const metrics = (run: BenchmarkResult): Metric[] => [
   ]),
 ];
 
-const key = ({ options }: BenchmarkResult) => `${options.benchmarkSizeFactor}/${options.idMode}/${options.combineAssignmentsWith}`;
+const key = ({ options }: BenchmarkResult) => `${options.benchmarkSizeFactor}/${options.idMode}/${options.combineAssignmentsWith}${options.resourceCache === "assigned" ? "/assigned" : ""}`;
 const format = (value: number) => value < 10 ? value.toFixed(2) : value.toFixed(0);
 
 console.log(`Before: ${positionals[0]} (${before.git.sha.slice(0, 8)}${before.git.dirty ? ' dirty' : ''}, ${before.createdAt})`);

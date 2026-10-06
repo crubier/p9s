@@ -58,6 +58,8 @@ export const p9sConfig = generateConfigurationFromDrizzleSchema(schema, {
     authentication: { getCurrentUserId: "current_role_id" },
     id: { mode: "uuid" },
     combineAssignmentsWith: "role",
+    // Only shared resources have the rows of what is below them
+    resourceCache: "assigned",
     permission: { bitmap: { size: BITMAP_SIZE }, maxDepth: { resource: 16, role: 8 } },
   },
   migration: { output: { sql: "migrations/p9s.sql" } },

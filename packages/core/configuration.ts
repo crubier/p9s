@@ -252,6 +252,12 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       combinedEdgeUpdateTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${update}_${trigger}`,
       combinedEdgeDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}_${functionz}`,
       combinedEdgeDeleteTrigger: `${triggerPrefix}20_${prefix}${assignment.name}_${edge}_${thingCombinedWith}_${deletez}_${trigger}`,
+      resourceCacheInsertTriggerFunction: `${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${insert}_${trigger}_${functionz}`,
+      resourceCacheInsertTrigger: `${triggerPrefix}07_${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${insert}_${trigger}`,
+      resourceCacheUpdateTriggerFunction: `${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${update}_${trigger}_${functionz}`,
+      resourceCacheUpdateTrigger: `${triggerPrefix}07_${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${update}_${trigger}`,
+      resourceCacheDeleteTriggerFunction: `${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${deletez}_${trigger}_${functionz}`,
+      resourceCacheDeleteTrigger: `${triggerPrefix}07_${prefix}${assignment.name}_${edge}_${resource.name}_${cache}_${deletez}_${trigger}`,
       enableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${enable}`,
       disableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${disable}`,
       edgePolicy: `${prefix}${assignment.name}_${edge}_${policy}`,
@@ -395,6 +401,7 @@ export const defaultConfig: CompleteConfig<any> = {
       mode: "integer"
     },
     combineAssignmentsWith: "none",
+    resourceCache: "full",
     naming: defaultBaseNamingConfig,
   },
   migration: {

@@ -5,7 +5,7 @@ import { query as sql, identifier, join, raw } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import { createMigration } from '../generation';
 import {
-  FIRST_GENERATED_ID, as, bits, blogMigrationConfig, cacheMismatches, createGraphDriver, createRandom, emptyGraph, noMismatches, nodeId, randomOperation,
+  FIRST_GENERATED_ID, as, assignedCacheMismatches, bits, blogMigrationConfig, cacheMismatches, createGraphDriver, createRandom, emptyGraph, noMismatches, nodeId, randomOperation,
   setupBlog, setupBlogTables, type CombineMode, type IdMode, type TestContext,
 } from './helpers';
 
@@ -78,7 +78,7 @@ describe('migration', () => {
   });
 
   test('enabling triggers brings home edges in line with rows written while they were disabled', async () => {
-    await setupBlog(context);
+    await setupBlog(context, { resourceCache: "full" });
     await context.exec(sql`
       insert into "resource_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1);
       select "resource_trigger_disable"();
@@ -101,10 +101,10 @@ describe('migration', () => {
 
   test('switching combineAssignmentsWith leaves no stale triggers behind', async () => {
     const migrate = (combineAssignmentsWith: CombineMode) =>
-      context.exec(createMigration(blogMigrationConfig(context, { combineAssignmentsWith })));
+      context.exec(createMigration(blogMigrationConfig(context, { combineAssignmentsWith, resourceCache: "full" })));
     const assignmentGuards = ["05_assignment_edge_validate_insert_trigger", "05_assignment_edge_validate_update_trigger", "05_truncate_guard_trigger"];
 
-    await setupBlog(context, { combineAssignmentsWith: "role" });
+    await setupBlog(context, { combineAssignmentsWith: "role", resourceCache: "full" });
     expect(await userTriggers(context, "role_edge_cache")).toHaveLength(3);
     expect(await userTriggers(context, "assignment_edge")).toHaveLength(6);
 
@@ -126,6 +126,44 @@ describe('migration', () => {
     expect(await userTriggers(context, "assignment_edge")).toEqual(assignmentGuards);
     const [[combinedCache]] = await context.runTestQuery(sql`select count(*)::int as "n" from "pg_tables" where "tablename" = 'assignment_edge_cache'`);
     expect(combinedCache.n).toBe(0);
+  });
+
+  test('switching resourceCache keeps only the rows below assigned resources, and back', async () => {
+    const migrate = (resourceCache: "full" | "assigned") =>
+      context.exec(createMigration(blogMigrationConfig(context, { combineAssignmentsWith: "resource", resourceCache })));
+    const cacheTriggers = ["07_assignment_edge_resource_cache_delete_trigger", "07_assignment_edge_resource_cache_insert_trigger", "07_assignment_edge_resource_cache_update_trigger"];
+    const counts = async () => (await context.runTestQuery(sql`
+      select
+        count(*)::int as "rows",
+        count(*) filter (where "parent_id" <> "child_id" and not exists (select from "assignment_edge" where "resource_id" = "parent_id"))::int as "unassigned",
+        (select count(*)::int from "pg_proc" where "proname" like 'assignment_edge_resource_cache_%') as "functions"
+      from "resource_edge_cache"`))[0][0];
+
+    await setupBlog(context, { combineAssignmentsWith: "resource", resourceCache: "full" });
+    const driver = createGraphDriver(context, "integer", emptyGraph(10, 6));
+    await driver.createNodes();
+    const random = createRandom(5);
+    for (let i = 0; i < 60; i++) await randomOperation(driver, random);
+    const full = await counts();
+    expect(full.unassigned).toBeGreaterThan(0);
+    expect(full.functions).toBe(0);
+
+    await migrate("assigned");
+    expect((await userTriggers(context, "assignment_edge")).filter((name: string) => name.startsWith("07_"))).toEqual(cacheTriggers);
+    const assigned = await counts();
+    expect(assigned.unassigned).toBe(0);
+    expect(assigned.rows).toBeLessThan(full.rows);
+    expect(assigned.functions).toBe(3);
+    expect(await assignedCacheMismatches(context)).toBe(0);
+    expect(await cacheMismatches(context, "resource")).toEqual(noMismatches);
+    for (let i = 0; i < 60; i++) await randomOperation(driver, random);
+    expect(await assignedCacheMismatches(context)).toBe(0);
+    expect(await cacheMismatches(context, "resource")).toEqual(noMismatches);
+
+    await migrate("full");
+    expect((await userTriggers(context, "assignment_edge")).filter((name: string) => name.startsWith("07_"))).toEqual([]);
+    expect((await counts()).functions).toBe(0);
+    expect(await cacheMismatches(context, "resource")).toEqual(noMismatches);
   });
 
   test('re-running it revokes write access granted by older versions', async () => {

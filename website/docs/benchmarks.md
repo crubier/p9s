@@ -23,7 +23,7 @@ For a size factor `f`:
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
 - **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#first-pages). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
-- **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments; add, remove and move users and teams.
+- **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments, and share then revoke an org, workspace, folder or project that has no other assignment; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
 
@@ -41,6 +41,9 @@ bun run bench --sizes 4,6,8,10 --combine none,role,resource
 # Against an existing server, or in-process PGlite
 bun run bench --url postgresql://postgres:postgres@localhost:5432/postgres
 bun run bench --db pglite --sizes 4 --reps 5
+
+# Both resource caches on the same dataset
+bun run bench --resource-cache full,assigned
 
 # Comments or API keys as nodes instead of leaves, to compare both with bench:compare
 bun run bench --comments node --out results/node
@@ -159,3 +162,29 @@ Policies read the graph through [views of the current user](./configuration/secu
 The differences are those between two runs of the same code, and writes do not change. Postgres plans the views like the tables: a view is a security barrier, but the comparisons of ids that select the rows of a resource are leakproof, so they still run first, in the index. Each policy reads the view of its bit, which only keeps the edges with that bit.
 
 With `combineAssignmentsWith: resource`, p9s now also tells the planner that a role can be assigned most of the cache. In the flat graph above, where a user is assigned the root of 20,000 posts and 20,000 other roles are each assigned a post, reading one post takes 0.2 ms instead of 3.8 ms, and updating it 0.6 ms instead of 14 ms, round trip included. The other modes do not change: 0.4 and 1.3 ms with `none`, 0.2 and 0.6 ms with `role`.
+
+### Caching only below assignments
+
+With [`resourceCache: "assigned"`](./configuration/overview#resource-cache), the resource cache only has the rows below resources that have assignments. With a size of 10 and uuid ids, on Postgres 18, p50 in milliseconds, `full` / `assigned`:
+
+|                                          | `none`        | `role`        |
+| ---------------------------------------- | ------------- | ------------- |
+| Resource cache, rows                     | 543k / 485k   | 543k / 485k   |
+| Resource cache, MB                       | 81.6 / 73.8   | 81.6 / 73.8   |
+| Cache rebuild, s                         | 3.96 / 3.24   | 3.94 / 3.50   |
+| Point lookup                             | 0.95 / 0.80   | 0.55 / 0.50   |
+| First page of 50 rows                    | 2.85 / 2.41   | 3.29 / 2.15   |
+| `resource_permission` of a row           | 0.26 / 0.29   | 0.23 / 0.21   |
+| Move a folder                            | 3.37 / 2.45   | 2.38 / 2.70   |
+| Move an object                           | 0.80 / 0.94   | 0.67 / 0.72   |
+| Create 1000 objects in one statement     | 73 / 74       | 79 / 80       |
+| First share of a project, 10 below       | 0.20 / 0.32   | 0.24 / 0.35   |
+| First share of a folder, 110 below       | 0.19 / 0.89   | 0.26 / 0.90   |
+| First share of a workspace, 1,110 below  | 0.20 / 6.04   | 0.28 / 6.55   |
+| First share of an org, 11,110 below      | 0.22 / 63     | 0.40 / 61     |
+| Revoke the last share of an org          | 0.16 / 5.29   | 0.27 / 5.22   |
+
+The benchmark shares 15,000 times over 111,000 resources, at every level, so only 11% of the rows go: 57% go in the example app, where 870 resources are shared. Reads and writes in the tree cost the same, within the noise of a run. A first share writes a row for every resource below, about 5.5 µs each, and the last revoke deletes them.
+
+Before this, the primary key of the cache started with the parent. Postgres 18 could then look the ancestors of a resource up with a skip scan of that key, which it expected to take a single search, as p9s tells it that parents have most of the cache, and which took one search per parent. Both plans cost about the same to the planner, and with `role` and the assigned cache it took the skip scan: `resource_permission` of a row took 3 ms instead of 0.2 ms, and a first page with permissions 119 ms instead of 3.8 ms. The key now starts with the child, and the index on the child, which it replaces, is gone: 13% less space in both modes.
+
