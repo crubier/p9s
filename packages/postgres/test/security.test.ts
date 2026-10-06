@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier, join, raw, type SQL } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import { createMigration } from '../generation';
-import { as, bits, blogMigrationConfig, cacheMismatches, combineModes, noMismatches, setupBlog, type TestContext } from './helpers';
+import { as, bits, blogMigrationConfig, cacheMismatches, combineModes, noMismatches, setupBlog, setupBlogTables, type CombineMode, type TestContext } from './helpers';
 
 const expectRejected = async (promise: Promise<unknown>, message: RegExp = /permission denied/) => {
   let error: unknown;
@@ -251,8 +251,8 @@ describe('permission graph privileges', () => {
       await setupBlog(context);
       await seedGraph(context);
       const user = context.database_user_username, writer = context.database_writer_username;
-      // Role 2 would learn that group 2 exists, and that role 1 can see it
-      await expectRejected(as(context, user, sql`select "resource_permission"(2, 1)`, raw("2")), /permission denied for function/);
+      // Role 2 would learn that group 2 exists, and that role 1 can see it: without the manageAccess bit, nothing
+      expect(await as(context, user, sql`select "resource_permission"(2, 1)::text as "permission"`, raw("2"))).toEqual([{ permission: "0000" }]);
       // Mapping any role id to its parent would tell which ids are keys, and whose
       await expectRejected(as(context, user, sql`select "current_role_node"(1)`, raw("2")), /does not exist/);
 
@@ -266,7 +266,7 @@ describe('permission graph privileges', () => {
       expect(privileges).toEqual([
         { signature: "current_role_node()", user: true, writer: true, public: false },
         { signature: "resource_permission(integer)", user: true, writer: true, public: false },
-        { signature: "resource_permission(integer,integer)", user: false, writer: true, public: false },
+        { signature: "resource_permission(integer,integer)", user: true, writer: true, public: false },
       ]);
     });
 
@@ -302,6 +302,87 @@ describe('permission graph privileges', () => {
         select "oid"::regprocedure::text as "signature" from pg_proc where "proname" = 'current_role_node' and "pronamespace" = 'public'::regnamespace`);
       expect(functions).toEqual([{ signature: "current_role_node()" }]);
       expect(await as(context, context.database_user_username, sql`select "name" from "blog_post"`, raw("1"))).toEqual([{ name: "two" }]);
+    });
+  });
+
+  describe('seeing the permissions of others', () => {
+    // The delete bit lets users manage the access to a post
+    const setupManaged = async (combineAssignmentsWith: CombineMode = "none") => {
+      await setupBlogTables(context);
+      const config = blogMigrationConfig(context, { combineAssignmentsWith });
+      const post = config.tables.find(table => table.name === "blog_post")!;
+      post.permission = { [context.database_user_username]: { select: 0, insert: 1, update: 2, delete: 3, manageAccess: 3 } } as any;
+      await context.exec(createMigration(config));
+      await context.exec(sql`select setval('resource_id_seq', 1000000); select setval('role_id_seq', 1000000);`);
+      await seedGraph(context);
+      // Role 1 has every bit on group 2 and its post, role 2 can only read the post, a key of role 2 too
+      const [[two], [three]] = (await context.runTestQuery(sql`select "resource_id" from "blog_post" order by "group_id"`))[0].map((row: any) => [row.resource_id]);
+      const [[key]] = await context.runTestQuery(sql`
+        insert into "assignment_edge" ("resource_id", "role_id", "permission") values (${raw(String(two))}, 2, ${bits("1000")});
+        insert into "api_key" ("group_id") values (2) returning "role_id";`).then(results => results.slice(-1));
+      return { two, three, key: key.role_id as number };
+    };
+    const query = (roleId: string, statement: SQL) => as(context, context.database_user_username, statement, raw(roleId));
+
+    for (const combineAssignmentsWith of combineModes) {
+      test(`a user with the manageAccess bit on a post sees who has access to it (combineAssignmentsWith: ${combineAssignmentsWith})`, async () => {
+        const { two, three, key } = await setupManaged(combineAssignmentsWith);
+        const access = (roleId: string, resourceId: number) => query(roleId, sql`
+          select "role_id", "assigned_resource_id", "permission"::text from "resource_access"
+          where "resource_id" = ${raw(String(resourceId))} order by "role_id"`);
+        const roles = (roleId: string, resourceId: number) => query(roleId, sql`
+          select "role_id", "permission"::text from "resource_role_access"
+          where "resource_id" = ${raw(String(resourceId))} order by "role_id"`);
+        const permissions = (roleId: string, resourceId: number, of: number[]) => query(roleId, sql`
+          select ${join(of.map((other, index) => sql`"resource_permission"(${raw(String(resourceId))}, ${raw(String(other))})::text as ${identifier(`p${index}`)}`), ", ")}`)
+          .then(([row]) => Object.values(row));
+
+        // Role 1 has the delete bit on post two: it sees the assignment of group 2 above it, and the one of role 2
+        expect(await access("1", two)).toEqual([
+          { role_id: 1, assigned_resource_id: 2, permission: "1111" }, { role_id: 2, assigned_resource_id: two, permission: "1000" }]);
+        expect(await roles("1", two)).toEqual([{ role_id: 1, permission: "1111" }, { role_id: 2, permission: "1000" }, { role_id: key, permission: "1000" }]);
+        expect(await permissions("1", two, [1, 2, key, 99])).toEqual(["1111", "1000", "1000", "0000"]);
+
+        // Nothing about post three, out of reach, or group 2, which has no manageAccess bit
+        for (const resourceId of [three, 2]) {
+          expect(await access("1", resourceId)).toEqual([]);
+          expect(await roles("1", resourceId)).toEqual([]);
+          expect(await permissions("1", resourceId, [1, 2])).toEqual(["0000", "0000"]);
+        }
+        // Role 2 can read post two, but not manage its access
+        expect(await access("2", two)).toEqual([]);
+        expect(await roles("2", two)).toEqual([]);
+        expect(await permissions("2", two, [1, 2])).toEqual(["0000", "0000"]);
+
+        // Graph writers see everything
+        const [all] = await context.runTestQuery(sql`
+          set local role ${identifier(context.database_writer_username)};
+          select (select count(*)::int from "resource_access") as "access", "resource_permission"(${raw(String(two))}, ${raw(String(key))})::text as "key",
+            "resource_permission"(${raw(String(three))}, 1)::text as "three"`)
+          .then(results => results.slice(-1));
+        // Group 2 and post two for role 1, post two for role 2
+        expect(all).toEqual([{ access: 3, key: "1000", three: "0000" }]);
+      });
+    }
+
+    test('a function of the user only sees the rows the manageAccess bit allows, whatever its cost', async () => {
+      await setupManaged();
+      const seen = await query("2", sql`
+        create temporary table "seen" ("id" integer);
+        create function pg_temp."leak" ("the_id" integer) returns boolean
+          as 'insert into pg_temp."seen" values ($1) returning true' language sql cost 0.0000001;
+        select count(*) from "resource_access" where pg_temp."leak"("role_id");
+        select count(*) from "resource_role_access" where pg_temp."leak"("role_id");
+        select * from pg_temp."seen"`);
+      expect(seen).toEqual([]);
+    });
+
+    test('leaf rows cannot have the manageAccess bit', async () => {
+      await setupBlogTables(context);
+      const config = blogMigrationConfig(context);
+      const comment = config.tables.find(table => table.name === "blog_comment")!;
+      comment.permission = { [context.database_user_username]: { select: 0, insert: 1, update: 2, delete: 3, manageAccess: 3 } } as any;
+      expect(() => createMigration(config)).toThrow(/Leaf rows have no access of their own/);
     });
   });
 

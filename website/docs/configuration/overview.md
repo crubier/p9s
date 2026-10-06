@@ -129,7 +129,7 @@ Each table entry defines how a database table integrates with the permission sys
 | `roleParent`     | `object`  | Column naming each row's parent role, see below                              |
 | `roleLeaf`       | `boolean` | Rows are not nodes and act with the permissions of their parent, see below    |
 | `roleFkey`       | `string`  | Foreign key to `role_node` from earlier versions, dropped when upgrading      |
-| `permission`     | `object`  | For each user role, the bit checked for each operation                        |
+| `permission`     | `object`  | For each user role, the bit checked for each operation, and optionally the `manageAccess` bit that lets them see who has access to a row, see [seeing the access of others](./security-model#seeing-the-access-of-others) |
 
 #### Parent columns
 

@@ -254,6 +254,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     currentAssignmentView: `${prefix}current_${assignment.name}`,
     currentResourceEdgeView: `${prefix}current_${resource.name}_${edge}`,
     currentRoleView: `${prefix}current_${role.name}`,
+    accessView: `${prefix}${resource.name}_access`,
+    roleAccessView: `${prefix}${resource.name}_${role.name}_access`,
   }
 }
 

@@ -28,6 +28,7 @@ Application users have no privilege on the edge, assignment and cache tables, no
 | `current_assignment` | `(resource_id, permission)` for every resource assigned to the current user or to a role above them, with the bits these assignments give: what was shared with them, whatever is below. |
 | `current_resource_edge` | `(parent_id, child_id, permission)` from the resource cache, for the resource pairs the current user reaches both ends of: whether a document is in a folder, the folders of a space. |
 | `current_role` | `(role_id, permission)` for the role of the current user and every role above it, with the bits of the way up: the teams of a user. |
+| `resource_access`, `resource_role_access` | Who has access to a resource, for users with its `manageAccess` bit, see [seeing the access of others](#seeing-the-access-of-others). |
 
 The views are security barriers: Postgres runs a filter of the query on their rows after their own condition on the current user, unless the filter is leakproof. A function of the user, cheap as it may be, never sees the rows of others. Comparisons of ids are leakproof, so Postgres can still look up the rows of one resource by index, or list the resources of the user once, as it does with the tables. Policies check a bit through the view of that bit rather than `current_resource_access`, because checking a bit is not leakproof: in the view, it keeps only the edges that have the bit as Postgres reads them. Their cost is measured in the [benchmarks](../benchmarks#hiding-the-graph).
 
@@ -93,7 +94,7 @@ Roles that are not listed under a table's `permission` get no policy on that tab
 
 `resource_permission(resource_id)` returns the whole bitmap the current user has on a resource, the bits the policies check, from `current_resource_access`. A role leaf row, like an API key, gets the bitmap of its parent, and a resource leaf row has the bitmap of its parent resource. A user only learns their own permissions: a resource they have no access to gets no bits, exactly like an id that is no resource, so the function does not tell which resources exist. Users and graph writers can call it.
 
-`resource_permission(resource_id, role_id)` answers for any role, keys included. Only graph writers can call it, so that a user cannot ask what another user can do.
+`resource_permission(resource_id, role_id)` answers for any role, keys included. Graph writers can ask about any resource, users only about the resources they have the `manageAccess` bit on, see below. For any other resource, it returns no bits, so that a user cannot ask what another user can do.
 
 With bits `select: 0, insert: 1, update: 2, delete: 3` and an application-defined `share: 4`:
 
@@ -107,3 +108,30 @@ select substring(resource_permission($1, $2)::text from 5 for 1) = '1';
 ```
 
 The bits are numbered from the left, as in the `permission` config, so in JavaScript bit `n` is `bitmap[n] === "1"`. Calling it on each row of a page of 50 costs about 0.03 ms per row, see the [benchmarks](../benchmarks).
+
+## Seeing the access of others
+
+A "Share" dialog lists who has access to a document, and an overview what every member can do in every space. With a `manageAccess` bit in the `permission` config of a table, users who have that bit on a row of the table can see that, without reading the graph:
+
+```typescript
+{ name: "document", isResource: true, resourceId: "resource_id", resourceParent: { column: "folder_id", table: "folder", key: "id" },
+  // Whoever can read a document sees who else has access to it
+  permission: { app_user: { select: 0, insert: 1, update: 2, delete: 3, manageAccess: 0 } } },
+```
+
+| View or function | Rows |
+| --- | --- |
+| `resource_access` | `(resource_id, role_id, assigned_resource_id, permission)` for every assignment that reaches the resource, from the resource itself or from above: `assigned_resource_id` is where the role was given access, `permission` the bits of the assignment that reach the resource. |
+| `resource_role_access` | `(resource_id, role_id, permission)` for every role that reaches the resource, through an assignment of the role or of a role above it, role leaf rows like API keys included. A role reached several ways has several rows. |
+| `resource_permission(resource_id, role_id)` | The OR of the bits of `resource_role_access`: what the role can do, as `resource_permission(resource_id)` tells the role itself. |
+
+Each lists the rows of a resource for users who have the `manageAccess` bit on it, through any of the tables that set the bit, and every row for the roles that can read the graph, graph writers and the owner. They are security barriers like the views of the current user. Ask them about given resources, with `resource_id = $1` or `resource_id = any($1)`: Postgres checks the bit for each resource it looks at. A leaf table cannot set the bit, since its rows have no access of their own.
+
+```sql
+-- Who has access to a document, and from where
+select role_id, assigned_resource_id, permission from resource_access where resource_id = $1;
+-- What every member can do in every space, for an admin who has the bit on the spaces
+select s, m, resource_permission(s, m) from unnest($1::uuid[]) s, unnest($2::uuid[]) m;
+```
+
+Listing who has access to a document takes 0.5 ms in the example app, with 180,000 documents. 625 calls of `resource_permission(resource_id, role_id)` take 0.25 s, 0.1 s more than for a graph writer, which skips the check of the bit.

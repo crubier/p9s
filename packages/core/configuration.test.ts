@@ -24,6 +24,7 @@ test('Default Configuration', () => {
   const naming = getCompleteNamingConfig(completeConfig);
   expect(naming).toMatchInlineSnapshot(`
     {
+      "accessView": "resource_access",
       "assignment": {
         "combinedEdgeDeleteTrigger": "20_assignment_edge_none_delete_trigger",
         "combinedEdgeDeleteTriggerFunction": "assignment_edge_none_delete_trigger_function",
@@ -194,6 +195,7 @@ test('Default Configuration', () => {
         "varChildId": "var_child_id",
         "varParentId": "var_parent_id",
       },
+      "roleAccessView": "resource_role_access",
       "schema": "public",
       "select": "select",
       "sequence": "seq",

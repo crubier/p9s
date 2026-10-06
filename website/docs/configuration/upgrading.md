@@ -13,7 +13,8 @@ Application users used to read the edge, assignment and cache tables whole. They
 - To list what was shared with the user, read `current_assignment` rather than `assignment_edge` or `assignment_edge_cache`.
 - To tell whether a resource is below another, read `current_resource_edge` rather than `resource_edge_cache`. Both must be in reach of the user.
 - To list the teams of the user, read `current_role` rather than `role_edge_cache`.
-- To read what others can access, like who is in a team or who has access to a document, read the tables as a graph writer, after checking that the user may know.
+- To list who has access to a document, or what another role can do on it, give the table a `manageAccess` bit and read `resource_access`, or call `resource_permission(resource_id, role_id)`, see [seeing the access of others](./security-model#seeing-the-access-of-others). `resource_permission(resource_id, role_id)` used to refuse users: it now returns no bits to users without the bit.
+- To read who is in a team, read the role tables as a graph writer, after checking that the user may know.
 
 ## From node tables
 

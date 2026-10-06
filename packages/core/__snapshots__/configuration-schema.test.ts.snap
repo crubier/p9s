@@ -11,6 +11,9 @@ exports[`Configuration JSON Schemas permissionPerOperationSchema 1`] = `
     "insert": {
       "type": "number",
     },
+    "manageAccess": {
+      "type": "number",
+    },
     "select": {
       "type": "number",
     },
@@ -641,6 +644,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "accessView": {
+      "type": "string",
+    },
     "assignment": {
       "additionalProperties": false,
       "properties": {
@@ -1206,6 +1212,9 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
       ],
       "type": "object",
     },
+    "roleAccessView": {
+      "type": "string",
+    },
     "schema": {
       "type": "string",
     },
@@ -1230,6 +1239,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "currentAssignmentView",
     "currentResourceEdgeView",
     "currentRoleView",
+    "accessView",
+    "roleAccessView",
   ],
   "type": "object",
   "~standard": {
@@ -1544,6 +1555,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "accessView": {
+      "type": "string",
+    },
     "assignment": {
       "additionalProperties": false,
       "properties": {
@@ -2181,6 +2195,9 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
       ],
       "type": "object",
     },
+    "roleAccessView": {
+      "type": "string",
+    },
     "schema": {
       "type": "string",
     },
@@ -2398,6 +2415,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "currentAssignmentView",
     "currentResourceEdgeView",
     "currentRoleView",
+    "accessView",
+    "roleAccessView",
     "tables",
   ],
   "type": "object",
@@ -2435,6 +2454,9 @@ exports[`Configuration JSON Schemas tableConfigSchema 1`] = `
             "type": "number",
           },
           "insert": {
+            "type": "number",
+          },
+          "manageAccess": {
             "type": "number",
           },
           "select": {
@@ -2590,6 +2612,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
     "naming": {
       "additionalProperties": false,
       "properties": {
+        "accessView": {
+          "type": "string",
+        },
         "assignment": {
           "additionalProperties": false,
           "properties": {
@@ -3227,6 +3252,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
           ],
           "type": "object",
         },
+        "roleAccessView": {
+          "type": "string",
+        },
         "schema": {
           "type": "string",
         },
@@ -3558,6 +3586,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
         "naming": {
           "additionalProperties": false,
           "properties": {
+            "accessView": {
+              "type": "string",
+            },
             "assignment": {
               "additionalProperties": false,
               "properties": {
@@ -4194,6 +4225,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "disableTriggerFunction",
               ],
               "type": "object",
+            },
+            "roleAccessView": {
+              "type": "string",
             },
             "schema": {
               "type": "string",
@@ -4471,6 +4505,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "insert": {
                   "type": "number",
                 },
+                "manageAccess": {
+                  "type": "number",
+                },
                 "select": {
                   "type": "number",
                 },
@@ -4637,6 +4674,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
         "naming": {
           "additionalProperties": false,
           "properties": {
+            "accessView": {
+              "type": "string",
+            },
             "assignment": {
               "additionalProperties": false,
               "properties": {
@@ -5274,6 +5314,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               ],
               "type": "object",
             },
+            "roleAccessView": {
+              "type": "string",
+            },
             "schema": {
               "type": "string",
             },
@@ -5535,6 +5578,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "type": "number",
                 },
                 "insert": {
+                  "type": "number",
+                },
+                "manageAccess": {
                   "type": "number",
                 },
                 "select": {

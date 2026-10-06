@@ -4,7 +4,8 @@ import { compile } from "pg-sql2";
 import { BIT, BITMAP_SIZE } from "../lib/permissions";
 import * as schema from "./schema";
 
-const content = { app_user: { select: BIT.read, insert: BIT.create, update: BIT.edit, delete: BIT.delete } };
+// Whoever can read a folder or a document sees who else has access to it, like in the "Share" dialog
+const content = { app_user: { select: BIT.read, insert: BIT.create, update: BIT.edit, delete: BIT.delete, manageAccess: BIT.read } };
 const directory = { app_user: { select: BIT.directory, insert: BIT.admin, update: BIT.admin, delete: BIT.admin } };
 const organization = { column: "org_id", table: "organization", key: "id" };
 

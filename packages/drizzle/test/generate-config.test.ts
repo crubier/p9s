@@ -116,6 +116,17 @@ describe("generateConfigurationFromDrizzleSchema", () => {
     expect(config.tables?.find(table => table.name === "folder")?.permission).toEqual({ viewer: { select: 0, update: 2 } });
   });
 
+  test("keeps the manageAccess bit", () => {
+    const config = generateConfigurationFromDrizzleSchema(schema1, {
+      users: ["viewer"],
+      tables: {
+        folder: { permission: { viewer: { select: 0, manageAccess: 0 } } },
+      },
+    });
+
+    expect(config.tables?.find(table => table.name === "folder")?.permission).toEqual({ viewer: { select: 0, manageAccess: 0 } });
+  });
+
   test("uses custom schema name", () => {
     const config = generateConfigurationFromDrizzleSchema(schema1, {
       users: ["owner"],

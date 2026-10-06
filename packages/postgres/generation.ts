@@ -1593,9 +1593,9 @@ const roleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>, roleId: SQ
   )`;
 };
 
-// The bits the policies of tables check
+// The bits the policies of tables and the access views check
 const policyBits = (config: CompleteConfig<any>) => [...new Set(config.tables.filter(table => table.isResource)
-  .flatMap(table => Object.values(table.permission ?? {}).flatMap(bits => (["select", "insert", "update", "delete"] as const)
+  .flatMap(table => Object.values(table.permission ?? {}).flatMap(bits => (["select", "insert", "update", "delete", "manageAccess"] as const)
     .map(operation => bits?.[operation]).filter((bit): bit is number => bit != null))))].sort((a, b) => a - b);
 
 const currentAccessViewOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}`);
@@ -1605,9 +1605,9 @@ const currentAccessViewOf = (naming: Naming<any>, bit: number) => identifier(`${
 // after theirs unless it is leakproof, like the comparison of ids, which lets Postgres look up a resource by index or
 // list them all once, as it would from the tables.
 export const createMigrationCurrentUserViews = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { resource, role, assignment, currentRoleNodeFunction, currentAccessView, currentAssignmentView, currentResourceEdgeView, currentRoleView, orBitmap } = naming;
+  const { resource, role, assignment, currentRoleNodeFunction, currentAccessView, currentAssignmentView, currentResourceEdgeView, currentRoleView, accessView, roleAccessView, orBitmap } = naming;
   const { type: idType } = getIdType(config);
-  const { everyone } = getRoles(config);
+  const { users, everyone } = getRoles(config);
   const size = config.engine.permission.bitmap.size;
   const roleLeaves = getLeaves("role", naming, config);
   const getCurrentUserId = sql`${identifier(config.engine.authentication.getCurrentUserId)}()`;
@@ -1661,6 +1661,50 @@ join ${role.edgeCache} as "the_role_edge" on "the_role_edge".${role.parentId} = 
     }
   };
 
+  // The same chains for every role
+  const roleAccess = (() => {
+    const permissions = (...columns: SQL[]) => sql`${bitmap(...columns)} as ${assignment.permission}`;
+    switch (config.engine.combineAssignmentsWith) {
+      case "role": return sql`
+  select "the_resource_edge".${resource.childId} as ${assignment.resourceId}, "the_assignment_edge".${assignment.roleId},
+    ${permissions(sql`"the_resource_edge".${resource.permission}`, sql`"the_assignment_edge".${assignment.permission}`)}
+  from ${resource.edgeCache} as "the_resource_edge"
+  join ${assignment.edgeCache} as "the_assignment_edge" on "the_assignment_edge".${assignment.resourceId} = "the_resource_edge".${resource.parentId}`;
+      case "resource": return sql`
+  select "the_assignment_edge".${assignment.resourceId}, "the_role_edge".${role.childId} as ${assignment.roleId},
+    ${permissions(sql`"the_assignment_edge".${assignment.permission}`, sql`"the_role_edge".${role.permission}`)}
+  from ${assignment.edgeCache} as "the_assignment_edge"
+  join ${role.edgeCache} as "the_role_edge" on "the_role_edge".${role.parentId} = "the_assignment_edge".${assignment.roleId}`;
+      default: return sql`
+  select "the_resource_edge".${resource.childId} as ${assignment.resourceId}, "the_role_edge".${role.childId} as ${assignment.roleId},
+    ${permissions(sql`"the_resource_edge".${resource.permission}`, sql`"the_assignment_edge".${assignment.permission}`, sql`"the_role_edge".${role.permission}`)}
+  from ${resource.edgeCache} as "the_resource_edge"
+  join ${assignment.edge} as "the_assignment_edge" on "the_assignment_edge".${assignment.resourceId} = "the_resource_edge".${resource.parentId}
+  join ${role.edgeCache} as "the_role_edge" on "the_role_edge".${role.parentId} = "the_assignment_edge".${assignment.roleId}`;
+    }
+  })();
+
+  for (const table of config.tables.filter(table => table.resourceLeaf)) {
+    if (Object.values(table.permission ?? {}).some(bits => (bits as { manageAccess?: number } | undefined)?.manageAccess != null)) {
+      throw new Error(`Leaf rows have no access of their own: manageAccess is checked on resources, and the rows of ${table.name} are not`);
+    }
+  }
+  // Roles that can read the graph tables, graph writers and the owner, see everything. In a view, current_user is
+  // the user of the view, so the manageAccess bit of the user role it belongs to applies, on the table of the resource.
+  const managed = getBindings("resource", naming, config).flatMap(binding => {
+    const permission = config.tables.find(table => table.name === binding.tableName)?.permission ?? {};
+    const bits = users.flatMap(user => {
+      const bit = (permission as Record<string, { manageAccess?: number } | undefined>)[user]?.manageAccess;
+      return bit == null ? [] : [{ user, bit }];
+    });
+    return bits.length === 0 ? [] : [{ binding, bits }];
+  });
+  const managesAccess = (target: SQL) => sql`(
+  (select has_table_privilege(current_user, ${textLiteral(compile(resource.edgeCache).text)}::regclass, 'select'))${join(managed.map(({ binding, bits }) => sql`
+  or (exists (select from ${binding.table} as "the_row" where "the_row".${binding.id} = ${target}) and (${join(bits.map(({ user, bit }) => sql`
+    (pg_has_role(current_user, ${textLiteral(user)}, 'member') and exists (select from ${currentAccessViewOf(naming, bit)} as "the_manager" where "the_manager".${assignment.resourceId} = ${target}))`), ` or`)}))`), ``)}
+)`;
+
   // In role mode, the cache has a row per assigned resource for every role below the assignment, merged over paths
   const assignments = config.engine.combineAssignmentsWith === "role" ? sql`
 select "the_assignment_edge".${assignment.resourceId}, "the_assignment_edge".${assignment.permission}
@@ -1713,11 +1757,37 @@ from ${role.edgeCache} as "the_edge"
 where "the_edge".${role.childId} = ${me};
 
 ${setPrivileges(currentRoleView, everyone, [])}
+
+-- Who has access to a resource: every assignment that reaches it, from the resource itself or from above, with the
+-- bits that reach it. For users with the manageAccess bit on the resource, and for the roles that can read the graph.
+create or replace view ${accessView} with (security_barrier) as
+select "the_resource_edge".${resource.childId} as ${assignment.resourceId}, "the_assignment_edge".${assignment.roleId},
+  "the_assignment_edge".${assignment.resourceId} as "assigned_resource_id",
+  ${bitmap(sql`"the_resource_edge".${resource.permission}`, sql`"the_assignment_edge".${assignment.permission}`)} as ${assignment.permission}
+from ${resource.edgeCache} as "the_resource_edge"
+join ${assignment.edge} as "the_assignment_edge" on "the_assignment_edge".${assignment.resourceId} = "the_resource_edge".${resource.parentId}
+where ${managesAccess(sql`"the_resource_edge".${resource.childId}`)};
+
+${setPrivileges(accessView, everyone, [])}
+
+-- Every way any role reaches a resource, with the bits it gives, as the view of the current user has them for the
+-- current user. A role leaf row has the ways of its parent.
+create or replace view ${roleAccessView} with (security_barrier) as
+select "the_access".${assignment.resourceId}, "the_access".${assignment.roleId}, "the_access".${assignment.permission}
+from (${roleAccess}${join(roleLeaves.map(leaf => sql`
+  union all
+  select "the_node_access".${assignment.resourceId}, "the_leaf".${leaf.id}, "the_node_access".${assignment.permission}
+  from (${roleAccess}) as "the_node_access"
+  join ${leaf.table} as "the_leaf" on ${parentOfLeaf(leaf, sql`"the_leaf"`)} = "the_node_access".${assignment.roleId}`), ``)}
+) as "the_access"
+where ${managesAccess(sql`"the_access".${assignment.resourceId}`)};
+
+${setPrivileges(roleAccessView, everyone, [])}
 `;
 }
 
 export const createMigrationDataModelPolicies = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { resource, role, assignment, currentRoleNodeFunction, currentAccessView, permissionFunction, orBitmap } = naming;
+  const { resource, role, assignment, currentRoleNodeFunction, currentAccessView, roleAccessView, permissionFunction, orBitmap } = naming;
   const { type: idType } = getIdType(config);
   const { users, writers, everyone } = getRoles(config);
   const size = config.engine.permission.bitmap.size;
@@ -1734,32 +1804,9 @@ export const createMigrationDataModelPolicies = <User extends string>(naming: Na
     where "var_access".${assignment.resourceId} = ${target} and ${hasBit("var_access", assignment.permission, bit)}
   )`;
 
-  // The chains of the access view for any role, for graph writers: a bit is set iff it is set on every segment of some
-  // chain
-  const permissionOf = (target: SQL, roleId: SQL) => {
-    switch (config.engine.combineAssignmentsWith) {
-      case "role": return sql`
-    select ${orBitmap} ("var_resource_edge".${resource.permission} & "var_assignment_edge".${assignment.permission})
-    from ${resource.edgeCache} as "var_resource_edge"
-    join ${assignment.edgeCache} as "var_assignment_edge" on "var_assignment_edge".${assignment.resourceId} = "var_resource_edge".${resource.parentId}
-    where "var_resource_edge".${resource.childId} = ${target} and "var_assignment_edge".${assignment.roleId} = ${roleId}`;
-      case "resource": return sql`
-    select ${orBitmap} ("var_assignment_edge".${assignment.permission} & "var_role_edge".${role.permission})
-    from ${assignment.edgeCache} as "var_assignment_edge"
-    join ${role.edgeCache} as "var_role_edge" on "var_role_edge".${role.parentId} = "var_assignment_edge".${assignment.roleId}
-    where "var_assignment_edge".${assignment.resourceId} = ${target} and "var_role_edge".${role.childId} = ${roleId}`;
-      default: return sql`
-    select ${orBitmap} ("var_resource_edge".${resource.permission} & "var_assignment_edge".${assignment.permission} & "var_role_edge".${role.permission})
-    from ${resource.edgeCache} as "var_resource_edge"
-    join ${assignment.edge} as "var_assignment_edge" on "var_assignment_edge".${assignment.resourceId} = "var_resource_edge".${resource.parentId}
-    join ${role.edgeCache} as "var_role_edge" on "var_role_edge".${role.parentId} = "var_assignment_edge".${assignment.roleId}
-    where "var_resource_edge".${resource.childId} = ${target} and "var_role_edge".${role.childId} = ${roleId}`;
-    }
-  };
-
   // Users only learn their own permissions: no bits for a resource they have no access to, as for one that does not
-  // exist. Graph writers can ask for any role, to check a user before a graph write. A role leaf row, like an API key,
-  // has the permissions of its parent.
+  // exist. Users with the manageAccess bit on a resource, and graph writers, can ask for any role, to show who can do
+  // what or to check a user before a graph write. A role leaf row, like an API key, has the permissions of its parent.
   const permissionFunctionSql = sql`
 create or replace function ${permissionFunction} ("the_resource_id" ${idType})
   returns bit(${literal(size)})
@@ -1774,19 +1821,19 @@ $$ language plpgsql stable set search_path = ${naming.schema}, pg_temp;
 
 ${grantExecute(sql`${permissionFunction} (${idType})`, everyone)}
 
--- As the owner, to find the parent of any key
+-- The permissions of any role, for users with the manageAccess bit on the resource and for graph writers
 create or replace function ${permissionFunction} ("the_resource_id" ${idType}, "the_role_id" ${idType})
   returns bit(${literal(size)})
   as $$
-declare
-  "the_role_node" ${idType} := ${roleNodeOf(naming, config, sql`"the_role_id"`)};
 begin
-  return (${permissionOf(sql`"the_resource_id"`, sql`"the_role_node"`)}
+  return (
+    select ${orBitmap} ("var_access".${assignment.permission}) from ${roleAccessView} as "var_access"
+    where "var_access".${assignment.resourceId} = "the_resource_id" and "var_access".${assignment.roleId} = "the_role_id"
   )::bit(${literal(size)});
 end
-$$ language plpgsql stable ${definer(naming)};
+$$ language plpgsql stable security invoker set search_path = ${naming.schema}, pg_temp;
 
-${grantExecute(sql`${permissionFunction} (${idType}, ${idType})`, writers)}
+${grantExecute(sql`${permissionFunction} (${idType}, ${idType})`, everyone)}
 `;
 
   // Policies read the parent table through this lookup, so that its own policies do not apply. A table whose parent

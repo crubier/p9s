@@ -445,10 +445,9 @@ export interface AccessRow extends Principal {
 export const listAccess = (actor: Actor, resourceId: string) =>
   asRole(actor, async (tx) => {
     await assertResourceInOrganization(tx, actor, resourceId);
-    const assignments = await readGraph<{ roleId: string; permission: string; resourceId: string }>(tx, sql`
-      select a.role_id as "roleId", (a.permission & c.permission)::text as permission, a.resource_id as "resourceId"
-      from resource_edge_cache c join assignment_edge a on a.resource_id = c.parent_id
-      where c.child_id = ${resourceId} and (a.permission & c.permission & ${CONTENT_BITS}::bit(8)) <> b'00000000'`);
+    const assignments = await rows<{ roleId: string; permission: string; resourceId: string }>(tx, sql`
+      select role_id as "roleId", permission::text, assigned_resource_id as "resourceId" from resource_access
+      where resource_id = ${resourceId} and (permission & ${CONTENT_BITS}::bit(8)) <> b'00000000'`);
     if (!assignments.length) return [];
     const found = new Map((await principalsWithRoles(tx, actor, assignments.map((row) => row.roleId))).map((principal) => [principal.roleId, principal]));
     const sources = new Map(
@@ -478,8 +477,8 @@ export const share = (actor: Actor, resourceId: string, roleId: string, level: A
     const requested = ACCESS_LEVELS[level].permission;
     if (!includes(granted, requested)) throw new ForbiddenError("You can only give access you have yourself.");
     if (!(await principalsWithRoles(tx, actor, [roleId])).length) throw new NotFoundError("No such member or team.");
-    const [existing] = await readGraph<{ permission: string }>(tx, sql`
-      select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
+    const [existing] = await rows<{ permission: string }>(tx, sql`
+      select permission::text from resource_access where resource_id = ${resourceId} and assigned_resource_id = ${resourceId} and role_id = ${roleId}`);
     if (existing && !includes(granted, existing.permission)) throw new ForbiddenError("You cannot change access you don't have yourself.");
     await switchToGraphWriter(tx);
     await tx.execute(sql`
@@ -493,8 +492,8 @@ export const unshare = (actor: Actor, resourceId: string, roleId: string) =>
     await assertResourceInOrganization(tx, actor, resourceId);
     const granted = await permissionOf(tx, resourceId);
     if (!can(granted, "share")) throw new ForbiddenError("You cannot change who has access to this.");
-    const [existing] = await readGraph<{ permission: string }>(tx, sql`
-      select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
+    const [existing] = await rows<{ permission: string }>(tx, sql`
+      select permission::text from resource_access where resource_id = ${resourceId} and assigned_resource_id = ${resourceId} and role_id = ${roleId}`);
     if (!existing) throw new NotFoundError("That access is not given here.");
     if (!includes(granted, existing.permission)) throw new ForbiddenError("You cannot remove access you don't have yourself.");
     await switchToGraphWriter(tx);
@@ -505,15 +504,13 @@ const assertAdmin = async (tx: Tx, actor: Actor, message: string) => {
   if (!can(await permissionOf(tx, actor.org.resourceId), "admin")) throw new ForbiddenError(message);
 };
 
-// What members can do in every space. Only the graph writer can ask about other roles, so the server checks that
-// the actor is an admin, reads the ids it needs as the actor, and asks as the graph writer
+// What members can do in every space. Admins read every space, so they can ask what any role can do in it
 export const accessMatrix = (actor: Actor, page: Page = {}) =>
   asRole(actor, async (tx) => {
     await assertAdmin(tx, actor, "Only admins can see everyone's access.");
     const { members, total } = await listMembersIn(tx, actor, { limit: 25, ...page });
     const spaces = await rows<{ id: string; name: string; resourceId: string }>(tx, sql`
       select id, name, resource_id as "resourceId" from folder where org_id = ${actor.org.id} and parent_id is null order by name`);
-    await switchToGraphWriter(tx);
     const cells = members.length
       ? await rows<{ resourceId: string; roleId: string; permission: string | null }>(tx, sql`
           select r as "resourceId", m as "roleId", ${contentPermission(sql`resource_permission(r, m)`)} as permission

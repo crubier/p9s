@@ -6,6 +6,8 @@ export const permissionPerOperationSchema = z.object({
   insert: z.number(),
   update: z.number(),
   delete: z.number(),
+  // Lets users see who has access to a row of the table, and what any role can do on it
+  manageAccess: z.number().optional(),
 });
 
 // Permission per operation (string values for naming config)
@@ -167,6 +169,10 @@ export const derivedNamingConfigSchema = z.object({
   currentAssignmentView: z.string(),
   currentResourceEdgeView: z.string(),
   currentRoleView: z.string(),
+  // Who has access to a resource, for users with the manageAccess bit on it: the assignments that reach it, and the
+  // permissions of every role
+  accessView: z.string(),
+  roleAccessView: z.string(),
 });
 
 // Table naming config entry schema. The fkey names are only used to upgrade from node tables.
@@ -320,6 +326,13 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
         });
       }
     });
+    if (table.resourceLeaf && Object.values(table.permission).some(bits => bits.manageAccess != null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Leaf rows have no access of their own: manageAccess is checked on resources, and the rows of ${table.name} are not`,
+        path: ["tables", tableIndex, "permission"],
+      });
+    }
     for (const [kind, parentKey, flag, leafKey] of [["resource", "resourceParent", "isResource", "resourceLeaf"], ["role", "roleParent", "isRole", "roleLeaf"]] as const) {
       const parent = table[parentKey];
       if (!parent) continue;
