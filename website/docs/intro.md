@@ -53,7 +53,7 @@ This is implemented using cache tables and triggers for automatic updates.
 
 ### Row Level Security
 
-The system generates PostgreSQL Row Level Security (RLS) policies to enforce permissions. Application code can read the same permissions with `resource_permission(resource_id)`, to show the actions a user can take or to check a permission before a graph write, see [checking permissions in application code](./configuration/security-model#checking-permissions-in-application-code).
+The system generates PostgreSQL Row Level Security (RLS) policies to enforce permissions. Application code can read the same permissions with `resource_permission(resource_id)`, to show the actions a user can take or to check a permission before a graph write, see [checking permissions in application code](./configuration/security-model#checking-permissions-in-application-code). Users cannot read the graph tables themselves: policies and application code read the part of the graph of the current user through views, see [what users see of the graph](./configuration/security-model#what-users-see-of-the-graph).
 
 ## Quick Start
 

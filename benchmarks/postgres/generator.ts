@@ -758,6 +758,13 @@ export async function runPostgresBenchmark(context: Context, {
       select "tablename", "qual" from pg_policies
       where "policyname" in (${join(baselineTables.map(table => literal(`${table}_${database_user_username}_select_policy`)), ", ")})
     `);
+    // Users only see the graph through the views of the current user, the baseline walks the edges themselves
+    const idType = raw(idMode === "uuid" ? "uuid" : "integer");
+    const baselineGraph = sql`table "resource_edge", "role_edge", "assignment_edge"`;
+    const baselineFunctions = sql`function resource_edge_cache_parent_compute (${idType}), role_edge_cache_parent_compute (${idType})`;
+    await exec(sql`
+      grant select on ${baselineGraph} to ${identifier(database_user_username)};
+      grant execute on ${baselineFunctions} to ${identifier(database_user_username)};`);
     await exec(sql`
       ${join(baselineTables.map(table => sql`
         drop policy ${selectPolicy(table)} on ${identifier(table)};
@@ -776,6 +783,9 @@ export async function runPostgresBenchmark(context: Context, {
     `);
     baselineMatches = Bun.deepEquals(cachedCounts, await visibleCounts());
     await measureReads("baseline", Math.max(3, Math.ceil(reps / 3)));
+    await exec(sql`
+      revoke select on ${baselineGraph} from ${identifier(database_user_username)};
+      revoke execute on ${baselineFunctions} from ${identifier(database_user_username)};`);
     // Updates and deletes also go through the select policies, so the writes below need the p9s ones back
     await exec(sql`
       ${join(p9sPolicies.map(({ tablename, qual }) => sql`

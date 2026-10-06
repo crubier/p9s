@@ -37,13 +37,13 @@ limit 50;
 
 The same goes for `count(*)` with such a filter. A fenced search costs about a count of what the user can read: 0.2 to 0.45 s for 108,000 documents.
 
-Joins and `exists` checks next to the search are planned for the few rows Postgres expects it to return, too. In the example app, checking the organization of every match, a lookup in `resource_edge_cache`, was planned as a loop over the whole cache for each of them: 30 s. Put them inside a second `offset 0`, around the readable rows, and the search outside:
+Joins and `exists` checks next to the search are planned for the few rows Postgres expects it to return, too. In the example app, checking the organization of every match, a lookup in `current_resource_edge`, was planned as a loop over the whole cache for each of them: 30 s. Put them inside a second `offset 0`, around the readable rows, and the search outside:
 
 ```sql
 select id, title
 from (
   select * from (select id, title, content, resource_id, updated_at from document offset 0) as d
-  where exists (select 1 from resource_edge_cache c where c.parent_id = $2 and c.child_id = d.resource_id)
+  where exists (select 1 from current_resource_edge c where c.parent_id = $2 and c.child_id = d.resource_id)
   offset 0
 ) as d
 where d.title ilike '%' || $1 || '%'
@@ -73,20 +73,16 @@ That page took 0.07 to 0.16 s. Postgres expects the index to return every row of
 
 A list like "Shared with me" shows the rows a user can read in folders they cannot read. Filtering what they read by a parent they cannot read checks every readable row: 0.5 to 2.4 s for 108,000 documents.
 
-A bit is on every edge of some path from an assignment to the resource, so it is on the path to the parent too. A row readable under a parent that is not was therefore assigned to the user itself, or reached through another edge than the one from its parent. Without other edges, start from the assignments of the user, a few rows:
+A bit is on every edge of some path from an assignment to the resource, so it is on the path to the parent too. A row readable under a parent that is not was therefore assigned to the user itself, or reached through another edge than the one from its parent. Without other edges, start from the assignments of the user, a few rows, which the `current_assignment` [view](./security-model#what-users-see-of-the-graph) lists:
 
 ```sql
 select d.id, d.title
 from document d
-where d.resource_id in (
-  select a.resource_id from assignment_edge a
-  join role_edge_cache r on r.parent_id = a.role_id
-  where r.child_id = current_role_id()
-)
+where d.resource_id in (select resource_id from current_assignment)
 and not exists (select 1 from folder f where f.id = d.folder_id);
 ```
 
-That took 5 ms. `current_role_id()` stands for `engine.authentication.getCurrentUserId`. With [role leaf tables](./overview#role-leaf-tables), use `current_role_node()`, which maps an API key to its parent, the node assignments are made to. With `combineAssignmentsWith: role`, `assignment_edge_cache` holds these pairs already: `select resource_id from assignment_edge_cache where role_id = current_role_node()`.
+That took 5 ms. The view holds the resources assigned to the user, to a role above it, or with [role leaf tables](./overview#role-leaf-tables) to the parent of its API key.
 
 ## Statistics
 

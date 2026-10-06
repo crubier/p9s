@@ -160,6 +160,13 @@ export const derivedNamingConfigSchema = z.object({
   currentRoleNodeFunction: z.string(),
   // The permission bitmap of a role on a resource, for application code
   permissionFunction: z.string(),
+  // The part of the graph users can see, instead of the graph tables: every way the current user reaches a resource
+  // with the bits along it, which the policies check, the resources assigned to the current user, the edges between
+  // resources it reaches, and the roles it acts as
+  currentAccessView: z.string(),
+  currentAssignmentView: z.string(),
+  currentResourceEdgeView: z.string(),
+  currentRoleView: z.string(),
 });
 
 // Table naming config entry schema. The fkey names are only used to upgrade from node tables.
@@ -234,7 +241,8 @@ export const tableConfigSchema = z.object({
 // Engine config base schema (without refinements, for partial/optional use)
 export const engineConfigBaseSchema = z.object({
   schema: z.string(),
-  // Database roles that query business tables through RLS. They get read-only access to the permission graph.
+  // Database roles that query business tables through RLS. They see their own part of the permission graph, through
+  // the views of the current user.
   users: z.array(z.string()),
   // Database roles allowed to modify nodes, edges and assignments. Caches are only ever written by p9s triggers.
   graphWriters: z.array(z.string()).default([]),

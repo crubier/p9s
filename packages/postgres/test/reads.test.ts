@@ -95,11 +95,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
           select "id" from "blog_post" where substring(resource_permission("group_id")::text from 1 for 1) <> '1' order by "id"`);
         expect(hidden.map(({ id }) => id)).toEqual(SHARED);
         const { rows: assigned, postsRead } = await asRole2(sql`
-          select "id" from "blog_post" where "resource_id" in (
-            select "assignment_edge"."resource_id" from "assignment_edge"
-            join "role_edge_cache" on "role_edge_cache"."parent_id" = "assignment_edge"."role_id"
-            where "role_edge_cache"."child_id" = current_role_id()
-          ) order by "id"`);
+          select "id" from "blog_post" where "resource_id" in (select "resource_id" from "current_assignment") order by "id"`);
         expect(assigned.map(({ id }) => id)).toEqual(SHARED);
         expect(postsRead).toBeLessThan(100);
       }, { timeout: 60000 });

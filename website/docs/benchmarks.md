@@ -143,3 +143,19 @@ With a size of 10 (111k resources, 5,600 posts of which a user reads about 200),
 | Page by keyset                    | 1.87 |
 
 `ilike` is not leakproof, so the policy runs before it, planned for the few rows the search looks like it returns: Postgres checks the ancestors of each of the 5,600 posts. Behind `offset 0` it lists the 200 readable ones once. [Querying through RLS](./configuration/querying) explains these and other patterns.
+
+### Hiding the graph
+
+Policies read the graph through [views of the current user](./configuration/security-model#what-users-see-of-the-graph) rather than the tables, so that users cannot read the graph whole. With a size of 10 and integer ids, p50 in milliseconds over two runs each, before and after:
+
+|                                   | `none`                | `role`                | `resource`            |
+| --------------------------------- | --------------------- | --------------------- | --------------------- |
+| Point lookup                      | 0.59–0.65 / 0.61–0.65 | 0.25 / 0.25–0.26      | 0.27–0.30 / 0.28–0.32 |
+| First page of 50 rows             | 2.1–2.3 / 2.0–2.3     | 1.8–1.9 / 1.7–1.9     | 3.3–3.4 / 3.4–3.6     |
+| Count visible objects             | 1.9–2.1 / 1.9         | 1.5 / 1.5–1.6         | 3.2–3.4 / 3.3–3.6     |
+| Search behind `offset 0`          | 1.9–2.1 / 1.9–2.0     | 1.6–1.7 / 1.6         | 3.5–3.7 / 3.3–3.6     |
+| `resource_permission` of a row    | 0.14–0.16 / 0.13–0.15 | 0.09–0.10 / 0.09      | 0.10–0.11 / 0.10      |
+
+The differences are those between two runs of the same code, and writes do not change. Postgres plans the views like the tables: a view is a security barrier, but the comparisons of ids that select the rows of a resource are leakproof, so they still run first, in the index. Each policy reads the view of its bit, which only keeps the edges with that bit.
+
+With `combineAssignmentsWith: resource`, p9s now also tells the planner that a role can be assigned most of the cache. In the flat graph above, where a user is assigned the root of 20,000 posts and 20,000 other roles are each assigned a post, reading one post takes 0.2 ms instead of 3.8 ms, and updating it 0.6 ms instead of 14 ms, round trip included. The other modes do not change: 0.4 and 1.3 ms with `none`, 0.2 and 0.6 ms with `role`.

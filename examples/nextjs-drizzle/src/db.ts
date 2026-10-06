@@ -59,6 +59,15 @@ export const asRole = async <T>(identity: Identity | string, fn: (tx: Tx) => Pro
 // RLS policy, so it cannot read business rows: read what you need as app_user first
 export const switchToGraphWriter = (tx: Tx) => tx.execute(sql`select set_config('role', 'app_backend', true)`);
 
+// app_user only sees its own part of the graph: who else is in a team, or who else has access to something, is read
+// as the graph writer, after checking as app_user that the actor may know
+export const readGraph = async <T>(tx: Tx, query: ReturnType<typeof sql>) => {
+  await switchToGraphWriter(tx);
+  const found = await rows<T>(tx, query);
+  await tx.execute(sql`select set_config('role', 'app_user', true)`);
+  return found;
+};
+
 export const rows = async <T>(tx: Tx | Db, query: ReturnType<typeof sql>) => (await tx.execute(query)).rows as T[];
 
 // Turns the errors raised by RLS and p9s into messages for the user

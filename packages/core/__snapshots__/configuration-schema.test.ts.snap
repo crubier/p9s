@@ -785,7 +785,19 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
       ],
       "type": "object",
     },
+    "currentAccessView": {
+      "type": "string",
+    },
+    "currentAssignmentView": {
+      "type": "string",
+    },
+    "currentResourceEdgeView": {
+      "type": "string",
+    },
     "currentRoleNodeFunction": {
+      "type": "string",
+    },
+    "currentRoleView": {
       "type": "string",
     },
     "orBitmap": {
@@ -1214,6 +1226,10 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
     "permissionFunction",
+    "currentAccessView",
+    "currentAssignmentView",
+    "currentResourceEdgeView",
+    "currentRoleView",
   ],
   "type": "object",
   "~standard": {
@@ -1684,7 +1700,19 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "compute": {
       "type": "string",
     },
+    "currentAccessView": {
+      "type": "string",
+    },
+    "currentAssignmentView": {
+      "type": "string",
+    },
+    "currentResourceEdgeView": {
+      "type": "string",
+    },
     "currentRoleNodeFunction": {
+      "type": "string",
+    },
+    "currentRoleView": {
       "type": "string",
     },
     "delete": {
@@ -2366,6 +2394,10 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "truncateGuardTrigger",
     "currentRoleNodeFunction",
     "permissionFunction",
+    "currentAccessView",
+    "currentAssignmentView",
+    "currentResourceEdgeView",
+    "currentRoleView",
     "tables",
   ],
   "type": "object",
@@ -2714,7 +2746,19 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "compute": {
           "type": "string",
         },
+        "currentAccessView": {
+          "type": "string",
+        },
+        "currentAssignmentView": {
+          "type": "string",
+        },
+        "currentResourceEdgeView": {
+          "type": "string",
+        },
         "currentRoleNodeFunction": {
+          "type": "string",
+        },
+        "currentRoleView": {
           "type": "string",
         },
         "delete": {
@@ -3670,7 +3714,19 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "compute": {
               "type": "string",
             },
+            "currentAccessView": {
+              "type": "string",
+            },
+            "currentAssignmentView": {
+              "type": "string",
+            },
+            "currentResourceEdgeView": {
+              "type": "string",
+            },
             "currentRoleNodeFunction": {
+              "type": "string",
+            },
+            "currentRoleView": {
               "type": "string",
             },
             "delete": {
@@ -4737,7 +4793,19 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "compute": {
               "type": "string",
             },
+            "currentAccessView": {
+              "type": "string",
+            },
+            "currentAssignmentView": {
+              "type": "string",
+            },
+            "currentResourceEdgeView": {
+              "type": "string",
+            },
             "currentRoleNodeFunction": {
+              "type": "string",
+            },
+            "currentRoleView": {
               "type": "string",
             },
             "delete": {

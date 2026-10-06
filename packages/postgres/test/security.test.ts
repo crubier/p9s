@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier, join, raw, type SQL } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import { createMigration } from '../generation';
-import { as, bits, blogMigrationConfig, cacheMismatches, noMismatches, setupBlog, type TestContext } from './helpers';
+import { as, bits, blogMigrationConfig, cacheMismatches, combineModes, noMismatches, setupBlog, type TestContext } from './helpers';
 
 const expectRejected = async (promise: Promise<unknown>, message: RegExp = /permission denied/) => {
   let error: unknown;
@@ -36,17 +36,75 @@ describe('permission graph privileges', () => {
   beforeEach(setup);
   afterEach(teardown);
 
-  test('app users can read the graph and caches but not write them', async () => {
+  test('app users can neither read nor write the graph and caches', async () => {
     await setupBlog(context, { combineAssignmentsWith: "role" });
     await seedGraph(context);
     const user = context.database_user_username;
 
+    for (const table of [...graphTables, ...cacheTables, "resource_edge_cache_view", "role_edge_cache_view", "assignment_edge_cache_view"]) {
+      await expectRejected(as(context, user, sql`select count(*) from ${identifier(table)}`));
+    }
     for (const table of [...graphTables, ...cacheTables]) {
-      expect(await as(context, user, sql`select count(*)::int as "n" from ${identifier(table)}`)).toHaveLength(1);
       for (const statement of writeStatements(table)) {
         await expectRejected(as(context, user, statement));
       }
     }
+    await expectRejected(as(context, user, sql`select * from "resource_edge_cache_parent_compute"(2)`));
+    await expectRejected(as(context, user, sql`select * from "role_edge_cache_child_compute"(1)`));
+  });
+
+  for (const combineAssignmentsWith of combineModes) {
+    test(`app users see their own part of the graph through views (combineAssignmentsWith: ${combineAssignmentsWith})`, async () => {
+      await setupBlog(context, { combineAssignmentsWith });
+      await seedGraph(context);
+      const user = context.database_user_username;
+      // Role 1 is assigned group 2, role 2 is below role 1, role 3 nothing. Group 2 holds a post: role 1 reaches both.
+      await context.exec(sql`
+        insert into "role_group" ("id", "parent_id") values (3, null);
+        update "role_group" set "parent_id" = 1 where "id" = 2;`);
+      const [[post]] = await context.runTestQuery(sql`select "resource_id" from "blog_post" where "group_id" = 2`);
+      const access = (roleId: string) => as(context, user, sql`
+        select "resource_id", "permission"::text from "current_resource_access" order by "resource_id"`, raw(roleId));
+      const select = (roleId: string) => as(context, user, sql`select "resource_id" from "current_resource_access_0" order by "resource_id"`, raw(roleId));
+      const shared = (roleId: string) => as(context, user, sql`select "resource_id", "permission"::text from "current_assignment"`, raw(roleId));
+      const edges = (roleId: string) => as(context, user, sql`
+        select "parent_id", "child_id" from "current_resource_edge" order by "parent_id", "child_id"`, raw(roleId));
+      const roles = (roleId: string) => as(context, user, sql`select "role_id" from "current_role" order by "role_id"`, raw(roleId));
+
+      for (const roleId of ["1", "2"]) {
+        expect(await access(roleId)).toEqual([{ resource_id: 2, permission: "1111" }, { resource_id: post.resource_id, permission: "1111" }]);
+        expect(await select(roleId)).toEqual([{ resource_id: 2 }, { resource_id: post.resource_id }]);
+        expect(await shared(roleId)).toEqual([{ resource_id: 2, permission: "1111" }]);
+        // Group 1 is above group 2, but out of reach
+        expect(await edges(roleId)).toEqual([
+          { parent_id: 2, child_id: 2 }, { parent_id: 2, child_id: post.resource_id }, { parent_id: post.resource_id, child_id: post.resource_id }]);
+      }
+      expect(await roles("1")).toEqual([{ role_id: 1 }]);
+      expect(await roles("2")).toEqual([{ role_id: 1 }, { role_id: 2 }]);
+      expect(await access("3")).toEqual([]);
+      expect(await shared("3")).toEqual([]);
+      expect(await edges("3")).toEqual([]);
+      expect(await roles("3")).toEqual([{ role_id: 3 }]);
+    });
+  }
+
+  test('a function of the user only sees the rows of the views, whatever its cost', async () => {
+    await setupBlog(context);
+    await seedGraph(context);
+    const user = context.database_user_username;
+    // Postgres would run a cheaper filter first, on rows that the view then leaves out, unless it is a security barrier
+    const seen = await as(context, user, sql`
+      create temporary table "seen" ("id" integer);
+      create function pg_temp."leak" ("the_id" integer) returns boolean
+        as 'insert into pg_temp."seen" values ($1) returning true' language sql cost 0.0000001;
+      select count(*) from "current_resource_access" where pg_temp."leak"("resource_id");
+      select count(*) from "current_resource_access_0" where pg_temp."leak"("resource_id");
+      select count(*) from "current_assignment" where pg_temp."leak"("resource_id");
+      select count(*) from "current_resource_edge" where pg_temp."leak"("child_id");
+      select count(*) from "current_role" where pg_temp."leak"("role_id");
+      select distinct "id" from pg_temp."seen" order by "id";`, raw("2"));
+    // Role 2 reaches no resource, and is the only role it acts as
+    expect(seen).toEqual([{ id: 2 }]);
   });
 
   test('app users cannot grant themselves access', async () => {

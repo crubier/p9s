@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { ACCESS_LEVELS, ADMINS, BIT, CONTENT_BITS, EVERYONE_IN_ORGANIZATION, can, includes, levelOf, type AccessLevel } from "../lib/permissions";
-import { ForbiddenError, NotFoundError, asRole, db, rows, switchToGraphWriter, type Identity, type Tx } from "./db";
+import { ForbiddenError, NotFoundError, asRole, db, readGraph, rows, switchToGraphWriter, type Identity, type Tx } from "./db";
 import { apiKey, auditEvent, comment, document, folder, member, organization, team, user } from "./schema";
 
 // Everything a request does in an organization, it does as an actor: a member, or an API key of a member.
@@ -97,17 +97,27 @@ export const organizationPermission = (actor: Actor) => asRole(actor, (tx) => pe
 
 export interface MemberRow { id: string; roleId: string; userId: string; name: string; email: string; teamIds: string[] }
 
-// RLS shows the members of the organization to everyone in it, through the directory bit
+// RLS shows the members of the organization and its teams to everyone in it, through the directory bit. Which
+// teams they are in is read from the graph
 const listMembersIn = async (tx: Tx, actor: Actor, { query, offset = 0, limit = 1000 }: Page = {}) => {
   const matching = sql`member m join "user" u on u.id = m.user_id
     where m.org_id = ${actor.org.id} and (u.name ilike ${like(query)} or u.email ilike ${like(query)})`;
-  const members = await rows<MemberRow>(tx, sql`
-    select m.id, m.role_id as "roleId", u.id as "userId", u.name, u.email,
-      array(select t.id from role_edge e join team t on t.role_id = e.parent_id where e.child_id = m.role_id order by t.name) as "teamIds"
+  const found = await rows<Omit<MemberRow, "teamIds">>(tx, sql`
+    select m.id, m.role_id as "roleId", u.id as "userId", u.name, u.email
     from ${matching}
     order by u.name, u.email
     offset ${offset} limit ${limit}`);
   const [counted] = await rows<{ total: number }>(tx, sql`select count(*)::int as total from ${matching}`);
+  const teams = await rows<{ id: string; roleId: string }>(tx, sql`select id, role_id as "roleId" from team where org_id = ${actor.org.id} order by name`);
+  const edges = found.length && teams.length
+    ? await readGraph<{ teamRoleId: string; memberRoleId: string }>(tx, sql`
+        select parent_id as "teamRoleId", child_id as "memberRoleId" from role_edge
+        where parent_id = any(${uuids(teams.map((row) => row.roleId))}) and child_id = any(${uuids(found.map((row) => row.roleId))})`)
+    : [];
+  const members = found.map((row) => {
+    const roles = new Set(edges.filter((edge) => edge.memberRoleId === row.roleId).map((edge) => edge.teamRoleId));
+    return { ...row, teamIds: teams.filter((team) => roles.has(team.roleId)).map((team) => team.id) };
+  });
   return { members, total: counted?.total ?? 0 };
 };
 
@@ -134,17 +144,22 @@ export const removeMember = (actor: Actor, memberId: string) =>
 
 export interface TeamRow { id: string; name: string; roleId: string; resourceId: string; members: number; administers: boolean }
 
-// A team administers the organization when it is assigned the admin bit on it, like the Admins team
-const listTeamsIn = (tx: Tx, actor: Actor) =>
-  rows<TeamRow>(tx, sql`
-    select t.id, t.name, t.role_id as "roleId", t.resource_id as "resourceId",
-      (select count(*)::int from role_edge e where e.parent_id = t.role_id) as members,
+// A team administers the organization when it is assigned the admin bit on it, like the Admins team. The size of the
+// teams and what they are assigned is read from the graph
+const listTeamsIn = async (tx: Tx, actor: Actor): Promise<TeamRow[]> => {
+  const teams = await rows<Omit<TeamRow, "members" | "administers">>(tx, sql`
+    select t.id, t.name, t.role_id as "roleId", t.resource_id as "resourceId" from team t where t.org_id = ${actor.org.id} order by t.name`);
+  if (!teams.length) return [];
+  const graph = new Map((await readGraph<{ roleId: string; members: number; administers: boolean }>(tx, sql`
+    select r as "roleId",
+      (select count(*)::int from role_edge e where e.parent_id = r) as members,
       exists (
         select 1 from assignment_edge a
-        where a.resource_id = ${actor.org.resourceId} and a.role_id = t.role_id and substring(a.permission::text, ${BIT.admin + 1}, 1) = '1'
+        where a.resource_id = ${actor.org.resourceId} and a.role_id = r and substring(a.permission::text, ${BIT.admin + 1}, 1) = '1'
       ) as administers
-    from team t where t.org_id = ${actor.org.id}
-    order by t.name`);
+    from unnest(${uuids(teams.map((row) => row.roleId))}) r`)).map((row) => [row.roleId, row]));
+  return teams.map((row) => ({ ...row, members: graph.get(row.roleId)?.members ?? 0, administers: graph.get(row.roleId)?.administers ?? false }));
+};
 
 export const listTeams = (actor: Actor) => asRole(actor, (tx) => listTeamsIn(tx, actor));
 
@@ -197,7 +212,7 @@ const documentColumns = sql`d.id, d.title, d.folder_id as "folderId", d.resource
 // A user can be given access in several organizations: requests made in one only touch the resources below it. The
 // resource tree tells, even for a document whose folder RLS hides
 const inOrganization = (actor: Actor, resourceId: SQL) =>
-  sql`exists (select 1 from resource_edge_cache c where c.parent_id = ${actor.org.resourceId} and c.child_id = ${resourceId})`;
+  sql`exists (select 1 from current_resource_edge c where c.parent_id = ${actor.org.resourceId} and c.child_id = ${resourceId})`;
 const documentInOrganization = (actor: Actor) => inOrganization(actor, sql`${document.resourceId}`);
 const folderInOrganization = (actor: Actor, folderId: string) => sql`exists (select 1 from folder where id = ${folderId} and org_id = ${actor.org.id})`;
 
@@ -213,7 +228,7 @@ export const listSpaces = (actor: Actor) =>
 // What was shared with the actor inside spaces they cannot see. Access given on a folder reaches what is inside, so
 // a folder or document whose parent RLS hides was shared on its own: only look among what is assigned to the actor,
 // their teams and the organization, rather than through everything they can read
-const assignedToActor = sql`select resource_id from assignment_edge_cache where role_id = (select current_role_node())`;
+const assignedToActor = sql`select resource_id from current_assignment`;
 
 export const listShared = (actor: Actor) =>
   asRole(actor, async (tx) => ({
@@ -280,7 +295,7 @@ export const moveFolder = (actor: Actor, folderId: string, parentId: string) =>
     await assertFolderInOrganization(tx, actor, parentId);
     const [inside] = await rows<{ inside: boolean }>(tx, sql`
       select exists (
-        select 1 from resource_edge_cache c, folder moved, folder target
+        select 1 from current_resource_edge c, folder moved, folder target
         where moved.id = ${folderId} and target.id = ${parentId} and c.parent_id = moved.resource_id and c.child_id = target.resource_id
       ) as inside`);
     if (inside?.inside) throw new ForbiddenError("A folder cannot be moved into itself.");
@@ -425,11 +440,12 @@ export interface AccessRow extends Principal {
   fromFolderId: string | null;
 }
 
-// The assignments that give access to a resource: on the resource itself, or on a folder or organization above it
+// The assignments that give access to a resource: on the resource itself, or on a folder or organization above it.
+// Anyone who can see the resource can see who else has access, read from the graph
 export const listAccess = (actor: Actor, resourceId: string) =>
   asRole(actor, async (tx) => {
     await assertResourceInOrganization(tx, actor, resourceId);
-    const assignments = await rows<{ roleId: string; permission: string; resourceId: string }>(tx, sql`
+    const assignments = await readGraph<{ roleId: string; permission: string; resourceId: string }>(tx, sql`
       select a.role_id as "roleId", (a.permission & c.permission)::text as permission, a.resource_id as "resourceId"
       from resource_edge_cache c join assignment_edge a on a.resource_id = c.parent_id
       where c.child_id = ${resourceId} and (a.permission & c.permission & ${CONTENT_BITS}::bit(8)) <> b'00000000'`);
@@ -462,7 +478,7 @@ export const share = (actor: Actor, resourceId: string, roleId: string, level: A
     const requested = ACCESS_LEVELS[level].permission;
     if (!includes(granted, requested)) throw new ForbiddenError("You can only give access you have yourself.");
     if (!(await principalsWithRoles(tx, actor, [roleId])).length) throw new NotFoundError("No such member or team.");
-    const [existing] = await rows<{ permission: string }>(tx, sql`
+    const [existing] = await readGraph<{ permission: string }>(tx, sql`
       select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
     if (existing && !includes(granted, existing.permission)) throw new ForbiddenError("You cannot change access you don't have yourself.");
     await switchToGraphWriter(tx);
@@ -477,7 +493,7 @@ export const unshare = (actor: Actor, resourceId: string, roleId: string) =>
     await assertResourceInOrganization(tx, actor, resourceId);
     const granted = await permissionOf(tx, resourceId);
     if (!can(granted, "share")) throw new ForbiddenError("You cannot change who has access to this.");
-    const [existing] = await rows<{ permission: string }>(tx, sql`
+    const [existing] = await readGraph<{ permission: string }>(tx, sql`
       select permission::text from assignment_edge where resource_id = ${resourceId} and role_id = ${roleId}`);
     if (!existing) throw new NotFoundError("That access is not given here.");
     if (!includes(granted, existing.permission)) throw new ForbiddenError("You cannot remove access you don't have yourself.");

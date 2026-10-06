@@ -97,12 +97,16 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["delete an api key", sql`delete from "api_key" where "id" = 1`, false],
   ];
 
+  // Roles are flat too, each assigned a post of its own, so that the policies of the graph tables are no small table either
   const flatGraph = sql`
     insert into "resource_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1), (4, 1);
     insert into "role_group" ("id", "parent_id") values (1, null), (2, 1), (3, 1);
+    insert into "role_group" ("id", "parent_id") select s, 1 from generate_series(10, ${raw(String(FLAT_POSTS))}) as s;
+
     insert into "blog_post" ("group_id", "name") select 1, 'post' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
     insert into "blog_comment" ("post_id", "body") select 1, 'comment' from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
     insert into "api_key" ("group_id") select 1 from generate_series(1, ${raw(String(FLAT_POSTS))}) as s;
+    insert into "assignment_edge" ("resource_id", "role_id", "permission") select "resource_id", "id" + 9, ${bits("0011")} from "blog_post" where "id" + 9 <= ${raw(String(FLAT_POSTS))};
     insert into "assignment_edge" ("resource_id", "role_id", "permission") values (1, 1, ${bits("1011")}), (2, 2, ${bits("1111")}), (3, 3, ${bits("0011")});`;
   const aPostOf = (group: number) => sql`(select "id" from "blog_post" where "group_id" = ${raw(String(group))} limit 1)`;
   const flatWrites = (postOfRoot: number): Array<[string, SQL, boolean]> => [

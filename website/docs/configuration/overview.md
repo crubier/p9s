@@ -14,7 +14,7 @@ import type { Config } from "@p9s/core";
 const config: Config<"authenticated"> = {
   engine: {
     schema: "public",
-    // Roles that run end-user queries, they get RLS policies and read-only access to the permission graph
+    // Roles that run end-user queries, they get RLS policies and see their own part of the permission graph
     users: ["authenticated"],
     // Roles allowed to change edges and assignments, see the security model
     graphWriters: ["app_backend"],
@@ -70,7 +70,7 @@ import { compile } from "pg-sql2";
 const { text } = compile(createMigration(config));
 ```
 
-The migration is idempotent: running it again updates functions, triggers, policies and privileges without dropping data, and gives ids and home edges to business rows that existed before a table was bound to p9s. Databases created with node tables by earlier versions are upgraded, see [Upgrading](./upgrading).
+The migration is idempotent: running it again updates functions, triggers, policies and privileges without dropping data, and gives ids and home edges to business rows that existed before a table was bound to p9s. Databases created with node tables by earlier versions are upgraded, see [Upgrading](./upgrading#from-node-tables).
 
 ## Configuration Sections
 

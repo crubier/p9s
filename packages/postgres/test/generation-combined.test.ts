@@ -18,6 +18,11 @@ const migrationFor = (combineAssignmentsWith: "none" | "role" | "resource") => c
 })).text;
 
 const policyFor = (migration: string) => migration.slice(migration.indexOf(`create policy "blog_post_user1_select_policy"`)).split(";")[0]!;
+// Policies read the graph through a view of the resources the current user has their bit on
+const accessFor = (migration: string) => {
+  expect(policyFor(migration)).toContain(`from "current_resource_access_0" as "var_access"`);
+  return migration.slice(migration.indexOf(`create or replace view "current_resource_access_0"`)).split(";")[0]!;
+};
 
 test('role mode keeps assignment_edge_cache in sync with triggers and reads it in policies', () => {
   const migration = migrationFor("role");
@@ -25,8 +30,8 @@ test('role mode keeps assignment_edge_cache in sync with triggers and reads it i
     expect(migration).toContain(`create trigger "10_assignment_edge_${event}_trigger"\nafter ${event} on "assignment_edge"`);
     expect(migration).toContain(`create trigger "20_assignment_edge_role_${event}_trigger"\nafter ${event} on "role_edge_cache"`);
   }
-  expect(policyFor(migration)).toContain(`"assignment_edge_cache" "var_assignment_edge"`);
-  expect(policyFor(migration)).not.toContain(`"role_edge_cache"`);
+  expect(accessFor(migration)).toContain(`"assignment_edge_cache" as "the_assignment_edge"`);
+  expect(accessFor(migration)).not.toContain(`"role_edge_cache"`);
 });
 
 test('resource mode keeps assignment_edge_cache in sync with triggers and reads it in policies', () => {
@@ -34,15 +39,15 @@ test('resource mode keeps assignment_edge_cache in sync with triggers and reads 
   for (const event of ["insert", "update", "delete"]) {
     expect(migration).toContain(`create trigger "20_assignment_edge_resource_${event}_trigger"\nafter ${event} on "resource_edge_cache"`);
   }
-  expect(policyFor(migration)).toContain(`"assignment_edge_cache" "var_assignment_edge"`);
-  expect(policyFor(migration)).not.toContain(`"resource_edge_cache"`);
+  expect(accessFor(migration)).toContain(`"assignment_edge_cache" as "the_assignment_edge"`);
+  expect(accessFor(migration)).not.toContain(`"resource_edge_cache"`);
 });
 
 test('none mode reads the three graph tables and removes any previous combined cache', () => {
   const migration = migrationFor("none");
-  expect(policyFor(migration)).toContain(`"resource_edge_cache" "var_resource_edge"`);
-  expect(policyFor(migration)).toContain(`"assignment_edge" "var_assignment_edge"`);
-  expect(policyFor(migration)).toContain(`"role_edge_cache" "var_role_edge"`);
+  expect(accessFor(migration)).toContain(`"resource_edge_cache" as "the_resource_edge"`);
+  expect(accessFor(migration)).toContain(`"assignment_edge" as "the_assignment_edge"`);
+  expect(accessFor(migration)).toContain(`"role_edge_cache" as "the_role_edge"`);
   expect(migration).toContain(`drop table if exists "assignment_edge_cache";`);
   expect(migration).not.toContain(`create trigger "10_assignment_edge_insert_trigger"`);
 });

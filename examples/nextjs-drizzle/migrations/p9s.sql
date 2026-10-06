@@ -14,14 +14,14 @@ $$;
 
 
 -- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
-create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[])
+create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[], other_roles text[])
 returns void as $$
 declare
   owner_role name := (select pg_get_userbyid(relowner) from pg_class where oid = target);
   the_role text;
   the_sequence text;
 begin
-  foreach the_role in array read_roles || write_roles loop
+  foreach the_role in array read_roles || write_roles || other_roles loop
     continue when the_role = owner_role;
     execute format('revoke all on table %s from %I', target, the_role);
   end loop;
@@ -42,6 +42,19 @@ begin
 end;
 $$ language plpgsql;
 
+-- The migration role owns the functions it creates
+create or replace function pg_temp.p9s_revoke_execute(target text, roles text[])
+returns void as $$
+declare
+  the_role text;
+begin
+  foreach the_role in array roles loop
+    continue when the_role = current_user;
+    execute format('revoke execute on function %s from %I', target, the_role);
+  end loop;
+end;
+$$ language plpgsql;
+
 
   
 do $$
@@ -58,7 +71,7 @@ begin
     where not "t"."tgisinternal"
     and "t"."tgname" <> all (array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_role_insert_trigger', '20_assignment_edge_role_update_trigger', '20_assignment_edge_role_delete_trigger', '05_truncate_guard_trigger', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', '10_account_resource_parent_trigger', '10_account_role_parent_trigger', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', '10_api_key_resource_parent_trigger', '10_api_key_role_parent_trigger', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', '10_audit_event_resource_parent_trigger', '10_audit_event_role_parent_trigger', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', '10_comment_resource_parent_trigger', '10_comment_role_parent_trigger', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', '10_document_resource_parent_trigger', '10_document_role_parent_trigger', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', '10_folder_resource_parent_trigger', '10_folder_role_parent_trigger', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', '10_member_resource_parent_trigger', '10_member_role_parent_trigger', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', '10_organization_resource_parent_trigger', '10_organization_role_parent_trigger', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', '10_session_resource_parent_trigger', '10_session_role_parent_trigger', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', '10_team_resource_parent_trigger', '10_team_role_parent_trigger', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', '10_user_resource_parent_trigger', '10_user_role_parent_trigger', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', '10_verification_resource_parent_trigger', '10_verification_role_parent_trigger']::text[])
     and "p"."pronamespace" = 'public'::regnamespace
-    and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_8', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'account', 'resource_account_fkey', 'role_account_fkey', 'account_resource_trigger_function', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', 'account_role_trigger_function', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', 'account_resource_parent', 'account_role_parent', 'resource_parent_id', 'account_resource_parent_trigger_function', '10_account_resource_parent_trigger', 'role_parent_id', 'account_role_parent_trigger_function', '10_account_role_parent_trigger', 'api_key', 'resource_api_key_fkey', 'role_api_key_fkey', 'api_key_resource_trigger_function', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', 'api_key_role_trigger_function', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', 'api_key_resource_parent', 'api_key_role_parent', 'api_key_resource_parent_trigger_function', '10_api_key_resource_parent_trigger', 'api_key_role_parent_trigger_function', '10_api_key_role_parent_trigger', 'audit_event', 'resource_audit_event_fkey', 'role_audit_event_fkey', 'audit_event_resource_trigger_function', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', 'audit_event_role_trigger_function', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', 'audit_event_resource_parent', 'audit_event_role_parent', 'audit_event_resource_parent_trigger_function', '10_audit_event_resource_parent_trigger', 'audit_event_role_parent_trigger_function', '10_audit_event_role_parent_trigger', 'audit_event_app_user_select_policy', 'audit_event_app_user_insert_policy', 'audit_event_app_user_update_policy', 'audit_event_app_user_delete_policy', 'comment', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'comment_app_user_select_policy', 'comment_app_user_insert_policy', 'comment_app_user_update_policy', 'comment_app_user_delete_policy', 'document', 'resource_document_fkey', 'role_document_fkey', 'document_resource_trigger_function', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', 'document_role_trigger_function', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', 'document_resource_parent', 'document_role_parent', 'document_resource_parent_trigger_function', '10_document_resource_parent_trigger', 'document_role_parent_trigger_function', '10_document_role_parent_trigger', 'document_app_user_select_policy', 'document_app_user_insert_policy', 'document_app_user_update_policy', 'document_app_user_delete_policy', 'folder', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'folder_app_user_select_policy', 'folder_app_user_insert_policy', 'folder_app_user_update_policy', 'folder_app_user_delete_policy', 'member', 'resource_member_fkey', 'role_member_fkey', 'member_resource_trigger_function', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', 'member_role_trigger_function', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', 'member_resource_parent', 'member_role_parent', 'member_resource_parent_trigger_function', '10_member_resource_parent_trigger', 'member_role_parent_trigger_function', '10_member_role_parent_trigger', 'member_app_user_select_policy', 'member_app_user_insert_policy', 'member_app_user_update_policy', 'member_app_user_delete_policy', 'organization', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'organization_app_user_select_policy', 'organization_app_user_insert_policy', 'organization_app_user_update_policy', 'organization_app_user_delete_policy', 'session', 'resource_session_fkey', 'role_session_fkey', 'session_resource_trigger_function', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', 'session_role_trigger_function', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', 'session_resource_parent', 'session_role_parent', 'session_resource_parent_trigger_function', '10_session_resource_parent_trigger', 'session_role_parent_trigger_function', '10_session_role_parent_trigger', 'team', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'team_app_user_select_policy', 'team_app_user_insert_policy', 'team_app_user_update_policy', 'team_app_user_delete_policy', 'user', 'resource_user_fkey', 'role_user_fkey', 'user_resource_trigger_function', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', 'user_role_trigger_function', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', 'user_resource_parent', 'user_role_parent', 'user_resource_parent_trigger_function', '10_user_resource_parent_trigger', 'user_role_parent_trigger_function', '10_user_role_parent_trigger', 'verification', 'resource_verification_fkey', 'role_verification_fkey', 'verification_resource_trigger_function', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', 'verification_role_trigger_function', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', 'verification_resource_parent', 'verification_role_parent', 'verification_resource_parent_trigger_function', '10_verification_resource_parent_trigger', 'verification_role_parent_trigger_function', '10_verification_role_parent_trigger']::text[])
+    and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_8', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'current_resource_access', 'current_assignment', 'current_resource_edge', 'current_role', 'account', 'resource_account_fkey', 'role_account_fkey', 'account_resource_trigger_function', '10_account_resource_insert_trigger', '10_account_resource_update_trigger', '10_account_resource_delete_trigger', 'account_role_trigger_function', '10_account_role_insert_trigger', '10_account_role_update_trigger', '10_account_role_delete_trigger', 'account_resource_parent', 'account_role_parent', 'resource_parent_id', 'account_resource_parent_trigger_function', '10_account_resource_parent_trigger', 'role_parent_id', 'account_role_parent_trigger_function', '10_account_role_parent_trigger', 'api_key', 'resource_api_key_fkey', 'role_api_key_fkey', 'api_key_resource_trigger_function', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', 'api_key_role_trigger_function', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', 'api_key_resource_parent', 'api_key_role_parent', 'api_key_resource_parent_trigger_function', '10_api_key_resource_parent_trigger', 'api_key_role_parent_trigger_function', '10_api_key_role_parent_trigger', 'audit_event', 'resource_audit_event_fkey', 'role_audit_event_fkey', 'audit_event_resource_trigger_function', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', 'audit_event_role_trigger_function', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', 'audit_event_resource_parent', 'audit_event_role_parent', 'audit_event_resource_parent_trigger_function', '10_audit_event_resource_parent_trigger', 'audit_event_role_parent_trigger_function', '10_audit_event_role_parent_trigger', 'audit_event_app_user_select_policy', 'audit_event_app_user_insert_policy', 'audit_event_app_user_update_policy', 'audit_event_app_user_delete_policy', 'comment', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'comment_app_user_select_policy', 'comment_app_user_insert_policy', 'comment_app_user_update_policy', 'comment_app_user_delete_policy', 'document', 'resource_document_fkey', 'role_document_fkey', 'document_resource_trigger_function', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', 'document_role_trigger_function', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', 'document_resource_parent', 'document_role_parent', 'document_resource_parent_trigger_function', '10_document_resource_parent_trigger', 'document_role_parent_trigger_function', '10_document_role_parent_trigger', 'document_app_user_select_policy', 'document_app_user_insert_policy', 'document_app_user_update_policy', 'document_app_user_delete_policy', 'folder', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'folder_app_user_select_policy', 'folder_app_user_insert_policy', 'folder_app_user_update_policy', 'folder_app_user_delete_policy', 'member', 'resource_member_fkey', 'role_member_fkey', 'member_resource_trigger_function', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', 'member_role_trigger_function', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', 'member_resource_parent', 'member_role_parent', 'member_resource_parent_trigger_function', '10_member_resource_parent_trigger', 'member_role_parent_trigger_function', '10_member_role_parent_trigger', 'member_app_user_select_policy', 'member_app_user_insert_policy', 'member_app_user_update_policy', 'member_app_user_delete_policy', 'organization', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'organization_app_user_select_policy', 'organization_app_user_insert_policy', 'organization_app_user_update_policy', 'organization_app_user_delete_policy', 'session', 'resource_session_fkey', 'role_session_fkey', 'session_resource_trigger_function', '10_session_resource_insert_trigger', '10_session_resource_update_trigger', '10_session_resource_delete_trigger', 'session_role_trigger_function', '10_session_role_insert_trigger', '10_session_role_update_trigger', '10_session_role_delete_trigger', 'session_resource_parent', 'session_role_parent', 'session_resource_parent_trigger_function', '10_session_resource_parent_trigger', 'session_role_parent_trigger_function', '10_session_role_parent_trigger', 'team', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'team_app_user_select_policy', 'team_app_user_insert_policy', 'team_app_user_update_policy', 'team_app_user_delete_policy', 'user', 'resource_user_fkey', 'role_user_fkey', 'user_resource_trigger_function', '10_user_resource_insert_trigger', '10_user_resource_update_trigger', '10_user_resource_delete_trigger', 'user_role_trigger_function', '10_user_role_insert_trigger', '10_user_role_update_trigger', '10_user_role_delete_trigger', 'user_resource_parent', 'user_role_parent', 'user_resource_parent_trigger_function', '10_user_resource_parent_trigger', 'user_role_parent_trigger_function', '10_user_role_parent_trigger', 'verification', 'resource_verification_fkey', 'role_verification_fkey', 'verification_resource_trigger_function', '10_verification_resource_insert_trigger', '10_verification_resource_update_trigger', '10_verification_resource_delete_trigger', 'verification_role_trigger_function', '10_verification_role_insert_trigger', '10_verification_role_update_trigger', '10_verification_role_delete_trigger', 'verification_resource_parent', 'verification_role_parent', 'verification_resource_parent_trigger_function', '10_verification_resource_parent_trigger', 'verification_role_parent_trigger_function', '10_verification_role_parent_trigger']::text[])
   loop
     if "the_trigger"."replaced" then
       execute format('drop trigger %I on %s', "the_trigger"."name", "the_trigger"."table");
@@ -98,6 +111,7 @@ revoke execute on function "truncate_guard_trigger_function" () from public;
 
 
 
+
   
 -----------------------------------------------------------------------------------------------------------------------
 -- 'resource' ids
@@ -128,7 +142,7 @@ create index if not exists "resource_edge_parent_id_index" on "resource_edge" ("
 
 create index if not exists "resource_edge_child_id_index" on "resource_edge" ("child_id");
 
-select pg_temp.p9s_set_privileges('"resource_edge"'::regclass, array['app_user']::text[], array['app_backend']::text[]);
+select pg_temp.p9s_set_privileges('"resource_edge"'::regclass, array[]::text[], array['app_backend']::text[], array['app_user']::text[]);
 
 -----------------------------------------------------------------------------------------------------------------------
 -- 'resource' transitive edge cache table
@@ -151,8 +165,8 @@ create index if not exists "resource_edge_cache_child_id_index" on "resource_edg
 -- resource to check a single row. Estimate the descendants of a resource as those of the largest subtree instead.
 alter table "resource_edge_cache" alter column "parent_id" set (n_distinct = 1);
 
--- Only p9s triggers write to the cache
-select pg_temp.p9s_set_privileges('"resource_edge_cache"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+-- Only p9s triggers write to the cache. Users see their own part of the graph through the views of the current user.
+select pg_temp.p9s_set_privileges('"resource_edge_cache"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 -----------------------------------------------------------------------------------------------------------------------
 -- 'resource' compute recursive permissions, towards parent
@@ -188,7 +202,9 @@ $$
 language sql
 stable;
 
-grant execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) to "app_user";
+
+revoke execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) from public;
+select pg_temp.p9s_revoke_execute('"resource_edge_cache_parent_compute" ("var_child_id" uuid)', array['app_user']::text[]);
 grant execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -225,7 +241,9 @@ $$
 language sql
 stable;
 
-grant execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) to "app_user";
+
+revoke execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) from public;
+select pg_temp.p9s_revoke_execute('"resource_edge_cache_child_compute" ("var_parent_id" uuid)', array['app_user']::text[]);
 grant execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) to "app_backend";
 
 
@@ -259,7 +277,7 @@ create index if not exists "role_edge_parent_id_index" on "role_edge" ("parent_i
 
 create index if not exists "role_edge_child_id_index" on "role_edge" ("child_id");
 
-select pg_temp.p9s_set_privileges('"role_edge"'::regclass, array['app_user']::text[], array['app_backend']::text[]);
+select pg_temp.p9s_set_privileges('"role_edge"'::regclass, array[]::text[], array['app_backend']::text[], array['app_user']::text[]);
 
 -----------------------------------------------------------------------------------------------------------------------
 -- 'role' transitive edge cache table
@@ -276,8 +294,8 @@ create index if not exists "role_edge_cache_parent_id_index" on "role_edge_cache
 
 create index if not exists "role_edge_cache_child_id_index" on "role_edge_cache" ("child_id");
 
--- Only p9s triggers write to the cache
-select pg_temp.p9s_set_privileges('"role_edge_cache"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+-- Only p9s triggers write to the cache. Users see their own part of the graph through the views of the current user.
+select pg_temp.p9s_set_privileges('"role_edge_cache"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 -----------------------------------------------------------------------------------------------------------------------
 -- 'role' compute recursive permissions, towards parent
@@ -313,7 +331,9 @@ $$
 language sql
 stable;
 
-grant execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) to "app_user";
+
+revoke execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) from public;
+select pg_temp.p9s_revoke_execute('"role_edge_cache_parent_compute" ("var_child_id" uuid)', array['app_user']::text[]);
 grant execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -350,7 +370,9 @@ $$
 language sql
 stable;
 
-grant execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) to "app_user";
+
+revoke execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) from public;
+select pg_temp.p9s_revoke_execute('"role_edge_cache_child_compute" ("var_parent_id" uuid)', array['app_user']::text[]);
 grant execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) to "app_backend";
 
 
@@ -369,7 +391,7 @@ create index if not exists "assignment_edge_resource_id_index" on "assignment_ed
 
 create index if not exists "assignment_edge_role_id_index" on "assignment_edge" ("role_id");
 
-select pg_temp.p9s_set_privileges('"assignment_edge"'::regclass, array['app_user']::text[], array['app_backend']::text[]);
+select pg_temp.p9s_set_privileges('"assignment_edge"'::regclass, array[]::text[], array['app_backend']::text[], array['app_user']::text[]);
 
 
   
@@ -516,7 +538,7 @@ from
   (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_node" ("id"),
   lateral "resource_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
-select pg_temp.p9s_set_privileges('"resource_edge_cache_view"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+select pg_temp.p9s_set_privileges('"resource_edge_cache_view"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 
   
@@ -533,7 +555,7 @@ from
   (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_node" ("id"),
   lateral "role_edge_cache_parent_compute" ("the_node"."id") as "parent_permissions";
 
-select pg_temp.p9s_set_privileges('"role_edge_cache_view"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+select pg_temp.p9s_set_privileges('"role_edge_cache_view"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 
   
@@ -696,6 +718,7 @@ security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_edge_cache_backfill" () from public;
+
 grant execute on function "resource_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -874,6 +897,7 @@ set enable_mergejoin = off;
 
 
 revoke execute on function "resource_edge_insert_trigger_function" () from public;
+
 
 
 
@@ -1059,6 +1083,7 @@ revoke execute on function "resource_edge_update_trigger_function" () from publi
 
 
 
+
 drop trigger if exists "10_resource_edge_update_trigger" on "resource_edge";
 create trigger "10_resource_edge_update_trigger"
 after update on "resource_edge"
@@ -1165,6 +1190,7 @@ revoke execute on function "resource_edge_delete_trigger_function" () from publi
 
 
 
+
 drop trigger if exists "10_resource_edge_delete_trigger" on "resource_edge";
 create trigger "10_resource_edge_delete_trigger"
 after delete on "resource_edge"
@@ -1204,6 +1230,7 @@ $$ language plpgsql;
 
 
 revoke execute on function "resource_edge_guard_trigger_function" () from public;
+
 
 
 drop trigger if exists "05_resource_edge_guard_insert_trigger" on "resource_edge";
@@ -1251,6 +1278,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 revoke execute on function "resource_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+
 -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
 -- gives way to that edge and the edge keeps its bits.
 
@@ -1286,6 +1314,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 revoke execute on function "resource_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+
 -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
 
 create or replace function "resource_node_delete" ("the_ids" uuid[])
@@ -1309,6 +1338,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
 revoke execute on function "resource_node_delete" ("the_ids" uuid[]) from public;
+
 
 
 
@@ -1344,6 +1374,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "document_resource_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_document_resource_insert_trigger" on "public"."document";
@@ -1392,6 +1423,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "folder_resource_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_folder_resource_insert_trigger" on "public"."folder";
@@ -1450,6 +1482,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 revoke execute on function "member_resource_trigger_function" () from public;
 
 
+
 drop trigger if exists "10_member_resource_insert_trigger" on "public"."member";
 create trigger "10_member_resource_insert_trigger"
 after insert on "public"."member"
@@ -1490,6 +1523,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "organization_resource_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_organization_resource_insert_trigger" on "public"."organization";
@@ -1546,6 +1580,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "team_resource_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_team_resource_insert_trigger" on "public"."team";
@@ -1611,6 +1646,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_trigger_disable" () from public;
+
 grant execute on function "resource_trigger_disable" () to "app_backend";
 
 -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -1745,6 +1781,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_trigger_enable" () from public;
+
 grant execute on function "resource_trigger_enable" () to "app_backend";
 
 
@@ -1811,6 +1848,7 @@ security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "role_edge_cache_backfill" () from public;
+
 grant execute on function "role_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -1989,6 +2027,7 @@ set enable_mergejoin = off;
 
 
 revoke execute on function "role_edge_insert_trigger_function" () from public;
+
 
 
 
@@ -2174,6 +2213,7 @@ revoke execute on function "role_edge_update_trigger_function" () from public;
 
 
 
+
 drop trigger if exists "10_role_edge_update_trigger" on "role_edge";
 create trigger "10_role_edge_update_trigger"
 after update on "role_edge"
@@ -2280,6 +2320,7 @@ revoke execute on function "role_edge_delete_trigger_function" () from public;
 
 
 
+
 drop trigger if exists "10_role_edge_delete_trigger" on "role_edge";
 create trigger "10_role_edge_delete_trigger"
 after delete on "role_edge"
@@ -2319,6 +2360,7 @@ $$ language plpgsql;
 
 
 revoke execute on function "role_edge_guard_trigger_function" () from public;
+
 
 
 drop trigger if exists "05_role_edge_guard_insert_trigger" on "role_edge";
@@ -2372,6 +2414,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 revoke execute on function "role_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+
 -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
 -- gives way to that edge and the edge keeps its bits.
 
@@ -2407,6 +2450,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 revoke execute on function "role_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
 
 
+
 -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
 
 create or replace function "role_node_delete" ("the_ids" uuid[])
@@ -2430,6 +2474,7 @@ $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
 revoke execute on function "role_node_delete" ("the_ids" uuid[]) from public;
+
 
 
 
@@ -2465,6 +2510,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "member_role_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_member_role_insert_trigger" on "public"."member";
@@ -2509,6 +2555,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 revoke execute on function "organization_role_trigger_function" () from public;
 
 
+
 drop trigger if exists "10_organization_role_insert_trigger" on "public"."organization";
 create trigger "10_organization_role_insert_trigger"
 after insert on "public"."organization"
@@ -2549,6 +2596,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "team_role_trigger_function" () from public;
+
 
 
 drop trigger if exists "10_team_role_insert_trigger" on "public"."team";
@@ -2603,6 +2651,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "role_trigger_disable" () from public;
+
 grant execute on function "role_trigger_disable" () to "app_backend";
 
 -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -2679,6 +2728,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "role_trigger_enable" () from public;
+
 grant execute on function "role_trigger_enable" () to "app_backend";
 
 
@@ -2722,6 +2772,7 @@ set enable_mergejoin = off;
 
 
 revoke execute on function "assignment_edge_validate_trigger_function" () from public;
+
 
 
 
@@ -2772,8 +2823,12 @@ create index if not exists "assignment_edge_cache_role_id_index" on "assignment_
 
 create index if not exists "assignment_edge_cache_resource_id_index" on "assignment_edge_cache" ("resource_id");
 
--- Only p9s triggers write to the cache
-select pg_temp.p9s_set_privileges('"assignment_edge_cache"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+-- With resources, a role has a row for every resource below its assignments, mostly high in the tree. As for the
+-- resource cache, estimate the rows of a role as those of the largest, so that checking a few rows does not list them.
+alter table "assignment_edge_cache" alter column "role_id" reset (n_distinct);
+
+-- Only p9s triggers write to the cache. Users see their own part of the graph through the views of the current user.
+select pg_temp.p9s_set_privileges('"assignment_edge_cache"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -2794,7 +2849,7 @@ create or replace view "assignment_edge_cache_view" as
     where true
     group by ("the_assignment"."resource_id", "the_edge_cache"."child_id");
 
-select pg_temp.p9s_set_privileges('"assignment_edge_cache_view"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[]);
+select pg_temp.p9s_set_privileges('"assignment_edge_cache_view"'::regclass, array['app_backend']::text[], array[]::text[], array['app_user']::text[]);
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Assignment function to rebuild the cache from scratch
@@ -2826,6 +2881,7 @@ security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_edge_cache_backfill" () from public;
+
 grant execute on function "assignment_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -2868,6 +2924,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_edge_insert_trigger_function" () from public;
+
 
 
 
@@ -2917,6 +2974,7 @@ revoke execute on function "assignment_edge_update_trigger_function" () from pub
 
 
 
+
 drop trigger if exists "10_assignment_edge_update_trigger" on "assignment_edge";
 create trigger "10_assignment_edge_update_trigger"
 after update on "assignment_edge"
@@ -2960,6 +3018,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_edge_delete_trigger_function" () from public;
+
 
 
 
@@ -3021,6 +3080,7 @@ revoke execute on function "assignment_edge_role_insert_trigger_function" () fro
 
 
 
+
 drop trigger if exists "20_assignment_edge_role_insert_trigger" on "role_edge_cache";
 create trigger "20_assignment_edge_role_insert_trigger"
 after insert on "role_edge_cache"
@@ -3064,6 +3124,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_edge_role_update_trigger_function" () from public;
+
 
 
 
@@ -3113,6 +3174,7 @@ revoke execute on function "assignment_edge_role_delete_trigger_function" () fro
 
 
 
+
 drop trigger if exists "20_assignment_edge_role_delete_trigger" on "role_edge_cache";
 create trigger "20_assignment_edge_role_delete_trigger"
 after delete on "role_edge_cache"
@@ -3137,6 +3199,7 @@ $$ language sql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_trigger_enable" () from public;
+
 grant execute on function "assignment_trigger_enable" () to "app_backend";
 
 create or replace function "assignment_trigger_disable"()
@@ -3151,6 +3214,7 @@ $$ language sql security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "assignment_trigger_disable" () from public;
+
 grant execute on function "assignment_trigger_disable" () to "app_backend";
 
   
@@ -3158,7 +3222,7 @@ grant execute on function "assignment_trigger_disable" () to "app_backend";
 
   
 -----------------------------------------------------------------------------------------------------------------------
--- Table policies
+-- The graph as the current user sees it
 -----------------------------------------------------------------------------------------------------------------------
 
 create or replace function "current_role_node" ()
@@ -3176,27 +3240,135 @@ $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "current_role_node" () from public;
+
 grant execute on function "current_role_node" () to "app_user";
 grant execute on function "current_role_node" () to "app_backend";
 
+-- Every way the current user reaches a resource, with the bits it gives. A resource the user reaches several ways has
+-- the OR of their bits.
+create or replace view "current_resource_access" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id",
+  ("the_resource_edge"."permission" & "the_assignment_edge"."permission")::bit(8) as "permission"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"());
+
+select pg_temp.p9s_set_privileges('"current_resource_access"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The resources the current user has a bit on, for each bit the policies check. Checking the bit on every segment
+-- keeps only the edges that have it: a security barrier would only check it after the joins, as it is not leakproof.
+
+create or replace view "current_resource_access_0" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 0)::bit = b'1' and ("the_assignment_edge"."permission" << 0)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_0"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_1" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 1)::bit = b'1' and ("the_assignment_edge"."permission" << 1)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_1"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_2" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 2)::bit = b'1' and ("the_assignment_edge"."permission" << 2)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_2"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_3" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 3)::bit = b'1' and ("the_assignment_edge"."permission" << 3)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_3"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_4" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 4)::bit = b'1' and ("the_assignment_edge"."permission" << 4)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_4"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_6" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 6)::bit = b'1' and ("the_assignment_edge"."permission" << 6)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_6"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+create or replace view "current_resource_access_7" with (security_barrier) as
+select
+  "the_resource_edge"."child_id" as "resource_id"
+from "resource_edge_cache" as "the_resource_edge"
+join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."resource_id" = "the_resource_edge"."parent_id"
+where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 7)::bit = b'1' and ("the_assignment_edge"."permission" << 7)::bit = b'1';
+
+select pg_temp.p9s_set_privileges('"current_resource_access_7"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+
+-- What was shared with the current user: the resources assigned to it and to the roles above it, with the bits these
+-- assignments give, whatever is below these resources
+create or replace view "current_assignment" with (security_barrier) as
+select "the_assignment_edge"."resource_id", "the_assignment_edge"."permission"
+from "assignment_edge_cache" as "the_assignment_edge"
+where "the_assignment_edge"."role_id" = (select "current_role_node"());
+
+select pg_temp.p9s_set_privileges('"current_assignment"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The edges of the resource cache between two resources the current user reaches, to tell what is below what
+create or replace view "current_resource_edge" with (security_barrier) as
+select "the_edge"."parent_id", "the_edge"."child_id", "the_edge"."permission"
+from "resource_edge_cache" as "the_edge"
+where exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."parent_id")
+and exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."child_id");
+
+select pg_temp.p9s_set_privileges('"current_resource_edge"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The roles the current user acts as: its role node and the roles above it, with the bits of the way up
+create or replace view "current_role" with (security_barrier) as
+select "the_edge"."parent_id" as "role_id", "the_edge"."permission"
+from "role_edge_cache" as "the_edge"
+where "the_edge"."child_id" = (select "current_role_node"());
+
+select pg_temp.p9s_set_privileges('"current_role"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+
+  
+-----------------------------------------------------------------------------------------------------------------------
+-- Table policies
+-----------------------------------------------------------------------------------------------------------------------
 
 create or replace function "resource_permission" ("the_resource_id" uuid)
   returns bit(8)
   as $$
-declare
-  "the_role_node" uuid := (select "current_role_node"());
 begin
   return (
-    select "or_bitmap_8" ("var_resource_edge"."permission" & "var_assignment_edge"."permission")
-    from "resource_edge_cache" as "var_resource_edge"
-    join "assignment_edge_cache" as "var_assignment_edge" on "var_assignment_edge"."resource_id" = "var_resource_edge"."parent_id"
-    where "var_resource_edge"."child_id" = "the_resource_id" and "var_assignment_edge"."role_id" = "the_role_node"
+    select "or_bitmap_8" ("var_access"."permission") from "current_resource_access" as "var_access"
+    where "var_access"."resource_id" = "the_resource_id"
   )::bit(8);
 end
 $$ language plpgsql stable set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_permission" (uuid) from public;
+
 grant execute on function "resource_permission" (uuid) to "app_user";
 grant execute on function "resource_permission" (uuid) to "app_backend";
 
@@ -3221,6 +3393,7 @@ $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_permission" (uuid, uuid) from public;
+
 grant execute on function "resource_permission" (uuid, uuid) to "app_backend";
 
 
@@ -3232,6 +3405,7 @@ $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "document_resource_parent" ("public"."document"."folder_id"%type) from public;
+
 grant execute on function "document_resource_parent" ("public"."document"."folder_id"%type) to "app_user";
 
 
@@ -3243,6 +3417,7 @@ $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "member_resource_parent" ("public"."member"."org_id"%type) from public;
+
 grant execute on function "member_resource_parent" ("public"."member"."org_id"%type) to "app_user";
 
 
@@ -3254,6 +3429,7 @@ $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "team_resource_parent" ("public"."team"."org_id"%type) from public;
+
 grant execute on function "team_resource_parent" ("public"."team"."org_id"%type) to "app_user";
 
 
@@ -3262,28 +3438,19 @@ create or replace function "resource_parent_validate" ("the_parent" uuid, "the_c
   as $$
 begin
   return "the_parent" is null
-    or exists (select from "resource_edge" as "var_edge" where "var_edge"."parent_id" = "the_parent" and "var_edge"."child_id" = "the_child")
+    or (exists (select from "resource_edge" as "var_edge" where "var_edge"."parent_id" = "the_parent" and "var_edge"."child_id" = "the_child")
+      and exists (select from "current_resource_access" as "var_access" where "var_access"."resource_id" = "the_child" and position(b'1' in "var_access"."permission") > 0))
     or ("the_insert_bit" is not null and 
   exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "the_parent" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << "the_insert_bit")::bit = b'1' and
-      ("var_assignment_edge"."permission" << "the_insert_bit")::bit = b'1'
+    select from "current_resource_access" as "var_access"
+    where "var_access"."resource_id" = "the_parent" and ("var_access"."permission" << "the_insert_bit")::bit = b'1'
   ));
 end
-$$ language plpgsql stable;
+$$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
 revoke execute on function "resource_parent_validate" (uuid, uuid, integer) from public;
+
 grant execute on function "resource_parent_validate" (uuid, uuid, integer) to "app_user";
 
 
@@ -3292,21 +3459,7 @@ drop policy if exists "audit_event_app_user_select_policy" on "public"."audit_ev
 create policy "audit_event_app_user_select_policy" on "public"."audit_event" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "audit_event"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 )
 ;
 
@@ -3315,21 +3468,7 @@ drop policy if exists "audit_event_app_user_insert_policy" on "public"."audit_ev
 create policy "audit_event_app_user_insert_policy" on "public"."audit_event"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "audit_event"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 );
 
 
@@ -3337,38 +3476,10 @@ drop policy if exists "audit_event_app_user_update_policy" on "public"."audit_ev
 create policy "audit_event_app_user_update_policy" on "public"."audit_event" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "audit_event"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "audit_event"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 );
 
 
@@ -3376,21 +3487,7 @@ drop policy if exists "audit_event_app_user_delete_policy" on "public"."audit_ev
 create policy "audit_event_app_user_delete_policy" on "public"."audit_event" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "audit_event"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 )
 ;
 
@@ -3399,21 +3496,7 @@ drop policy if exists "comment_app_user_select_policy" on "public"."comment";
 create policy "comment_app_user_select_policy" on "public"."comment" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "comment"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 0)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 0)::bit = b'1'
-  )
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 )
 ;
 
@@ -3422,21 +3505,7 @@ drop policy if exists "comment_app_user_insert_policy" on "public"."comment";
 create policy "comment_app_user_insert_policy" on "public"."comment"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "comment"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 4)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 4)::bit = b'1'
-  )
+  exists (select from "current_resource_access_4" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 );
 
 
@@ -3444,38 +3513,10 @@ drop policy if exists "comment_app_user_update_policy" on "public"."comment";
 create policy "comment_app_user_update_policy" on "public"."comment" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "comment"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "comment"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 );
 
 
@@ -3483,21 +3524,7 @@ drop policy if exists "comment_app_user_delete_policy" on "public"."comment";
 create policy "comment_app_user_delete_policy" on "public"."comment" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "comment"."resource_parent_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 3)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 3)::bit = b'1'
-  )
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 )
 ;
 
@@ -3506,21 +3533,7 @@ drop policy if exists "document_app_user_select_policy" on "public"."document";
 create policy "document_app_user_select_policy" on "public"."document" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "document"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 0)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 0)::bit = b'1'
-  )
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
 )
 ;
 
@@ -3529,21 +3542,7 @@ drop policy if exists "document_app_user_insert_policy" on "public"."document";
 create policy "document_app_user_insert_policy" on "public"."document"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "document_resource_parent"("document"."folder_id") = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 1)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 1)::bit = b'1'
-  )
+  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "document_resource_parent"("document"."folder_id"))
 );
 
 
@@ -3551,38 +3550,10 @@ drop policy if exists "document_app_user_update_policy" on "public"."document";
 create policy "document_app_user_update_policy" on "public"."document" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "document"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "document"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
   and "resource_parent_validate"("document_resource_parent"("document"."folder_id"), "document"."resource_id", 1)
 );
 
@@ -3591,21 +3562,7 @@ drop policy if exists "document_app_user_delete_policy" on "public"."document";
 create policy "document_app_user_delete_policy" on "public"."document" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "document"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 3)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 3)::bit = b'1'
-  )
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
 )
 ;
 
@@ -3614,21 +3571,7 @@ drop policy if exists "folder_app_user_select_policy" on "public"."folder";
 create policy "folder_app_user_select_policy" on "public"."folder" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "folder"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 0)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 0)::bit = b'1'
-  )
+  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
 )
 ;
 
@@ -3637,21 +3580,7 @@ drop policy if exists "folder_app_user_insert_policy" on "public"."folder";
 create policy "folder_app_user_insert_policy" on "public"."folder"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "folder"."parent_resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 1)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 1)::bit = b'1'
-  )
+  exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "folder"."parent_resource_id")
 );
 
 
@@ -3659,38 +3588,10 @@ drop policy if exists "folder_app_user_update_policy" on "public"."folder";
 create policy "folder_app_user_update_policy" on "public"."folder" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "folder"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "folder"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 2)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 2)::bit = b'1'
-  )
+  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
   and "resource_parent_validate"("folder"."parent_resource_id", "folder"."resource_id", 1)
 );
 
@@ -3699,21 +3600,7 @@ drop policy if exists "folder_app_user_delete_policy" on "public"."folder";
 create policy "folder_app_user_delete_policy" on "public"."folder" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "folder"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 3)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 3)::bit = b'1'
-  )
+  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
 )
 ;
 
@@ -3722,21 +3609,7 @@ drop policy if exists "member_app_user_select_policy" on "public"."member";
 create policy "member_app_user_select_policy" on "public"."member" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "member"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 6)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 6)::bit = b'1'
-  )
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
 )
 ;
 
@@ -3745,21 +3618,7 @@ drop policy if exists "member_app_user_insert_policy" on "public"."member";
 create policy "member_app_user_insert_policy" on "public"."member"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "member_resource_parent"("member"."org_id") = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member_resource_parent"("member"."org_id"))
 );
 
 
@@ -3767,38 +3626,10 @@ drop policy if exists "member_app_user_update_policy" on "public"."member";
 create policy "member_app_user_update_policy" on "public"."member" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "member"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "member"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
   and "resource_parent_validate"("member_resource_parent"("member"."org_id"), "member"."resource_id", 7)
 );
 
@@ -3807,21 +3638,7 @@ drop policy if exists "member_app_user_delete_policy" on "public"."member";
 create policy "member_app_user_delete_policy" on "public"."member" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "member"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
 )
 ;
 
@@ -3830,21 +3647,7 @@ drop policy if exists "organization_app_user_select_policy" on "public"."organiz
 create policy "organization_app_user_select_policy" on "public"."organization" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "organization"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 6)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 6)::bit = b'1'
-  )
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
 )
 ;
 
@@ -3853,38 +3656,10 @@ drop policy if exists "organization_app_user_update_policy" on "public"."organiz
 create policy "organization_app_user_update_policy" on "public"."organization" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "organization"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "organization"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
 );
 
 
@@ -3892,21 +3667,7 @@ drop policy if exists "organization_app_user_delete_policy" on "public"."organiz
 create policy "organization_app_user_delete_policy" on "public"."organization" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "organization"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
 )
 ;
 
@@ -3915,21 +3676,7 @@ drop policy if exists "team_app_user_select_policy" on "public"."team";
 create policy "team_app_user_select_policy" on "public"."team" 
 as permissive for select to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "team"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 6)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 6)::bit = b'1'
-  )
+  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
 )
 ;
 
@@ -3938,21 +3685,7 @@ drop policy if exists "team_app_user_insert_policy" on "public"."team";
 create policy "team_app_user_insert_policy" on "public"."team"
 as permissive for insert to "app_user"
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "team_resource_parent"("team"."org_id") = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team_resource_parent"("team"."org_id"))
 );
 
 
@@ -3960,38 +3693,10 @@ drop policy if exists "team_app_user_update_policy" on "public"."team";
 create policy "team_app_user_update_policy" on "public"."team" 
 as permissive for update to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "team"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
 )
 with check (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "team"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
   and "resource_parent_validate"("team_resource_parent"("team"."org_id"), "team"."resource_id", 7)
 );
 
@@ -4000,21 +3705,7 @@ drop policy if exists "team_app_user_delete_policy" on "public"."team";
 create policy "team_app_user_delete_policy" on "public"."team" 
 as permissive for delete to "app_user" 
 using (
-  exists (
-    select
-      1
-    from
-      "resource_edge_cache" "var_resource_edge",
-      "assignment_edge_cache" "var_assignment_edge"
-    where
-      -- Access chain exists
-      "team"."resource_id" = "var_resource_edge"."child_id" and
-      "var_resource_edge"."parent_id" = "var_assignment_edge"."resource_id" and
-      "var_assignment_edge"."role_id" = (select "current_role_node"()) and
-      -- With correct permission bit
-      ("var_resource_edge"."permission" << 7)::bit = b'1' and
-      ("var_assignment_edge"."permission" << 7)::bit = b'1'
-  )
+  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
 )
 ;
 
@@ -4043,10 +3734,27 @@ using (
 
   alter table "public"."team" enable row level security;
   
+-- Views of bits that policies have stopped checking
+do $$
+declare
+  "the_view" text;
+begin
+  for "the_view" in
+    select "viewname" from pg_views where "schemaname" = current_schema()
+    and left("viewname", 24) = 'current_resource_access_'
+    and substr("viewname", 25) ~ '^[0-9]+$'
+    and not "viewname" = any (array['current_resource_access_0', 'current_resource_access_1', 'current_resource_access_2', 'current_resource_access_3', 'current_resource_access_4', 'current_resource_access_6', 'current_resource_access_7']::text[])
+  loop
+    execute format('drop view %I', "the_view");
+  end loop;
+end
+$$;
+
 -- Earlier versions mapped any role id, policies have stopped calling it by now
 drop function if exists "current_role_node" (uuid);
 
     
+
 
   
 
@@ -4117,6 +3825,7 @@ $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "audit_event_resource_parent_trigger_function" () from public;
 
+
 drop trigger if exists "10_audit_event_resource_parent_trigger" on "public"."audit_event";
 create trigger "10_audit_event_resource_parent_trigger" before insert or update of "org_id", "resource_parent_id" on "public"."audit_event" for each row execute function "audit_event_resource_parent_trigger_function"();
 update "public"."audit_event" as "the_row" set "resource_parent_id" = "the_parent"."resource_id"
@@ -4136,6 +3845,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "comment_resource_parent_trigger_function" () from public;
+
 
 drop trigger if exists "10_comment_resource_parent_trigger" on "public"."comment";
 create trigger "10_comment_resource_parent_trigger" before insert or update of "document_id", "resource_parent_id" on "public"."comment" for each row execute function "comment_resource_parent_trigger_function"();
@@ -4188,6 +3898,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 revoke execute on function "api_key_role_parent_trigger_function" () from public;
+
 
 drop trigger if exists "10_api_key_role_parent_trigger" on "public"."api_key";
 create trigger "10_api_key_role_parent_trigger" before insert or update of "role_id", "member_id", "role_parent_id" on "public"."api_key" for each row execute function "api_key_role_parent_trigger_function"();
