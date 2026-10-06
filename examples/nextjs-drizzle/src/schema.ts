@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, uuid, unique, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, foreignKey, index, uuid, unique, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 // Better Auth tables. They are not part of the permission graph: people act through their membership of an organization
 
@@ -161,6 +161,7 @@ export const folder = pgTable(
     index("folder_org_id_idx").on(table.orgId),
     index("folder_parent_id_idx").on(table.parentId),
     index("folder_parent_resource_id_idx").on(table.parentResourceId),
+    unique("folder_id_org_id_unique").on(table.id, table.orgId),
   ],
 );
 
@@ -168,9 +169,10 @@ export const document = pgTable(
   "document",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    folderId: uuid("folder_id")
-      .notNull()
-      .references(() => folder.id, { onDelete: "cascade" }),
+    // The organization of the folder, which the foreign key below keeps, so that requests in an organization find its
+    // documents without walking the resource tree, even those whose folder RLS hides
+    orgId: uuid("org_id").notNull(),
+    folderId: uuid("folder_id").notNull(),
     title: text("title").notNull(),
     content: text("content").notNull().default(""),
     createdBy: uuid("created_by").references(() => member.id, { onDelete: "set null" }),
@@ -181,7 +183,11 @@ export const document = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("document_folder_id_idx").on(table.folderId), index("document_updated_at_idx").on(table.updatedAt, table.id)],
+  (table) => [
+    foreignKey({ name: "document_folder_org_fk", columns: [table.folderId, table.orgId], foreignColumns: [folder.id, folder.orgId] }).onDelete("cascade"),
+    index("document_folder_id_idx").on(table.folderId),
+    index("document_updated_at_idx").on(table.updatedAt, table.id),
+  ],
 );
 
 // A resource leaf: comments are not in the graph, they have the permissions of their document

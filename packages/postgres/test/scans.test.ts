@@ -184,4 +184,12 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
       expect(userReads).toEqual({});
     }, { timeout: 60000 });
   }
+
+  // Transition tables have no index: a plan that compares every new row with every old row took 18 s here
+  test('updating other columns of every row does not compare each with all the others', async () => {
+    await load("none", flatGraph);
+    const start = performance.now();
+    await context.exec(sql`update "blog_post" set "name" = 'renamed'`);
+    expect(performance.now() - start).toBeLessThan(3000);
+  }, { timeout: 60000 });
 });

@@ -286,7 +286,7 @@ const seedOrganization = async (
       const createdAt = 35 + random.next() * 345;
       const row = { id, folderId: top > 0 ? space.folderId : random.pick(inside).id, title: title(random), content: content(random, context) };
       space.documents.push(row);
-      documentRows.push({ ...row, createdBy: random.pick(space.writers).memberId, createdAt: daysAgo(createdAt), updatedAt: sometime(random, 31, createdAt) });
+      documentRows.push({ ...row, orgId: created.id, createdBy: random.pick(space.writers).memberId, createdAt: daysAgo(createdAt), updatedAt: sometime(random, 31, createdAt) });
       for (let comments = Math.floor(random.next() ** 3 * 4); comments > 0; comments--) {
         commentRows.push({ documentId: id, memberId: random.pick(space.writers).memberId, body: random.pick(COMMENTS), createdAt: sometime(random, 31, createdAt) });
       }

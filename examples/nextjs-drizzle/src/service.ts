@@ -209,15 +209,17 @@ const contentPermission = (permission: SQL) => sql`nullif(${permission} & ${CONT
 const folderColumns = sql`f.id, f.name, f.parent_id as "parentId", f.resource_id as "resourceId", ${contentPermission(sql`resource_permission(f.resource_id)`)} as permission`;
 const documentColumns = sql`d.id, d.title, d.folder_id as "folderId", d.resource_id as "resourceId", d.updated_at as "updatedAt", ${contentPermission(sql`resource_permission(d.resource_id)`)} as permission`;
 
-// A user can be given access in several organizations: requests made in one only touch the resources below it. The
-// resource tree tells, even for a document whose folder RLS hides
-const inOrganization = (actor: Actor, resourceId: SQL) =>
-  sql`exists (select 1 from current_resource_edge c where c.parent_id = ${actor.org.resourceId} and c.child_id = ${resourceId})`;
-const documentInOrganization = (actor: Actor) => inOrganization(actor, sql`${document.resourceId}`);
+// A user can be given access in several organizations: requests made in one only touch the resources below it.
+// Folders and documents hold their organization, even a document whose folder RLS hides
+const documentInOrganization = (actor: Actor) => eq(document.orgId, actor.org.id);
 const folderInOrganization = (actor: Actor, folderId: string) => sql`exists (select 1 from folder where id = ${folderId} and org_id = ${actor.org.id})`;
 
+// Any resource the actor reaches, by its id. The views of the current user list their rows before joining them, so
+// they are only asked about given ids, which Postgres looks up in the index
 const assertResourceInOrganization = async (tx: Tx, actor: Actor, resourceId: string) => {
-  const [found] = await rows<{ found: boolean }>(tx, sql`select ${resourceId}::uuid = ${actor.org.resourceId} or ${inOrganization(actor, sql`${resourceId}::uuid`)} as found`);
+  const [found] = await rows<{ found: boolean }>(tx, sql`
+    select ${resourceId}::uuid = ${actor.org.resourceId}
+      or exists (select 1 from current_resource_edge c where c.parent_id = ${actor.org.resourceId} and c.child_id = ${resourceId}::uuid) as found`);
   if (!found?.found) throw new NotFoundError("This does not exist, or you don't have access to it.");
 };
 
@@ -241,7 +243,7 @@ export const listShared = (actor: Actor) =>
     documents: await rows<DocumentRow>(tx, sql`
       select ${documentColumns} from document d
       where d.resource_id in (${assignedToActor}) and not exists (select 1 from folder p where p.id = d.folder_id)
-        and ${inOrganization(actor, sql`d.resource_id`)}
+        and d.org_id = ${actor.org.id}
       order by d.title`),
   }));
 
@@ -295,8 +297,8 @@ export const moveFolder = (actor: Actor, folderId: string, parentId: string) =>
     await assertFolderInOrganization(tx, actor, parentId);
     const [inside] = await rows<{ inside: boolean }>(tx, sql`
       select exists (
-        select 1 from current_resource_edge c, folder moved, folder target
-        where moved.id = ${folderId} and target.id = ${parentId} and c.parent_id = moved.resource_id and c.child_id = target.resource_id
+        select 1 from current_resource_edge c
+        where c.parent_id = (select resource_id from folder where id = ${folderId}) and c.child_id = (select resource_id from folder where id = ${parentId})
       ) as inside`);
     if (inside?.inside) throw new ForbiddenError("A folder cannot be moved into itself.");
     affected(await tx.update(folder).set({ parentId }).where(and(eq(folder.id, folderId), eq(folder.orgId, actor.org.id))));
@@ -314,7 +316,7 @@ export const getDocument = (actor: Actor, documentId: string) =>
       from document d
       left join member m on m.id = d.created_by
       left join "user" u on u.id = m.user_id
-      where d.id = ${documentId} and ${inOrganization(actor, sql`d.resource_id`)}`);
+      where d.id = ${documentId} and d.org_id = ${actor.org.id}`);
     if (!found) throw new NotFoundError("This document does not exist, or you don't have access to it.");
     return {
       document: found,
@@ -337,34 +339,32 @@ export const listDocuments = (actor: Actor, { limit = 50, after }: { limit?: num
     const start = updatedAt && id ? sql`and (d.updated_at, d.id) < (${updatedAt}::timestamp, ${id}::uuid)` : sql``;
     return rows<DocumentRow & { cursor: string }>(tx, sql`
       select ${documentColumns}, d.updated_at::text || '|' || d.id as cursor
-      from document d where ${inOrganization(actor, sql`d.resource_id`)} ${start}
+      from document d where d.org_id = ${actor.org.id} ${start}
       order by d.updated_at desc, d.id desc limit ${limit}`);
   });
 
-// How much the actor can read in the organization. Like `search` below, RLS checks the readable documents in one join
+// How much the actor can read in the organization. Comparing ids is leakproof, so RLS checks the readable documents
+// in one join, planned for the documents of the organization
 export const countReadable = (actor: Actor) =>
   asRole(actor, async (tx) => {
     const [counted] = await rows<{ folders: number; documents: number }>(tx, sql`
       select
         (select count(*)::int from folder where org_id = ${actor.org.id}) as folders,
-        (select count(*)::int from (select resource_id from document offset 0) d where ${inOrganization(actor, sql`d.resource_id`)}) as documents`);
+        (select count(*)::int from document where org_id = ${actor.org.id}) as documents`);
     return counted!;
   });
 
 // Folders and documents whose name matches, among those RLS shows the actor.
-// Postgres checks RLS before any filter that is not leakproof, like ilike, and row by row when there are other
-// filters: `offset 0` keeps the readable documents a subquery of their own, which it checks in one join. A second one
-// around the organization's check keeps it from being planned for the few matches ilike guesses, then it filters
+// Postgres checks RLS before any filter that is not leakproof, like ilike, planned for the few matches ilike guesses:
+// row by row. `offset 0` keeps the readable documents of the organization a subquery of their own, which it checks
+// in one join, then it filters
 export const search = (actor: Actor, query: string, limit = 50) =>
   asRole(actor, async (tx) => ({
     folders: await rows<FolderRow>(tx, sql`
       select ${folderColumns} from folder f where f.org_id = ${actor.org.id} and f.name ilike ${like(query)} order by f.name limit ${limit}`),
     documents: await rows<DocumentRow>(tx, sql`
       select ${documentColumns}
-      from (
-        select * from (select id, title, content, folder_id, resource_id, updated_at from document offset 0) d
-        where ${inOrganization(actor, sql`d.resource_id`)} offset 0
-      ) d
+      from (select id, title, content, folder_id, resource_id, updated_at from document where org_id = ${actor.org.id} offset 0) d
       where d.title ilike ${like(query)} or d.content ilike ${like(query)}
       order by d.title ilike ${like(query)} desc, d.updated_at desc limit ${limit}`),
   }));
@@ -373,7 +373,7 @@ export const createDocument = async (actor: Actor, folderId: string, title: stri
   const id = randomUUID();
   await asRole(actor, async (tx) => {
     await assertFolderInOrganization(tx, actor, folderId);
-    await tx.insert(document).values({ id, folderId, title, content, createdBy: actor.memberId });
+    await tx.insert(document).values({ id, orgId: actor.org.id, folderId, title, content, createdBy: actor.memberId });
   });
   return id;
 };
@@ -393,7 +393,7 @@ export const deleteDocument = (actor: Actor, documentId: string) =>
 // Comments are leaf rows: RLS checks the comment bit on their document
 export const addComment = (actor: Actor, documentId: string, body: string) =>
   asRole(actor, async (tx) => {
-    const [found] = await rows<{ id: string }>(tx, sql`select id from document d where d.id = ${documentId} and ${inOrganization(actor, sql`d.resource_id`)}`);
+    const [found] = await rows<{ id: string }>(tx, sql`select id from document d where d.id = ${documentId} and d.org_id = ${actor.org.id}`);
     if (!found) throw new NotFoundError("This document does not exist, or you don't have access to it.");
     await tx.insert(comment).values({ documentId, memberId: actor.memberId, body });
   });
@@ -403,7 +403,7 @@ export const deleteComment = (actor: Actor, commentId: string) =>
     affected(
       await tx.delete(comment).where(and(
         eq(comment.id, commentId),
-        sql`exists (select 1 from document d where d.id = ${comment.documentId} and ${inOrganization(actor, sql`d.resource_id`)})`,
+        sql`exists (select 1 from document d where d.id = ${comment.documentId} and d.org_id = ${actor.org.id})`,
       )),
     ),
   );

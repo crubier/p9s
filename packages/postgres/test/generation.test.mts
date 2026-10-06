@@ -628,10 +628,13 @@ test('Default Migration', () => {
           (select "the_id"."id" from (select "resource_id" from "public"."blog_post") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
           using errcode = 'unique_violation';
       end if;
-      if exists (select from "resource_edge" as "the_edge" where "the_edge"."parent_id" not in (select "resource_id" from "public"."blog_post") or "the_edge"."child_id" not in (select "resource_id" from "public"."blog_post")) then
+      -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
+      -- scans the ids again for every edge
+      if exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."blog_post") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+        or exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."blog_post") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
         raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
       end if;
-      if exists (select from "assignment_edge" as "the_assignment" where "the_assignment"."resource_id" not in (select "resource_id" from "public"."blog_post")) then
+      if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "resource_id" from "public"."blog_post") as "the_id" ("id") where "the_id"."id" = "the_assignment"."resource_id")) then
         raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
       end if;
       -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -1434,10 +1437,13 @@ test('Default Migration', () => {
           (select "the_id"."id" from (select "role_id" from "public"."human_user") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
           using errcode = 'unique_violation';
       end if;
-      if exists (select from "role_edge" as "the_edge" where "the_edge"."parent_id" not in (select "role_id" from "public"."human_user") or "the_edge"."child_id" not in (select "role_id" from "public"."human_user")) then
+      -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
+      -- scans the ids again for every edge
+      if exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."human_user") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+        or exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."human_user") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
         raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
       end if;
-      if exists (select from "assignment_edge" as "the_assignment" where "the_assignment"."role_id" not in (select "role_id" from "public"."human_user")) then
+      if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "role_id" from "public"."human_user") as "the_id" ("id") where "the_id"."id" = "the_assignment"."role_id")) then
         raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
       end if;
       -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -2348,12 +2354,12 @@ test('Default Migration', () => {
 
     select pg_temp.p9s_set_privileges('"current_assignment"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
 
-    -- The edges of the resource cache between two resources the current user reaches, to tell what is below what
+    -- The edges of the resource cache between two resources the current user reaches, to tell what is below what. The
+    -- cache has a row for every ancestor, bits or not, so whoever reaches a resource reaches what is below it
     create or replace view "current_resource_edge" with (security_barrier) as
     select "the_edge"."parent_id", "the_edge"."child_id", "the_edge"."permission"
     from "resource_edge_cache" as "the_edge"
-    where exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."parent_id")
-    and exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."child_id");
+    where exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."parent_id");
 
     select pg_temp.p9s_set_privileges('"current_resource_edge"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
 

@@ -37,21 +37,30 @@ limit 50;
 
 The same goes for `count(*)` with such a filter. A fenced search costs about a count of what the user can read: 0.2 to 0.45 s for 108,000 documents.
 
-Joins and `exists` checks next to the search are planned for the few rows Postgres expects it to return, too. In the example app, checking the organization of every match, a lookup in `current_resource_edge`, was planned as a loop over the whole cache for each of them: 30 s. Put them inside a second `offset 0`, around the readable rows, and the search outside:
+Joins and `exists` checks next to the search are planned for the few rows Postgres expects it to return, too: in the example app, checking the organization of every match through the resource tree was planned as a loop over the whole cache for each of them, 30 s. Prefer a column, with a leakproof comparison that can go inside the subquery. Documents of the example hold their organization in `org_id`, which a foreign key to their folder keeps right:
 
 ```sql
 select id, title
-from (
-  select * from (select id, title, content, resource_id, updated_at from document offset 0) as d
-  where exists (select 1 from current_resource_edge c where c.parent_id = $2 and c.child_id = d.resource_id)
-  offset 0
-) as d
-where d.title ilike '%' || $1 || '%'
+from (select id, title, content, updated_at from document where org_id = $2 offset 0) as d
+where d.title ilike '%' || $1 || '%' or d.content ilike '%' || $1 || '%'
 order by d.updated_at desc
 limit 50;
 ```
 
-That took 0.45 s. With the check inside the first subquery instead, Postgres checks the ancestors of each row again: 1.4 s.
+That took 0.4 s.
+
+## The views of the current user
+
+Users read their own part of the graph through [views](./security-model#what-users-see-of-the-graph) that are security barriers. Postgres looks the rows of such a view up by the ids it is given, constants or scalar subqueries, in the index:
+
+```sql
+select exists (
+  select 1 from current_resource_edge
+  where parent_id = $1 and child_id = (select resource_id from document where id = $2)
+);
+```
+
+That takes under 1 ms. It cannot look them up by a column of another table, as it does with a table: a join or an `exists` that compares a column of the view with a column of each row first lists every row of the view that the other conditions allow. In the example app, `exists (select 1 from current_resource_edge c where c.parent_id = $1 and c.child_id = d.resource_id)` listed the 139,000 resources below the organization, and every resource the user reaches, to check them: 4.4 s for a page of 50 documents and 0.8 s for a single one. The `org_id` column does it in 0.12 s and under 1 ms. Policies are not concerned: Postgres runs each one as a subquery of the row it checks, and looks the views up by the id of that row.
 
 ## Pages
 

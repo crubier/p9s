@@ -1017,7 +1017,9 @@ begin
     if exists (select ${id} from "p9s_old_rows" except select ${id} from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', ${textLiteral(kind)}, ${textLiteral(binding.tableName)} using errcode = 'integrity_constraint_violation';
     end if;${moved ? sql`
-    if exists (select ${moved}) then${checkParentsFound(binding, sql`"p9s_new_rows"`)}
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) ${moved}) > 0 then${checkParentsFound(binding, sql`"p9s_new_rows"`)}
       perform ${naming[kind].nodeUpdateFunction}(array_agg("the_row".${id}), ${parentIds})
       ${moved};
     end if;` : sql``}
@@ -1063,6 +1065,7 @@ create trigger ${truncateGuardTrigger} before truncate on ${table} for each stat
 
   const ids = boundIds(kind, naming, config);
   const everyId = allIds(kind, naming, config);
+  const notBound = (id: SQL) => sql`not exists (select from (${ids}) as "the_id" ("id") where "the_id"."id" = ${id})`;
   // Rows loaded while the triggers were disabled skipped the depth check of the edge triggers
   const longPath = sql`from (
     with recursive "walk" ("node", "depth", "path") as (
@@ -1089,10 +1092,13 @@ begin
       (select "the_id"."id" from (${everyId}) as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
       using errcode = 'unique_violation';
   end if;
-  if exists (select from ${edge} as "the_edge" where "the_edge".${parentId} not in (${ids}) or "the_edge".${childId} not in (${ids})) then
+  -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
+  -- scans the ids again for every edge
+  if exists (select from ${edge} as "the_edge" where ${notBound(sql`"the_edge".${parentId}`)})
+    or exists (select from ${edge} as "the_edge" where ${notBound(sql`"the_edge".${childId}`)}) then
     raise exception 'p9s: % edges connect ids that are not rows of bound tables', ${textLiteral(kind)} using errcode = 'foreign_key_violation';
   end if;
-  if exists (select from ${assignment.edge} as "the_assignment" where "the_assignment".${assignmentId} not in (${ids})) then
+  if exists (select from ${assignment.edge} as "the_assignment" where ${notBound(sql`"the_assignment".${assignmentId}`)}) then
     raise exception 'p9s: assignments reference % ids that are not rows of bound tables', ${textLiteral(kind)} using errcode = 'foreign_key_violation';
   end if;
   -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -1691,12 +1697,12 @@ create or replace view ${currentAssignmentView} with (security_barrier) as${assi
 
 ${setPrivileges(currentAssignmentView, everyone, [])}
 
--- The edges of the resource cache between two resources the current user reaches, to tell what is below what
+-- The edges of the resource cache between two resources the current user reaches, to tell what is below what. The
+-- cache has a row for every ancestor, bits or not, so whoever reaches a resource reaches what is below it
 create or replace view ${currentResourceEdgeView} with (security_barrier) as
 select "the_edge".${resource.parentId}, "the_edge".${resource.childId}, "the_edge".${resource.permission}
 from ${resource.edgeCache} as "the_edge"
-where exists (select from ${currentAccessView} as "the_access" where "the_access".${assignment.resourceId} = "the_edge".${resource.parentId})
-and exists (select from ${currentAccessView} as "the_access" where "the_access".${assignment.resourceId} = "the_edge".${resource.childId});
+where exists (select from ${currentAccessView} as "the_access" where "the_access".${assignment.resourceId} = "the_edge".${resource.parentId});
 
 ${setPrivileges(currentResourceEdgeView, everyone, [])}
 

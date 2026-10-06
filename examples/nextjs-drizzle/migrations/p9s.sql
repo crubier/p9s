@@ -669,10 +669,13 @@ begin
       (select "the_id"."id" from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
       using errcode = 'unique_violation';
   end if;
-  if exists (select from "resource_edge" as "the_edge" where "the_edge"."parent_id" not in (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") or "the_edge"."child_id" not in (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team")) then
+  -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
+  -- scans the ids again for every edge
+  if exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+    or exists (select from "resource_edge" as "the_edge" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
     raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
   end if;
-  if exists (select from "assignment_edge" as "the_assignment" where "the_assignment"."resource_id" not in (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team")) then
+  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "resource_id" from "public"."document" union all select "resource_id" from "public"."folder" union all select "resource_id" from "public"."member" union all select "resource_id" from "public"."organization" union all select "resource_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_assignment"."resource_id")) then
     raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'resource' using errcode = 'foreign_key_violation';
   end if;
   -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -1356,8 +1359,10 @@ begin
     if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'resource', 'document' using errcode = 'integrity_constraint_violation';
     end if;
-    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") then
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."folder_id" is distinct from "the_old_row"."folder_id") > 0 then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."folder_id" is not null and (select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = "the_row"."folder_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'document', 'folder_id', 'folder'
       using errcode = 'foreign_key_violation';
@@ -1409,8 +1414,10 @@ begin
     if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'resource', 'folder' using errcode = 'integrity_constraint_violation';
     end if;
-    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id") then
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id") > 0 then
       perform "resource_node_update"(array_agg("the_row"."resource_id"), array_agg("the_row"."parent_resource_id"))
       from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
       where "the_row"."parent_resource_id" is distinct from "the_old_row"."parent_resource_id";
@@ -1462,8 +1469,10 @@ begin
     if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'resource', 'member' using errcode = 'integrity_constraint_violation';
     end if;
-    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id") then
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
       using errcode = 'foreign_key_violation';
@@ -1562,8 +1571,10 @@ begin
     if exists (select "resource_id" from "p9s_old_rows" except select "resource_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'resource', 'team' using errcode = 'integrity_constraint_violation';
     end if;
-    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id") then
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("resource_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'team', 'org_id', 'organization'
       using errcode = 'foreign_key_violation';
@@ -1799,10 +1810,13 @@ begin
       (select "the_id"."id" from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team" union all select "role_id" from "public"."api_key") as "the_id" ("id") group by "the_id"."id" having count(*) > 1 limit 1)
       using errcode = 'unique_violation';
   end if;
-  if exists (select from "role_edge" as "the_edge" where "the_edge"."parent_id" not in (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") or "the_edge"."child_id" not in (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team")) then
+  -- Anti joins rather than not in: Postgres only hashes a not in that it expects to fit in work_mem, and otherwise
+  -- scans the ids again for every edge
+  if exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."parent_id"))
+    or exists (select from "role_edge" as "the_edge" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_edge"."child_id")) then
     raise exception 'p9s: % edges connect ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
   end if;
-  if exists (select from "assignment_edge" as "the_assignment" where "the_assignment"."role_id" not in (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team")) then
+  if exists (select from "assignment_edge" as "the_assignment" where not exists (select from (select "role_id" from "public"."member" union all select "role_id" from "public"."organization" union all select "role_id" from "public"."team") as "the_id" ("id") where "the_id"."id" = "the_assignment"."role_id")) then
     raise exception 'p9s: assignments reference % ids that are not rows of bound tables', 'role' using errcode = 'foreign_key_violation';
   end if;
   -- Backfills usually follow a bulk load, before autovacuum has gathered statistics. Without them the planner can
@@ -2492,8 +2506,10 @@ begin
     if exists (select "role_id" from "p9s_old_rows" except select "role_id" from "p9s_new_rows") then
       raise exception 'p9s: the % id of a % row cannot change', 'role', 'member' using errcode = 'integrity_constraint_violation';
     end if;
-    if exists (select from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
-      where "the_row"."org_id" is distinct from "the_old_row"."org_id") then
+    -- Transition tables have no index: an exists would be planned to stop early, comparing every new row with every
+    -- old row when no parent changed. Counting them is planned as a join of both
+    if (select count(*) from "p9s_new_rows" as "the_row" join "p9s_old_rows" as "the_old_row" using ("role_id")
+      where "the_row"."org_id" is distinct from "the_old_row"."org_id") > 0 then
   if exists (select from "p9s_new_rows" as "the_row" where "the_row"."org_id" is not null and (select "the_parent"."role_id" from "public"."organization" as "the_parent" where "the_parent"."id" = "the_row"."org_id") is null) then
     raise exception 'p9s: % rows have a % that matches no row of %', 'member', 'org_id', 'organization'
       using errcode = 'foreign_key_violation';
@@ -3332,12 +3348,12 @@ where "the_assignment_edge"."role_id" = (select "current_role_node"());
 
 select pg_temp.p9s_set_privileges('"current_assignment"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
--- The edges of the resource cache between two resources the current user reaches, to tell what is below what
+-- The edges of the resource cache between two resources the current user reaches, to tell what is below what. The
+-- cache has a row for every ancestor, bits or not, so whoever reaches a resource reaches what is below it
 create or replace view "current_resource_edge" with (security_barrier) as
 select "the_edge"."parent_id", "the_edge"."child_id", "the_edge"."permission"
 from "resource_edge_cache" as "the_edge"
-where exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."parent_id")
-and exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."child_id");
+where exists (select from "current_resource_access" as "the_access" where "the_access"."resource_id" = "the_edge"."parent_id");
 
 select pg_temp.p9s_set_privileges('"current_resource_edge"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
