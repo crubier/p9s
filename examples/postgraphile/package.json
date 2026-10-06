@@ -44,7 +44,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "latest",
     "@types/node": "^20",
-    "@types/pg": "8.16.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vercel/node": "^21.0.0",

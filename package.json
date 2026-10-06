@@ -17,5 +17,8 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@types/pg": "^8.23.1"
   }
 }
