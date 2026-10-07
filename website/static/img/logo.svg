@@ -1,4 +1,14 @@
-<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="200" height="200" rx="20" fill="#336791"/>
-  <text x="100" y="125" font-family="system-ui, -apple-system, sans-serif" font-size="80" font-weight="700" fill="white" text-anchor="middle">p9s</text>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="p9s-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4a8bd6"/>
+      <stop offset="1" stop-color="#1d3d6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#p9s-bg)"/>
+  <path d="M32 15 19 34M32 15l13 19v18" stroke="#fff" stroke-opacity=".7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="15" r="5.5" fill="#fff"/>
+  <circle cx="19" cy="34" r="5.5" fill="#fff"/>
+  <circle cx="45" cy="34" r="5.5" fill="#fff"/>
+  <circle cx="45" cy="52" r="5.5" fill="#7dd3fc"/>
 </svg>

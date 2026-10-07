@@ -4,36 +4,40 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+const NEXTJS_DEMO = 'https://p9s-example-nextjs-drizzle.vercel.app';
+const POSTGRAPHILE_DEMO = 'https://p9s-example-postgraphile.vercel.app';
+const GITHUB = 'https://github.com/crubier/p9s';
+
 const config: Config = {
   title: 'p9s',
-  tagline: 'Row-level security with hierarchical permissions for PostgreSQL',
-  favicon: 'img/favicon.ico',
+  tagline: 'Hierarchical permissions for Postgres, enforced with Row Level Security',
+  favicon: 'img/logo.svg',
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    v4: true,
   },
 
-  // Set the production url of your site here
-  url: 'https://p9s.dev',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
+  url: process.env.SITE_URL ?? 'https://p9s.vercel.app',
   baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'crubier', // Usually your GitHub org/user name.
-  projectName: 'p9s', // Usually your repo name.
+  organizationName: 'crubier',
+  projectName: 'p9s',
 
   onBrokenLinks: 'throw',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+  customFields: { nextjsDemo: NEXTJS_DEMO, postgraphileDemo: POSTGRAPHILE_DEMO, github: GITHUB },
+
+  stylesheets: [
+    {
+      href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap',
+      type: 'text/css',
+    },
+  ],
 
   presets: [
     [
@@ -41,10 +45,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/crubier/p9s/tree/main/website/',
+          editUrl: `${GITHUB}/tree/main/website/`,
         },
         blog: false,
         theme: {
@@ -55,29 +56,26 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Social card image (TODO: create custom social card)
-    // image: 'img/social-card.png',
+    image: 'img/social-card.png',
+    metadata: [
+      { name: 'keywords', content: 'postgres, postgresql, row level security, rls, permissions, authorization, access control, rbac, rebac, drizzle, postgraphile' },
+    ],
     colorMode: {
+      defaultMode: 'dark',
       respectPrefersColorScheme: true,
     },
     navbar: {
       title: 'p9s',
       logo: {
-        alt: 'p9s Logo',
+        alt: 'p9s',
         src: 'img/logo.svg',
       },
       items: [
-        {
-          type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
-          position: 'left',
-          label: 'Docs',
-        },
-        {
-          href: 'https://github.com/crubier/p9s',
-          label: 'GitHub',
-          position: 'right',
-        },
+        { type: 'docSidebar', sidebarId: 'tutorialSidebar', position: 'left', label: 'Docs' },
+        { to: '/docs/configuration/security-model', label: 'Security model', position: 'left' },
+        { to: '/docs/benchmarks', label: 'Benchmarks', position: 'left' },
+        { to: '/#demos', label: 'Live demos', position: 'left', activeBaseRegex: '^$' },
+        { href: GITHUB, label: 'GitHub', position: 'right' },
       ],
     },
     footer: {
@@ -86,40 +84,43 @@ const config: Config = {
         {
           title: 'Docs',
           items: [
-            {
-              label: 'Getting Started',
-              to: '/docs/intro',
-            },
+            { label: 'Introduction', to: '/docs/intro' },
+            { label: 'Installation', to: '/docs/getting-started/installation' },
+            { label: 'Configuration', to: '/docs/configuration/overview' },
+            { label: 'Security model', to: '/docs/configuration/security-model' },
+          ],
+        },
+        {
+          title: 'Guides',
+          items: [
+            { label: 'Querying through RLS', to: '/docs/configuration/querying' },
+            { label: 'PostGraphile', to: '/docs/configuration/postgraphile' },
+            { label: 'Upgrading', to: '/docs/configuration/upgrading' },
+            { label: 'Benchmarks', to: '/docs/benchmarks' },
+          ],
+        },
+        {
+          title: 'Live demos',
+          items: [
+            { label: 'Next.js and Drizzle', href: NEXTJS_DEMO },
+            { label: 'PostGraphile and GraphiQL', href: POSTGRAPHILE_DEMO },
           ],
         },
         {
           title: 'Community',
           items: [
-            {
-              label: 'GitHub Discussions',
-              href: 'https://github.com/crubier/p9s/discussions',
-            },
-            {
-              label: 'GitHub Issues',
-              href: 'https://github.com/crubier/p9s/issues',
-            },
-          ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'GitHub',
-              href: 'https://github.com/crubier/p9s',
-            },
+            { label: 'GitHub', href: GITHUB },
+            { label: 'Issues', href: `${GITHUB}/issues` },
+            { label: 'Pull requests', href: `${GITHUB}/pulls` },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} p9s. Built with Docusaurus.`,
+      copyright: `© ${new Date().getFullYear()} p9s`,
     },
     prism: {
       theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      darkTheme: prismThemes.oneDark,
+      additionalLanguages: ['bash'],
     },
   } satisfies Preset.ThemeConfig,
 };

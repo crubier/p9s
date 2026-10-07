@@ -4,7 +4,7 @@ Hierarchical permissions for Postgres, enforced with Row Level Security.
 
 p9s generates a SQL migration that adds a permission graph to your existing tables: resources (folders, projects, documents...) and roles (users, teams, organizations...) form two trees, assignments link them, and triggers keep cache tables of every transitive permission up to date so that RLS policies only need index lookups.
 
-Documentation: [p9s.dev](https://p9s.dev), sources in [`website/docs`](./website/docs).
+Website and documentation: [p9s.vercel.app](https://p9s.vercel.app), sources in [`website`](./website).
 
 ## Concepts
 
