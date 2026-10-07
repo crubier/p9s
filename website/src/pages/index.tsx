@@ -269,16 +269,66 @@ const features: Feature[] = [
   },
 ];
 
-const bars = [
-  { label: 'First page of 50 rows', p9s: 1.2, baseline: 25 },
-  { label: 'Count the visible rows', p9s: 0.87, baseline: 34 },
+type Comparison = {
+  label: string;
+  unit: 'ms' | 'tx/s';
+  p9s: [name: string, value: number];
+  other: [name: string, value: number];
+};
+
+const comparisons: { title: string; rows: Comparison[] }[] = [
+  {
+    title: 'Reads through RLS, against a policy that walks the trees',
+    rows: [
+      { label: 'First page of 50 rows', unit: 'ms', p9s: ['p9s', 1.2], other: ['Recursive policy', 25] },
+      { label: 'Count the visible rows', unit: 'ms', p9s: ['p9s', 0.87], other: ['Recursive policy', 34] },
+    ],
+  },
+  {
+    title: 'Writes of comments, as a leaf table and as nodes of the graph',
+    rows: [
+      { label: 'Create 1,000 comments at once', unit: 'ms', p9s: ['Leaf table', 11], other: ['Graph nodes', 47] },
+      {
+        label: 'Comment while the graph moves, 4 clients',
+        unit: 'tx/s',
+        p9s: ['Leaf table', 4200],
+        other: ['Graph nodes', 84],
+      },
+    ],
+  },
 ];
 
-const stats = [
-  { value: '0.2 ms', label: 'to add a row to the tree' },
-  { value: '5,500 /s', label: 'rows created by 4 clients' },
-  { value: '0.1 ms', label: 'for the permission bits of a row' },
-];
+function ComparisonBars({ row }: { row: Comparison }) {
+  const [, p9s] = row.p9s;
+  const [, other] = row.other;
+  const max = Math.max(p9s, other);
+  const factor = Math.round(row.unit === 'ms' ? other / p9s : p9s / other);
+  const bars = [
+    { name: row.p9s[0], value: p9s, className: styles.barP9s },
+    { name: row.other[0], value: other, className: styles.barBaseline },
+  ];
+  return (
+    <div className={styles.barGroup}>
+      <div className={styles.barLabel}>
+        {row.label}
+        <span className={styles.barFactor}>
+          {factor}× {row.unit === 'ms' ? 'faster' : 'the throughput'}
+        </span>
+      </div>
+      {bars.map((bar) => (
+        <div key={bar.name} className={styles.barRow}>
+          <span className={styles.barName}>{bar.name}</span>
+          <span className={styles.barTrack}>
+            <span className={clsx(styles.bar, bar.className)} style={{ width: `${Math.max(2, (bar.value / max) * 100)}%` }} />
+          </span>
+          <span className={styles.barValue}>
+            {bar.value.toLocaleString('en-US')} {row.unit}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Hero() {
   return (
@@ -398,52 +448,29 @@ function Numbers() {
   return (
     <section className={styles.section}>
       <div className="container">
+        <div className={styles.sectionHead}>
+          <span className={styles.kicker}>Performance</span>
+          <h2 className={styles.sectionTitle}>Fast where RLS usually hurts</h2>
+          <p className={styles.sectionLead}>
+            A policy that walks the trees with recursive queries is fine for one row, and slow for a page or a count:
+            p9s reads its caches instead. Rows that nothing is below, like comments, can be leaf tables that writes never
+            wait for.
+          </p>
+        </div>
         <div className={styles.numbers}>
-          <div>
-            <span className={styles.kicker}>Performance</span>
-            <h2 className={styles.sectionTitle}>Fast where RLS usually hurts</h2>
-            <p className={styles.sectionLead}>
-              A policy that walks the trees with recursive queries is fine for one row, and slow for a page or a count.
-              p9s reads its caches instead, through RLS, as the application user.
-            </p>
-            <div className={styles.stats}>
-              {stats.map((stat) => (
-                <div key={stat.label} className={styles.stat}>
-                  <strong>{stat.value}</strong>
-                  <span>{stat.label}</span>
-                </div>
+          {comparisons.map((card) => (
+            <div key={card.title} className={styles.barsCard}>
+              <h3 className={styles.barsTitle}>{card.title}</h3>
+              {card.rows.map((row) => (
+                <ComparisonBars key={row.label} row={row} />
               ))}
             </div>
-          </div>
-          <div className={styles.barsCard}>
-            {bars.map((bar) => (
-              <div key={bar.label} className={styles.barGroup}>
-                <div className={styles.barLabel}>
-                  {bar.label}
-                  <span className={styles.barFactor}>{Math.round(bar.baseline / bar.p9s)}× faster</span>
-                </div>
-                <div className={styles.barRow}>
-                  <span className={styles.barName}>p9s</span>
-                  <span className={styles.barTrack}>
-                    <span className={clsx(styles.bar, styles.barP9s)} style={{ width: `${Math.max(2, (bar.p9s / bar.baseline) * 100)}%` }} />
-                  </span>
-                  <span className={styles.barValue}>{bar.p9s} ms</span>
-                </div>
-                <div className={styles.barRow}>
-                  <span className={styles.barName}>Recursive policy</span>
-                  <span className={styles.barTrack}>
-                    <span className={clsx(styles.bar, styles.barBaseline)} style={{ width: '100%' }} />
-                  </span>
-                  <span className={styles.barValue}>{bar.baseline} ms</span>
-                </div>
-              </div>
-            ))}
-            <p className={styles.barNote}>
-              Median, Postgres 14 on an Apple M2 Max: 37,000 resources, 584 roles, assignments at every level.{' '}
-              <Link to="/docs/benchmarks">All the benchmarks</Link>
-            </p>
-          </div>
+          ))}
         </div>
+        <p className={styles.barNote}>
+          Median, Postgres 14 on an Apple M2 Max: 37,000 resources, 584 roles, assignments at every level, and 58,000
+          comments. <Link to="/docs/benchmarks">All the benchmarks</Link>
+        </p>
       </div>
     </section>
   );

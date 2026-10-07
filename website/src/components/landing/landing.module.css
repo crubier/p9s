@@ -507,33 +507,8 @@
 
 .numbers {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  gap: 4rem;
-  align-items: center;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.stat {
-  padding-left: 1rem;
-  border-left: 2px solid var(--l-accent);
-}
-
-.stat strong {
-  display: block;
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-.stat span {
-  color: var(--l-muted);
-  font-size: 0.88rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
 }
 
 .barsCard {
@@ -541,6 +516,15 @@
   border-radius: 18px;
   border: 1px solid var(--l-border);
   background: var(--l-card);
+}
+
+.barsTitle {
+  margin: 0 0 1.6rem;
+  color: var(--l-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .barGroup + .barGroup {
@@ -562,7 +546,7 @@
 
 .barRow {
   display: grid;
-  grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 5.5rem;
   gap: 0.8rem;
   align-items: center;
   margin-bottom: 0.5rem;
@@ -601,7 +585,8 @@
 }
 
 .barNote {
-  margin: 1.8rem 0 0;
+  margin: 1.5rem 0 0;
+  text-align: center;
   color: var(--l-muted);
   font-size: 0.82rem;
   line-height: 1.55;
@@ -777,16 +762,12 @@
 
 @media (max-width: 600px) {
   .features,
-  .stats {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .code {
     min-height: 0;
     font-size: 0.74rem;
   }
 
   .barRow {
-    grid-template-columns: 6rem minmax(0, 1fr) 4rem;
+    grid-template-columns: 6rem minmax(0, 1fr) 5rem;
   }
 }
