@@ -169,6 +169,17 @@ type Feature = { icon: ReactNode; title: string; body: ReactNode; to?: string };
 
 const features: Feature[] = [
   {
+    icon: <BoltIcon />,
+    title: 'Smart recursive caching',
+    body: (
+      <>
+        Every transitive permission is cached and kept exact on each write, so a policy is an index lookup. Pages and
+        counts take about a millisecond through RLS.
+      </>
+    ),
+    to: '/docs/benchmarks',
+  },
+  {
     icon: <TreeIcon />,
     title: 'Trees of the rows you have',
     body: (
@@ -189,17 +200,6 @@ const features: Feature[] = [
       </>
     ),
     to: '/docs/configuration/security-model',
-  },
-  {
-    icon: <BoltIcon />,
-    title: 'Fast because it is cached',
-    body: (
-      <>
-        Triggers keep every transitive permission exact on each write, so a policy is an index lookup. Pages, counts
-        and searches stay fast through RLS.
-      </>
-    ),
-    to: '/docs/configuration/querying',
   },
   {
     icon: <ShareIcon />,
@@ -298,6 +298,27 @@ const comparisons: { title: string; rows: Comparison[] }[] = [
   },
 ];
 
+const heroStats = [
+  { value: '1.2 ms', label: 'for a page of 50 rows, through RLS' },
+  { value: '39×', label: 'faster counts than a recursive policy' },
+  { value: '0', label: 'services to run beside Postgres' },
+];
+
+const cacheFacts = [
+  {
+    title: 'Recursive, once',
+    body: 'Triggers walk the trees when they change, not when you read them, and store every transitive permission for the policies to look up.',
+  },
+  {
+    title: 'Never stale',
+    body: 'Triggers update the caches in the transaction that writes, so a share, a revoke or a move applies to the very next query.',
+  },
+  {
+    title: 'Writes pay for what they change',
+    body: 'Adding a row takes 0.2 ms and moving one 0.4 ms: a write updates the cache rows it changes, and no others.',
+  },
+];
+
 function ComparisonBars({ row }: { row: Comparison }) {
   const [, p9s] = row.p9s;
   const [, other] = row.other;
@@ -342,7 +363,8 @@ function Hero() {
           </h1>
           <p className={styles.heroLead}>
             p9s turns the rows you already have into a permission graph: folders in spaces, members in teams, documents
-            shared with anyone. Postgres enforces it with Row Level Security, on every query, from every client.
+            shared with anyone. Postgres enforces it with Row Level Security on every query, and smart recursive caching
+            makes each policy an index lookup.
           </p>
           <div className={styles.actions}>
             <Link className={clsx(styles.button, styles.buttonPrimary)} to="/docs/intro">
@@ -352,7 +374,14 @@ function Hero() {
               Try the live demos
             </Link>
           </div>
-          <p className={styles.heroNote}>Generates one SQL migration from a typed config. Nothing to run beside Postgres.</p>
+          <dl className={styles.heroStats}>
+            {heroStats.map((stat) => (
+              <div key={stat.label}>
+                <dt>{stat.value}</dt>
+                <dd>{stat.label}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
         <CodeWindow tabs={heroTabs} className={styles.heroWindow} />
       </div>
@@ -387,7 +416,7 @@ function HowItWorks() {
     },
     {
       title: 'Postgres does the rest',
-      body: 'Triggers keep caches of every transitive permission. Policies read them through views of the current user, and application code asks resource_permission.',
+      body: 'Smart recursive caching: triggers keep every transitive permission cached, so policies are index lookups instead of recursive queries. Application code asks resource_permission.',
     },
   ];
   return (
@@ -424,7 +453,7 @@ function HowItWorks() {
 
 function Features() {
   return (
-    <section className={clsx(styles.section, styles.sectionAlt)}>
+    <section className={styles.section}>
       <div className="container">
         <div className={styles.sectionHead}>
           <span className={styles.kicker}>Features</span>
@@ -446,15 +475,16 @@ function Features() {
 
 function Numbers() {
   return (
-    <section className={styles.section}>
+    <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <div className={styles.sectionHead}>
           <span className={styles.kicker}>Performance</span>
-          <h2 className={styles.sectionTitle}>Fast where RLS usually hurts</h2>
+          <h2 className={styles.sectionTitle}>Millisecond permissions, with smart recursive caching</h2>
           <p className={styles.sectionLead}>
-            A policy that walks the trees with recursive queries is fine for one row, and slow for a page or a count:
-            p9s reads its caches instead. Rows that nothing is below, like comments, can be leaf tables that writes never
-            wait for.
+            Hierarchical permissions are where RLS usually gets slow: a policy that walks the trees runs recursive queries
+            for every row it checks. p9s caches the result of that recursion and keeps it exact on every write, so you
+            write plain queries and each policy is an index lookup. Rows that nothing is below, like comments, can be leaf
+            tables that need no cache rows at all.
           </p>
         </div>
         <div className={styles.numbers}>
@@ -467,6 +497,14 @@ function Numbers() {
             </div>
           ))}
         </div>
+        <ul className={styles.cacheFacts}>
+          {cacheFacts.map((item) => (
+            <li key={item.title}>
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+            </li>
+          ))}
+        </ul>
         <p className={styles.barNote}>
           Median, Postgres 14 on an Apple M2 Max: 37,000 resources, 584 roles, assignments at every level, and 58,000
           comments. <Link to="/docs/benchmarks">All the benchmarks</Link>
@@ -567,7 +605,10 @@ function CallToAction() {
       <div className={styles.heroGlow} aria-hidden />
       <div className={clsx('container', styles.ctaInner)}>
         <h2>Put your permissions where your data is</h2>
-        <p>Read the security model, generate a migration for your schema, and let Postgres say no.</p>
+        <p>
+          Open source, and fast from the first query. Generate a migration for your schema, and let Postgres say no in a
+          millisecond.
+        </p>
         <div className={styles.actions}>
           <Link className={clsx(styles.button, styles.buttonPrimary)} to="/docs/intro">
             Read the docs <ArrowIcon />
@@ -585,13 +626,13 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Hierarchical permissions for Postgres"
-      description="p9s turns your tables into a permission graph, folders in spaces and members in teams, and Postgres enforces it with Row Level Security on every query.">
+      description="Open source hierarchical permissions for Postgres: p9s turns your tables into a permission graph, and Row Level Security enforces it on every query, in about a millisecond thanks to smart recursive caching.">
       <Hero />
       <main>
         <WorksWith />
         <HowItWorks />
-        <Features />
         <Numbers />
+        <Features />
         <Anywhere />
         <Demos />
         <CallToAction />

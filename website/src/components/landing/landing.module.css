@@ -76,10 +76,32 @@
   color: #b4bfd3;
 }
 
-.heroNote {
-  margin: 1.4rem 0 0;
-  font-size: 0.88rem;
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.2rem;
+  max-width: 34rem;
+  margin: 2.2rem 0 0;
+}
+
+.heroStats div {
+  padding-left: 0.9rem;
+  border-left: 2px solid rgba(52, 211, 153, 0.6);
+}
+
+.heroStats dt {
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.heroStats dd {
+  margin: 0.2rem 0 0;
   color: #7f8ba3;
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
 .actions {
@@ -584,6 +606,45 @@
   text-align: right;
 }
 
+.cacheFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cacheFacts li {
+  position: relative;
+  padding-left: 2rem;
+}
+
+.cacheFacts li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, #10b981 18%, transparent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E")
+    center / 0.85rem no-repeat;
+}
+
+.cacheFacts h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.02rem;
+}
+
+.cacheFacts p {
+  margin: 0;
+  color: var(--l-muted);
+  font-size: 0.93rem;
+  line-height: 1.6;
+}
+
 .barNote {
   margin: 1.5rem 0 0;
   text-align: center;
@@ -751,7 +812,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .demos {
+  .demos,
+  .cacheFacts {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -761,10 +823,21 @@
 }
 
 @media (max-width: 600px) {
-  .features,
+  .features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .code {
     min-height: 0;
     font-size: 0.74rem;
+  }
+
+  .heroStats {
+    gap: 0.8rem;
+  }
+
+  .heroStats dt {
+    font-size: 1.3rem;
   }
 
   .barRow {
