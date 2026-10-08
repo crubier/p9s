@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import type { BenchmarkResult } from './generator';
+import { format, metrics, runKey as key, type ResultFile } from './metrics';
 
 const usage = `
 Usage: bun compare.ts <before.json> <after.json> [options]
@@ -28,33 +28,9 @@ if (args.help || positionals.length !== 2) {
   process.exit(args.help ? 0 : 1);
 }
 
-interface ResultFile { git: { sha: string, dirty: boolean }, createdAt: string, runs: BenchmarkResult[] }
 const [before, after] = await Promise.all(positionals.map(file => Bun.file(file).json() as Promise<ResultFile>)) as [ResultFile, ResultFile];
 const threshold = Number(args.threshold);
 const minMs = Number(args['min-ms']);
-
-// Lower is better for every metric except throughput
-interface Metric { name: string, value: number, unit: 'ms' | 's' | 'MB' | 'tx/s', higherIsBetter?: boolean }
-
-const metrics = (run: BenchmarkResult): Metric[] => [
-  { name: 'load: cache backfill', value: run.load.enableTriggers, unit: 's' },
-  { name: 'cache: total size', value: run.cache.reduce((total, { bytes }) => total + bytes, 0) / 1024 / 1024, unit: 'MB' },
-  ...run.reads.flatMap(({ name, policy, stats }) => [
-    { name: `read ${policy}: ${name} p50`, value: stats.p50, unit: 'ms' as const },
-    { name: `read ${policy}: ${name} p95`, value: stats.p95, unit: 'ms' as const },
-  ]),
-  ...run.writes.flatMap(({ name, stats }) => [
-    { name: `write ${name} p50`, value: stats.p50, unit: 'ms' as const },
-    { name: `write ${name} p95`, value: stats.p95, unit: 'ms' as const },
-  ]),
-  ...(run.concurrency ?? []).flatMap(({ name, throughput, stats }) => [
-    { name: `concurrent ${name} throughput`, value: throughput, unit: 'tx/s' as const, higherIsBetter: true },
-    { name: `concurrent ${name} p99`, value: stats.p99, unit: 'ms' as const },
-  ]),
-];
-
-const key = ({ options }: BenchmarkResult) => `${options.benchmarkSizeFactor}/${options.idMode}/${options.combineAssignmentsWith}${options.resourceCache === "assigned" ? "/assigned" : ""}`;
-const format = (value: number) => value < 10 ? value.toFixed(2) : value.toFixed(0);
 
 console.log(`Before: ${positionals[0]} (${before.git.sha.slice(0, 8)}${before.git.dirty ? ' dirty' : ''}, ${before.createdAt})`);
 console.log(`After:  ${positionals[1]} (${after.git.sha.slice(0, 8)}${after.git.dirty ? ' dirty' : ''}, ${after.createdAt})`);

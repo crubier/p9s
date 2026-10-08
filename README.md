@@ -73,6 +73,7 @@ bun run typecheck
 bun run test                                    # on in-process PGlite
 P9S_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bun run test   # on a real server, adds concurrency tests
 bun run bench                                   # benchmarks, starts Postgres with Docker
+bun run bench:ab --base main                    # the working tree against main, in turns, with the changes that are significant
 bun run docs                                    # documentation site
 ```
 

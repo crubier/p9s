@@ -53,3 +53,28 @@ jobs:
         with:
           name: benchmark-results
           path: bench-results
+
+  # Runs the base and this revision in turns on the same server and fails when a median got significantly slower, see
+  # the Benchmarks page. In parallel with the tests, which take about as long.
+  benchmark-ab:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.before != '0000000000000000000000000000000000000000'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - name: Benchmark against the base, in turns
+        run: bun run bench:ab --base "$BASE" --out ab-results --fail
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-ab
+          path: |
+            ab-results/**/*.json
+            ab-results/*.log

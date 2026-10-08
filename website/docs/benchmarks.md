@@ -52,6 +52,8 @@ bun run bench --keys node --out results/key-node
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
 
+Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run "--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`.
+
 ## Example results
 
 Postgres 14 with default settings on an Apple M2 Max, size factor 8 (37k resources, 584 roles), integer ids. p50 in milliseconds.
