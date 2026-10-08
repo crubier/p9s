@@ -1870,6 +1870,13 @@ const currentAccessFirstOf = (naming: Naming<any>, bit: number) => identifier(`$
 // all of them for most users, at the cost of about 80 rows.
 export const FEW_RESOURCES = 1000;
 export const MORE_RESOURCES = 3000;
+// Then statements check this many rows before listing every resource the user has the bit on. Listing costs about one
+// check for every 40 resources, so past the 3000 above, checking 200 rows costs no more than listing 8000 resources: a
+// page whose rows are mostly unreadable, or not among the first listed, stays a few milliseconds, and a count of
+// 100,000 readable rows takes a few percent more.
+export const CHECKED_ROWS = 200;
+// Writes have no first listing to go past, and are rarely pages: one that writes many rows lists sooner.
+export const CHECKED_WRITTEN_ROWS = 50;
 
 // The part of the graph users can see. They have no privileges on the graph tables: the policies read these views,
 // which run as their owner and only return rows of the current user. As security barriers, a filter of the user runs
@@ -2248,18 +2255,18 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   // - Reads first list a few resources the user has the bit on, all of them for a user with few.
   // - For a row that is not among them, the first is checked by its ancestors, which is all a lookup by id reads.
   // - Past it, reads list more, all of them for most users.
-  // - For a row that is not among these either, the policy checks rows one by one, 50 by default, then lists every
+  // - For a row that is not among these either, the policy checks rows one by one, 200 by default, then lists every
   //   resource.
-  // Writes, which rarely read many rows, only check then list, and so does the select policy of the statement that
-  // writes, which Postgres runs after theirs: they mark the table as written by the statement, known by the time it
-  // started. Listing first would read every resource under the parents of the user, and the rows that writes leave
+  // Writes, which rarely read many rows, only check then list, after 50 rows, and so does the select policy of the
+  // statement that writes, which Postgres runs after theirs: they mark the table as written by the statement, known by
+  // the time it started. Listing first would read every resource under the parents of the user, and the rows that writes leave
   // there until a vacuum, while a check only reads the ancestors of the row. A statement sent in the same query string
   // after a write is taken for a write too. With p9s.check_rows, statements check that many rows whoever the user is,
   // every row with on, none with off. The count is a setting of the transaction, one per table and operation, that the
   // statement resets first. Every way gives the same rows, they only differ in speed.
   const setting = sql`coalesce(current_setting('p9s.check_rows', true), '')`;
-  const checkRows = sql`(select case when ${setting} = 'on' then '-1' when ${setting} = 'off' then '0'
-    when ${setting} ~ '^[0-9]{1,9}$' then (${setting}::bigint)::text else '50' end)`;
+  const checkRowsOr = (rows: number) => sql`(select case when ${setting} = 'on' then '-1' when ${setting} = 'off' then '0'
+    when ${setting} ~ '^[0-9]{1,9}$' then (${setting}::bigint)::text else ${textLiteral(String(rows))} end)`;
   const readCheck = (table: CompleteConfig<User>["tables"][number], operation: "select" | "update" | "delete", target: SQL, bit: number) => {
     const tableName = table.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
     const counter = textLiteral(`p9s.checked_${tableName}_${operation}`);
@@ -2268,7 +2275,7 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
     const reset = sql`(select set_config(${counter}, '0', true)) is not null`;
     const check = sql`set_config(${counter}, (coalesce(nullif(current_setting(${counter}, true), '')::bigint, 0) + 1)::text, true) is not null
     and ${currentAccessCheckOf(naming, bit)}(${target})`;
-    const checkThenList = sql`case current_setting(${counter}, true) when ${checkRows} then ${list} else ${check} end`;
+    const checkThenList = sql`case current_setting(${counter}, true) when ${checkRowsOr(CHECKED_WRITTEN_ROWS)} then ${list} else ${check} end`;
     if (operation !== "select") {
       return sql`
   case when not (select set_config(${counter}, '0', true) || set_config(${writing}, statement_timestamp()::text, true)) is not null then null
@@ -2281,7 +2288,7 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   case when not ${reset} then null
   when ${written} then ${checkThenList}
   else coalesce(${first(FEW_RESOURCES)}, case current_setting(${counter}, true)
-    when ${checkRows} then ${list}
+    when ${checkRowsOr(CHECKED_ROWS)} then ${list}
     when (select case when ${auto} then '0' end) then ${check}
     else coalesce(${first(MORE_RESOURCES)}, ${check}) end) end`;
   };

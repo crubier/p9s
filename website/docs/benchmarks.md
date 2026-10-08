@@ -135,30 +135,31 @@ In the balanced trees of the benchmark, an org admin who sees most objects reads
 
 ### Policies that decide as the statement runs
 
-Policies used to leave the choice between checking ancestors and listing to the planner. They now list a few resources first, check the rows they miss, and list everything after 50 checks, see [how policies run](./configuration/querying#how-policies-run). Postgres 18.1, size factor 8, integer ids, JIT off, p50 in milliseconds, `combineAssignmentsWith: none` / `role`, one run before and two after:
+Policies used to leave the choice between checking ancestors and listing to the planner. They now list a few resources first, check the rows they miss, and list everything after 200 checks, 50 in a statement that writes, see [how policies run](./configuration/querying#how-policies-run). Postgres 18.1, size factor 8, integer ids, JIT off, p50 in milliseconds, `combineAssignmentsWith: none` / `role`, one run before and two after:
 
 | Read                                  | Before      | After                   |
 | ------------------------------------- | ----------- | ----------------------- |
-| Search names with `ilike`             | 19 / 17     | 1.5–3.1 / 1.5–1.7       |
-| The same, behind `offset 0`           | 1.7 / 1.5   | 1.6–1.9 / 1.5–1.6       |
-| Point lookup                          | 0.86 / 0.53 | 0.80–0.97 / 0.63–0.76   |
-| First page of 50                      | 2.0 / 1.9   | 1.7–2.5 / 1.7–2.0       |
-| Count visible posts                   | 1.7 / 1.2   | 0.8–2.0 / 0.8           |
-| Page after 100 rows, by offset        | 1.8 / 1.6   | 1.1–1.5 / 1.2–1.3       |
-| Count visible comments                | 7.1 / 6.5   | 5.2–6.2 / 5.4–5.5       |
-| First page, `p9s.check_rows` on       | 17 / 17     | 39 / 30–31              |
-| Count, `p9s.check_rows` on            | 19 / 19     | 36–48 / 34–35           |
+| Search names with `ilike`             | 19 / 17     | 1.7–1.9 / 1.7–1.9       |
+| The same, behind `offset 0`           | 1.7 / 1.5   | 2.0–2.2 / 1.9–2.0       |
+| Point lookup                          | 0.86 / 0.53 | 0.85–0.89 / 0.80        |
+| First page of 50                      | 2.0 / 1.9   | 2.1–2.2 / 2.1–2.2       |
+| Count visible posts                   | 1.7 / 1.2   | 1.2–1.3 / 1.2–1.5       |
+| Page after 100 rows, by offset        | 1.8 / 1.6   | 1.8–1.9 / 1.7–2.0       |
+| Count visible comments                | 7.1 / 6.5   | 5.8–7.7 / 5.8–7.4       |
+| First page, `p9s.check_rows` on       | 17 / 17     | 32–40 / 31–33           |
+| Count, `p9s.check_rows` on            | 19 / 19     | 39–40 / 36–37           |
 
-| Write, as the application user        | Before      | After       |
-| ------------------------------------- | ----------- | ----------- |
-| Edit a comment                        | 2.1 / 1.2   | 0.85 / 0.74 |
-| Delete a comment                      | 1.1 / 0.83  | 0.35 / 0.36 |
-| Rename an object                      | 2.1 / 1.2   | 0.97 / 0.80 |
-| Delete an object                      | 1.4 / 0.93  | 0.59 / 0.61 |
-| Delete a folder                       | 1.8 / 1.5   | 1.0 / 1.0   |
-| Rename an object, as org admin        | 2.2 / 1.3   | 0.94 / 0.69 |
+| Write, as the application user        | Before      | After                   |
+| ------------------------------------- | ----------- | ----------------------- |
+| Edit a comment                        | 2.1 / 1.2   | 0.85–0.97 / 0.74–0.86   |
+| Delete a comment                      | 1.1 / 0.83  | 0.35–0.62 / 0.36–0.51   |
+| Rename an object                      | 2.1 / 1.2   | 0.97–1.1 / 0.80–0.92    |
+| Delete an object                      | 1.4 / 0.93  | 0.59–0.88 / 0.61–0.71   |
+| Delete a folder                       | 1.8 / 1.5   | 1.0–1.3 / 1.0–1.1       |
+| Rename an object, as org admin        | 2.2 / 1.3   | 0.94–1.4 / 0.69–0.84    |
+| Delete 1000 objects in one statement  | 19 / 40     | 19–21 / 43–45           |
 
-`ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 50 checks, as `offset 0` made it do. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup lists up to 1000 resources instead of checking one row, up to 0.25 ms more. With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
+`ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 200 checks, as `offset 0` made it do. A statement that writes lists after 50: with 200, deleting 1000 objects took 24 / 51 ms. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup lists up to 1000 resources instead of checking one row, up to 0.3 ms more. With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
 
 The benchmark rolls back thousands of rows created under the projects of the application user, which stay in the indexes until a vacuum. Listing what the user can read walks them all: writes that listed first took 3 to 7 ms then, against 0.3 to 1 ms for those that check.
 

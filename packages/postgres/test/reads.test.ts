@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier, raw, type SQL } from "pg-sql2";
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
 import { bits, combineModes, setupBlog } from './helpers';
-import { FEW_RESOURCES, MORE_RESOURCES } from '../generation';
+import { CHECKED_ROWS, CHECKED_WRITTEN_ROWS, FEW_RESOURCES, MORE_RESOURCES } from '../generation';
 
 // Groups in a tree of 1 + 8 + 64 + 512, posts spread over the 512 leaves: post n is in group 74 + n % 512. Role 2 can
 // read the first half of the tree, the groups of posts 0 to 255 modulo 512, and a few posts shared with its parent role
@@ -77,7 +77,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
   for (const combineAssignmentsWith of combineModes) {
     describe(`combineAssignmentsWith ${combineAssignmentsWith}`, () => {
       // Postgres checks the policy before a filter that is not leakproof, like ilike, and the filter makes it expect
-      // few rows. Rows that the first listings do not have are checked one by one, 50 of them, then the policy lists
+      // few rows. Rows that the first listings do not have are checked one by one, 200 of them, then the policy lists
       // every readable resource once, behind offset 0 or not.
       test('a filter that is not leakproof checks the first rows, then lists readable resources once', async () => {
         await load(combineAssignmentsWith);
@@ -86,8 +86,8 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         const [searched, fencedSearched] = [await asRole2(search), await asRole2(fenced)];
         expect(searched.rows[0].n).toBeGreaterThan(0);
         expect(fencedSearched.rows[0].n).toBe(searched.rows[0].n);
-        expect(searched.checked).toBe(50);
-        expect(fencedSearched.checked).toBe(50);
+        expect(searched.checked).toBe(CHECKED_ROWS);
+        expect(fencedSearched.checked).toBe(CHECKED_ROWS);
         expect(await plan(search)).toMatch(/ProjectSet \(actual rows=[\d.]+ loops=1\)/);
       }, { timeout: 60000 });
 
@@ -121,7 +121,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
 
       // Users who read more list some of their resources at the first row. A row that is not among them is checked by
       // its ancestors, which is all a lookup by id does. Past it, a statement lists more, then checks rows one by one,
-      // 50 by default, then lists every resource: a first page or the rows of a group never list them all, a count or a
+      // 200 by default, then lists every resource: a first page or the rows of a group never list them all, a count or a
       // search do. p9s.check_rows says how many rows to check for every user, on for every row, off for none.
       test('reads check the rows they read up to p9s.check_rows, then list', async () => {
         await load(combineAssignmentsWith);
@@ -145,8 +145,17 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         const group = sql`select "id" from "blog_post" where "group_id" = 80`;
         expect((await asRole2(group)).rows.length).toBeGreaterThan(0);
         expect(await listings(group)).not.toContain("list()");
+        // A page that walks more rows the user cannot read than a page holds: none of them is listed first
+        const { rows: visible } = await asRole2(sql`select "id" from "blog_post" where "id" <= 2000 order by "id"`);
+        const ids = visible.map(({ id }) => id as number);
+        const afterGap = ids.find((id, i) => i > 0 && id - ids[i - 1]! > 150)!;
+        const sparse = sql`select "id" from "blog_post" where "id" >= ${raw(String(afterGap - 120))} order by "id" limit 50`;
+        const sparsePage = await asRole2(sparse);
+        expect(sparsePage.rows).toHaveLength(50);
+        expect(sparsePage.checked).toBeGreaterThanOrEqual(120);
+        expect(await listings(sparse)).not.toContain("list()");
         const count = sql`select count(*)::int from "blog_post"`;
-        expect((await asRole2(count)).checked).toBe(50);
+        expect((await asRole2(count)).checked).toBe(CHECKED_ROWS);
         expect(await listings(count)).toEqual([`first(${FEW_RESOURCES})`, `first(${MORE_RESOURCES})`, "list()"]);
 
         const always = await asRole2(sql`${budget("on")} select "id" from "blog_post" where "group_id" between 70 and 90`);
@@ -156,7 +165,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         expect(await listings(count, asRole2, budget("off"))).toEqual(["list()"]);
         expect((await asRole2(sql`${budget("10")} ${page}`)).checked).toBe(10);
         expect((await asRole2(sql`${budget("010")} ${page}`)).checked).toBe(10);
-        expect((await asRole2(sql`${budget("ten")} ${count}`)).checked).toBe(50);
+        expect((await asRole2(sql`${budget("ten")} ${count}`)).checked).toBe(CHECKED_ROWS);
         // The rows do not depend on how many are checked
         const statements = [page, sql`select "id" from "blog_post" where "name" ilike '%7%' order by "id"`, sql`select count(*)::int from "blog_post"`,
           sql`select "id" from "blog_post" where "group_id" between 70 and 90 order by "id"`, sql`select "id" from "blog_post" where "id" in (300, 301, 302)`];
@@ -208,10 +217,11 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
           const deleted = (await asRole2(sql`${budget(value)} with "the_rows" as (delete from "blog_post" where "name" ilike '%7%' returning 1) select count(*)::int as "n" from "the_rows"`)).rows[0].n;
           expect(deleted).toBe(expected);
         }
-        const { rows: [{ n: checked }] } = await asRole2(sql`
+        const { rows: [{ n: checked, read }] } = await asRole2(sql`
           update "blog_post" set "name" = "name" where "name" ilike '%7%';
-          select current_setting('p9s.checked_blog_post_update')::int as "n"`);
-        expect(checked).toBe(50);
+          select current_setting('p9s.checked_blog_post_update')::int as "n", current_setting('p9s.checked_blog_post_select')::int as "read"`);
+        expect(checked).toBe(CHECKED_WRITTEN_ROWS);
+        expect(read).toBe(CHECKED_WRITTEN_ROWS);
       }, { timeout: 60000 });
 
       // A bit on a resource is on every edge of a path from an assignment, so it is also on the path to the parent.
