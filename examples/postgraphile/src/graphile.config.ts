@@ -5,7 +5,7 @@ import { GraphQLError } from "postgraphile/graphql";
 import { PostGraphileAmberPreset } from "postgraphile/presets/amber";
 import { wrapPlans } from "postgraphile/utils";
 import { pool } from "./db.js";
-import { CHECK_ROWS_HEADER, identify, ORG_HEADER, pgSettingsOf, type Identity } from "./identity.js";
+import { identify, ORG_HEADER, pgSettingsOf, type Identity } from "./identity.js";
 
 declare global {
   namespace Grafast {
@@ -112,7 +112,7 @@ export const preset: GraphileConfig.Preset = {
     async context(requestContext) {
       const headers = requestContext.node?.req.headers ?? {};
       const identity = requestContext.identity ?? (await identify(headers));
-      return { pgSettings: pgSettingsOf(identity, headers[CHECK_ROWS_HEADER] === "on") };
+      return { pgSettings: pgSettingsOf(identity) };
     },
   },
   grafserv: {

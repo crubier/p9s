@@ -9,12 +9,6 @@ import { pool } from "./db.js";
 // the links that open it
 export const ORG_HEADER = "x-p9s-org";
 
-// For pages. The policies list once every resource the user can read, then look rows up in that list. With
-// p9s.check_rows on, they check the ancestors of each row the scan walks instead, about the size of the page divided
-// by the share of rows the user can read: a user who reads few would walk most of the table, so the request gets a
-// short timeout, past which the app asks again without the header
-export const CHECK_ROWS_HEADER = "x-p9s-check-rows";
-
 // `<organization id>:<member id>:<view|act>`, set when an admin starts viewing or acting as a member. It names who to
 // impersonate, and gives no right: it is only followed while the signed-in user is an admin of that organization
 export const IMPERSONATION_COOKIE = "p9s-impersonation";
@@ -109,13 +103,12 @@ export const identify = async (headers: IncomingHttpHeaders): Promise<Identity> 
 };
 
 // The settings of the transaction PostGraphile runs the request in, which sql/app.sql and p9s read
-export const pgSettingsOf = (identity: Identity, checkRows: boolean) => ({
+export const pgSettingsOf = (identity: Identity) => ({
   role: "app_user",
   "app.role_id": identity.roleId ?? "",
   "app.user_id": identity.userId ?? "",
   "app.impersonator_member_id": identity.impersonatorMemberId ?? "",
-  // RLS makes queries look expensive to the planner, which then compiles them for longer than they run
+  // The queries of the app are short: compiling one takes longer than running it
   jit: "off",
   ...(identity.readOnly ? { transaction_read_only: "on" } : {}),
-  ...(checkRows ? { "p9s.check_rows": "on", statement_timeout: "10ms" } : {}),
 });

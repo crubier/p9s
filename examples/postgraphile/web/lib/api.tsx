@@ -38,7 +38,7 @@ export function useApi<Result, Variables>(
   const org = options.org ?? contextSlug;
   return useQuery({
     queryKey: [org, document.toString(), variables],
-    queryFn: () => request(document, variables, { org, checkRows: options.checkRows }),
+    queryFn: () => request(document, variables, { org }),
     enabled: options.enabled,
   });
 }

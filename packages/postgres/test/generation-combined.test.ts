@@ -18,9 +18,13 @@ const migrationFor = (combineAssignmentsWith: "none" | "role" | "resource") => c
 })).text;
 
 const policyFor = (migration: string) => migration.slice(migration.indexOf(`create policy "blog_post_user1_select_policy"`)).split(";")[0]!;
-// Policies read the graph through a view of the resources the current user has their bit on
+// Policies read the graph through a view of the resources the current user has their bit on, which functions check
+// and list
 const accessFor = (migration: string) => {
-  expect(policyFor(migration)).toContain(`from "current_resource_access_0" as "var_access"`);
+  expect(policyFor(migration)).toContain(`"current_resource_access_0_check"("blog_post"."resource_id")`);
+  expect(policyFor(migration)).toContain(`"blog_post"."resource_id" in (select "current_resource_access_0_list"())`);
+  expect(migration).toContain(`return exists (select from "current_resource_access_0" as "var_access"`);
+  expect(migration).toContain(`return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access"`);
   return migration.slice(migration.indexOf(`create or replace view "current_resource_access_0"`)).split(";")[0]!;
 };
 

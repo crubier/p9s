@@ -16,9 +16,7 @@ const present = <T,>(nodes: (T | null)[]) => nodes.flatMap((node) => (node ? [no
 export function OrganizationHome() {
   const { name, slug } = useOrganization();
   const home = useApi(OrganizationHomeQuery, { slug });
-  // Rows RLS checks one by one: the server stops after a few milliseconds to read them through the index of the
-  // assignments instead
-  const recent = useApi(RecentDocumentsQuery, { slug, first: 8 }, { checkRows: true });
+  const recent = useApi(RecentDocumentsQuery, { slug, first: 8 });
   const header = <PageHeader path={[{ label: name }]} operation={{ document: OrganizationHomeQuery, variables: { slug }, org: slug }} />;
   const org = home.data?.organizationBySlug;
   if (!org) {

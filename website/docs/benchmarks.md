@@ -22,7 +22,7 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#first-pages). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#check-rows). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments, and share then revoke an org, workspace, folder or project that has no other assignment; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
@@ -133,19 +133,34 @@ A policy either checks the ancestors of each row, or lists once every resource t
 
 In the balanced trees of the benchmark, an org admin who sees most objects reads one in 0.5 ms and renames one in 1.7 ms either way. A statement over many rows by a user who sees few resources now checks ancestors too: as the application user, creating 1000 objects in one statement takes 57 ms instead of 45 ms with `combineAssignmentsWith: role`.
 
-### Searches and pages
+### Policies that decide as the statement runs
 
-With a size of 10 (111k resources, 5,600 posts of which a user reads about 200), uuid ids and `combineAssignmentsWith: role`, p50 in milliseconds:
+Policies used to leave the choice between checking ancestors and listing to the planner. They now list a few resources first, check the rows they miss, and list everything after 50 checks, see [how policies run](./configuration/querying#how-policies-run). Postgres 18.1, size factor 8, integer ids, JIT off, p50 in milliseconds, `combineAssignmentsWith: none` / `role`, one run before and two after:
 
-|                                   | p50  |
-| --------------------------------- | ---- |
-| Count visible posts               | 1.95 |
-| Search names with `ilike`         | 60   |
-| The same, behind `offset 0`       | 1.92 |
-| Page after 100 rows, by offset    | 2.82 |
-| Page by keyset                    | 1.87 |
+| Read                                  | Before      | After                   |
+| ------------------------------------- | ----------- | ----------------------- |
+| Search names with `ilike`             | 19 / 17     | 1.5–3.1 / 1.5–1.7       |
+| The same, behind `offset 0`           | 1.7 / 1.5   | 1.6–1.9 / 1.5–1.6       |
+| Point lookup                          | 0.86 / 0.53 | 0.80–0.97 / 0.63–0.76   |
+| First page of 50                      | 2.0 / 1.9   | 1.7–2.5 / 1.7–2.0       |
+| Count visible posts                   | 1.7 / 1.2   | 0.8–2.0 / 0.8           |
+| Page after 100 rows, by offset        | 1.8 / 1.6   | 1.1–1.5 / 1.2–1.3       |
+| Count visible comments                | 7.1 / 6.5   | 5.2–6.2 / 5.4–5.5       |
+| First page, `p9s.check_rows` on       | 17 / 17     | 39 / 30–31              |
+| Count, `p9s.check_rows` on            | 19 / 19     | 36–48 / 34–35           |
 
-`ilike` is not leakproof, so the policy runs before it, planned for the few rows the search looks like it returns: Postgres checks the ancestors of each of the 5,600 posts. Behind `offset 0` it lists the 200 readable ones once. [Querying through RLS](./configuration/querying) explains these and other patterns.
+| Write, as the application user        | Before      | After       |
+| ------------------------------------- | ----------- | ----------- |
+| Edit a comment                        | 2.1 / 1.2   | 0.85 / 0.74 |
+| Delete a comment                      | 1.1 / 0.83  | 0.35 / 0.36 |
+| Rename an object                      | 2.1 / 1.2   | 0.97 / 0.80 |
+| Delete an object                      | 1.4 / 0.93  | 0.59 / 0.61 |
+| Delete a folder                       | 1.8 / 1.5   | 1.0 / 1.0   |
+| Rename an object, as org admin        | 2.2 / 1.3   | 0.94 / 0.69 |
+
+`ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 50 checks, as `offset 0` made it do. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup lists up to 1000 resources instead of checking one row, up to 0.25 ms more. With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
+
+The benchmark rolls back thousands of rows created under the projects of the application user, which stay in the indexes until a vacuum. Listing what the user can read walks them all: writes that listed first took 3 to 7 ms then, against 0.3 to 1 ms for those that check.
 
 ### Hiding the graph
 

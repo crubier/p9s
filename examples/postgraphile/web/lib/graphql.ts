@@ -2,7 +2,6 @@ import type { TypedDocumentString } from "@/gql/graphql";
 
 // The headers the server reads, see src/identity.ts
 const ORG_HEADER = "x-p9s-org";
-const CHECK_ROWS_HEADER = "x-p9s-check-rows";
 
 export class ApiError extends Error {
   constructor(
@@ -16,16 +15,13 @@ export class ApiError extends Error {
 export interface RequestOptions {
   // The slug of the organization the request acts in
   org?: string;
-  // For pages of rows that RLS checks one by one: the server gives up quickly if that is slow, and this asks again
-  // without
-  checkRows?: boolean;
 }
 
 // The app only talks to the API: every request is an operation of web/, the same one GraphiQL opens
 export async function request<Result, Variables>(
   document: TypedDocumentString<Result, Variables>,
   variables: Variables,
-  { org, checkRows = false }: RequestOptions = {},
+  { org }: RequestOptions = {},
 ): Promise<Result> {
   const response = await fetch("/graphql", {
     method: "POST",
@@ -33,7 +29,6 @@ export async function request<Result, Variables>(
       "content-type": "application/json",
       accept: "application/graphql-response+json, application/json",
       ...(org ? { [ORG_HEADER]: org } : {}),
-      ...(checkRows ? { [CHECK_ROWS_HEADER]: "on" } : {}),
     },
     body: JSON.stringify({ query: document.toString(), variables }),
   });
@@ -42,7 +37,6 @@ export async function request<Result, Variables>(
     errors?: { message: string; extensions?: { code?: string } }[];
   };
   if (body.errors?.length) {
-    if (checkRows && body.errors.some((error) => error.extensions?.code === "57014")) return request(document, variables, { org });
     throw new ApiError(body.errors.map((error) => error.message).join("\n"), body.errors.map((error) => error.extensions?.code));
   }
   return body.data!;

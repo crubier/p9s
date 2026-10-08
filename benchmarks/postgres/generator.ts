@@ -680,8 +680,8 @@ export async function runPostgresBenchmark(context: Context, {
     // What an application asks to show the actions a user can take
     { name: "permissions of an object", table: "post", statement: () => sql`select "resource_permission"(${pickPost()})`, baseline: false },
     { name: "first page of 50 with permissions (object)", table: "post", statement: () => sql`select "id", "name", "resource_permission"("resource_id") from "post" order by "id" limit 50`, baseline: false },
-    // ilike is not leakproof, so the policy runs first, for the rows Postgres expects the search to return. Behind
-    // offset 0, it lists what the user can read once instead of checking the ancestors of every row.
+    // ilike is not leakproof, so the policy runs first, on every row: past a few checks it lists what the user can
+    // read, as it does behind offset 0
     { name: "search names (object)", table: "post", statement: () => sql`select "id", "name" from "post" where "name" ilike '%post 1777%'`, baseline: false },
     { name: "search names behind offset 0 (object)", table: "post", statement: () => sql`select "id", "name" from (select "id", "name" from "post" offset 0) as "post" where "name" ilike '%post 1777%'`, baseline: false },
     // An offset reads and checks every row it skips, a keyset page starts at its key in the index
@@ -713,7 +713,7 @@ export async function runPostgresBenchmark(context: Context, {
 
   const measureReads = async (policy: "p9s" | "baseline", scenarioReps: number) => {
     for (const scenario of readScenarios.filter(scenario => policy === "p9s" || scenario.baseline !== false)) {
-      await exec(sql`select set_config('p9s.check_rows', ${literal(scenario.checkRows ? "on" : "off")}, false)`);
+      await exec(sql`select set_config('p9s.check_rows', ${literal(scenario.checkRows ? "on" : "")}, false)`);
       const samples: number[] = [];
       let visibleRows = 0;
       for (let i = 0; i < warmup + scenarioReps; i++) {

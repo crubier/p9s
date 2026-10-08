@@ -3527,6 +3527,64 @@ where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the
 
 select pg_temp.p9s_set_privileges('"current_resource_access_0"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_0_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_0_check" (uuid) from public;
+
+grant execute on function "current_resource_access_0_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_0_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_0_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_0_list" () from public;
+
+grant execute on function "current_resource_access_0_list" () to "app_user";
+grant execute on function "current_resource_access_0_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_0_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_0_first" (bigint) from public;
+
+grant execute on function "current_resource_access_0_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_0_first" (bigint) to "app_backend";
+
 create or replace view "current_resource_access_1" with (security_barrier) as
 select
   "the_resource_edge"."child_id" as "resource_id"
@@ -3535,6 +3593,64 @@ join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."
 where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 1)::bit = b'1' and ("the_assignment_edge"."permission" << 1)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_1"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_1_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_1_check" (uuid) from public;
+
+grant execute on function "current_resource_access_1_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_1_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_1_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_1" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_1_list" () from public;
+
+grant execute on function "current_resource_access_1_list" () to "app_user";
+grant execute on function "current_resource_access_1_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_1_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_1" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_1_first" (bigint) from public;
+
+grant execute on function "current_resource_access_1_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_1_first" (bigint) to "app_backend";
 
 create or replace view "current_resource_access_2" with (security_barrier) as
 select
@@ -3545,6 +3661,64 @@ where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the
 
 select pg_temp.p9s_set_privileges('"current_resource_access_2"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_2_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_2_check" (uuid) from public;
+
+grant execute on function "current_resource_access_2_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_2_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_2_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_2" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_2_list" () from public;
+
+grant execute on function "current_resource_access_2_list" () to "app_user";
+grant execute on function "current_resource_access_2_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_2_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_2" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_2_first" (bigint) from public;
+
+grant execute on function "current_resource_access_2_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_2_first" (bigint) to "app_backend";
+
 create or replace view "current_resource_access_3" with (security_barrier) as
 select
   "the_resource_edge"."child_id" as "resource_id"
@@ -3553,6 +3727,64 @@ join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."
 where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 3)::bit = b'1' and ("the_assignment_edge"."permission" << 3)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_3"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_3_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_3_check" (uuid) from public;
+
+grant execute on function "current_resource_access_3_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_3_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_3_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_3" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_3_list" () from public;
+
+grant execute on function "current_resource_access_3_list" () to "app_user";
+grant execute on function "current_resource_access_3_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_3_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_3" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_3_first" (bigint) from public;
+
+grant execute on function "current_resource_access_3_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_3_first" (bigint) to "app_backend";
 
 create or replace view "current_resource_access_4" with (security_barrier) as
 select
@@ -3563,6 +3795,64 @@ where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the
 
 select pg_temp.p9s_set_privileges('"current_resource_access_4"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_4_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_4" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_4_check" (uuid) from public;
+
+grant execute on function "current_resource_access_4_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_4_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_4_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_4" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_4_list" () from public;
+
+grant execute on function "current_resource_access_4_list" () to "app_user";
+grant execute on function "current_resource_access_4_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_4_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_4" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_4_first" (bigint) from public;
+
+grant execute on function "current_resource_access_4_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_4_first" (bigint) to "app_backend";
+
 create or replace view "current_resource_access_5" with (security_barrier) as
 select
   "the_resource_edge"."child_id" as "resource_id"
@@ -3571,6 +3861,64 @@ join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."
 where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 5)::bit = b'1' and ("the_assignment_edge"."permission" << 5)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_5"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_5_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_5" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_5_check" (uuid) from public;
+
+grant execute on function "current_resource_access_5_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_5_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_5_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_5" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_5_list" () from public;
+
+grant execute on function "current_resource_access_5_list" () to "app_user";
+grant execute on function "current_resource_access_5_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_5_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_5" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_5_first" (bigint) from public;
+
+grant execute on function "current_resource_access_5_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_5_first" (bigint) to "app_backend";
 
 create or replace view "current_resource_access_6" with (security_barrier) as
 select
@@ -3581,6 +3929,64 @@ where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the
 
 select pg_temp.p9s_set_privileges('"current_resource_access_6"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
 
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_6_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_6_check" (uuid) from public;
+
+grant execute on function "current_resource_access_6_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_6_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_6_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_6" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_6_list" () from public;
+
+grant execute on function "current_resource_access_6_list" () to "app_user";
+grant execute on function "current_resource_access_6_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_6_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_6" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_6_first" (bigint) from public;
+
+grant execute on function "current_resource_access_6_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_6_first" (bigint) to "app_backend";
+
 create or replace view "current_resource_access_7" with (security_barrier) as
 select
   "the_resource_edge"."child_id" as "resource_id"
@@ -3589,6 +3995,64 @@ join "assignment_edge_cache" as "the_assignment_edge" on "the_assignment_edge"."
 where "the_assignment_edge"."role_id" = (select "current_role_node"()) and ("the_resource_edge"."permission" << 7)::bit = b'1' and ("the_assignment_edge"."permission" << 7)::bit = b'1';
 
 select pg_temp.p9s_set_privileges('"current_resource_access_7"'::regclass, array['app_user', 'app_backend']::text[], array[]::text[], array[]::text[]);
+
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function "current_resource_access_7_check" ("the_resource_id" uuid)
+  returns boolean
+  as $$
+begin
+  return exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+revoke execute on function "current_resource_access_7_check" (uuid) from public;
+
+grant execute on function "current_resource_access_7_check" (uuid) to "app_user";
+grant execute on function "current_resource_access_7_check" (uuid) to "app_backend";
+
+create or replace function "current_resource_access_7_list" ()
+  returns setof uuid
+  as $$
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_7" as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_7_list" () from public;
+
+grant execute on function "current_resource_access_7_list" () to "app_user";
+grant execute on function "current_resource_access_7_list" () to "app_backend";
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function "current_resource_access_7_first" ("the_count" bigint)
+  returns setof uuid
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access"."resource_id" from "current_resource_access_7" as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+revoke execute on function "current_resource_access_7_first" (bigint) from public;
+
+grant execute on function "current_resource_access_7_first" (bigint) to "app_user";
+grant execute on function "current_resource_access_7_first" (bigint) to "app_backend";
 
 
 -- What was shared with the current user: the resources assigned to it and to the roles above it, with the bits these
@@ -3792,10 +4256,17 @@ drop policy if exists "organization_app_user_select_policy" on "public"."organiz
 create policy "organization_app_user_select_policy" on "public"."organization" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "organization"."resource_id") end
+  case when not (select set_config('p9s.checked_organization_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_organization', true) = statement_timestamp()::text) then case current_setting('p9s.checked_organization_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "organization"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_organization_select', (coalesce(nullif(current_setting('p9s.checked_organization_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("organization"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "organization"."resource_id" in (select "current_resource_access_6_first"(1000)) end, case current_setting('p9s.checked_organization_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "organization"."resource_id" in (select "current_resource_access_6_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_organization_select', (coalesce(nullif(current_setting('p9s.checked_organization_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("organization"."resource_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "organization"."resource_id" in (select "current_resource_access_6_first"(3000)) end, set_config('p9s.checked_organization_select', (coalesce(nullif(current_setting('p9s.checked_organization_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("organization"."resource_id")) end) end
 )
 ;
 
@@ -3804,7 +4275,10 @@ drop policy if exists "organization_app_user_update_policy" on "public"."organiz
 create policy "organization_app_user_update_policy" on "public"."organization" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  case when not (select set_config('p9s.checked_organization_update', '0', true) || set_config('p9s.writing_organization', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_organization_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "organization"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_organization_update', (coalesce(nullif(current_setting('p9s.checked_organization_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("organization"."resource_id") end end
 )
 with check (
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
@@ -3815,7 +4289,10 @@ drop policy if exists "organization_app_user_delete_policy" on "public"."organiz
 create policy "organization_app_user_delete_policy" on "public"."organization" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "organization"."resource_id")
+  case when not (select set_config('p9s.checked_organization_delete', '0', true) || set_config('p9s.writing_organization', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_organization_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "organization"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_organization_delete', (coalesce(nullif(current_setting('p9s.checked_organization_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("organization"."resource_id") end end
 )
 ;
 
@@ -3824,10 +4301,17 @@ drop policy if exists "team_app_user_select_policy" on "public"."team";
 create policy "team_app_user_select_policy" on "public"."team" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "team"."resource_id") end
+  case when not (select set_config('p9s.checked_team_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_team', true) = statement_timestamp()::text) then case current_setting('p9s.checked_team_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_team_select', (coalesce(nullif(current_setting('p9s.checked_team_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("team"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "team"."resource_id" in (select "current_resource_access_6_first"(1000)) end, case current_setting('p9s.checked_team_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_6_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_team_select', (coalesce(nullif(current_setting('p9s.checked_team_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("team"."resource_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "team"."resource_id" in (select "current_resource_access_6_first"(3000)) end, set_config('p9s.checked_team_select', (coalesce(nullif(current_setting('p9s.checked_team_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("team"."resource_id")) end) end
 )
 ;
 
@@ -3844,7 +4328,10 @@ drop policy if exists "team_app_user_update_policy" on "public"."team";
 create policy "team_app_user_update_policy" on "public"."team" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
+  case when not (select set_config('p9s.checked_team_update', '0', true) || set_config('p9s.writing_team', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_team_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_team_update', (coalesce(nullif(current_setting('p9s.checked_team_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("team"."resource_id") end end
 )
 with check (
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
@@ -3856,7 +4343,10 @@ drop policy if exists "team_app_user_delete_policy" on "public"."team";
 create policy "team_app_user_delete_policy" on "public"."team" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team"."resource_id")
+  case when not (select set_config('p9s.checked_team_delete', '0', true) || set_config('p9s.writing_team', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_team_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_team_delete', (coalesce(nullif(current_setting('p9s.checked_team_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("team"."resource_id") end end
 )
 ;
 
@@ -3865,10 +4355,17 @@ drop policy if exists "member_app_user_select_policy" on "public"."member";
 create policy "member_app_user_select_policy" on "public"."member" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_6" as "var_access" where "var_access"."resource_id" = "member"."resource_id") end
+  case when not (select set_config('p9s.checked_member_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_member', true) = statement_timestamp()::text) then case current_setting('p9s.checked_member_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_member_select', (coalesce(nullif(current_setting('p9s.checked_member_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("member"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "member"."resource_id" in (select "current_resource_access_6_first"(1000)) end, case current_setting('p9s.checked_member_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_6_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_member_select', (coalesce(nullif(current_setting('p9s.checked_member_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("member"."resource_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "member"."resource_id" in (select "current_resource_access_6_first"(3000)) end, set_config('p9s.checked_member_select', (coalesce(nullif(current_setting('p9s.checked_member_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("member"."resource_id")) end) end
 )
 ;
 
@@ -3885,7 +4382,10 @@ drop policy if exists "member_app_user_update_policy" on "public"."member";
 create policy "member_app_user_update_policy" on "public"."member" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
+  case when not (select set_config('p9s.checked_member_update', '0', true) || set_config('p9s.writing_member', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_member_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_member_update', (coalesce(nullif(current_setting('p9s.checked_member_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("member"."resource_id") end end
 )
 with check (
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
@@ -3897,7 +4397,10 @@ drop policy if exists "member_app_user_delete_policy" on "public"."member";
 create policy "member_app_user_delete_policy" on "public"."member" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member"."resource_id")
+  case when not (select set_config('p9s.checked_member_delete', '0', true) || set_config('p9s.writing_member', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_member_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_member_delete', (coalesce(nullif(current_setting('p9s.checked_member_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("member"."resource_id") end end
 )
 ;
 
@@ -3906,10 +4409,17 @@ drop policy if exists "folder_app_user_select_policy" on "public"."folder";
 create policy "folder_app_user_select_policy" on "public"."folder" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id") end
+  case when not (select set_config('p9s.checked_folder_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_folder', true) = statement_timestamp()::text) then case current_setting('p9s.checked_folder_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_folder_select', (coalesce(nullif(current_setting('p9s.checked_folder_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "folder"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting('p9s.checked_folder_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_0_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_folder_select', (coalesce(nullif(current_setting('p9s.checked_folder_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "folder"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config('p9s.checked_folder_select', (coalesce(nullif(current_setting('p9s.checked_folder_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id")) end) end
 )
 ;
 
@@ -3926,7 +4436,10 @@ drop policy if exists "folder_app_user_update_policy" on "public"."folder";
 create policy "folder_app_user_update_policy" on "public"."folder" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
+  case when not (select set_config('p9s.checked_folder_update', '0', true) || set_config('p9s.writing_folder', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_folder_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_2_list"()) else set_config('p9s.checked_folder_update', (coalesce(nullif(current_setting('p9s.checked_folder_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_2_check"("folder"."resource_id") end end
 )
 with check (
   exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
@@ -3938,7 +4451,10 @@ drop policy if exists "folder_app_user_delete_policy" on "public"."folder";
 create policy "folder_app_user_delete_policy" on "public"."folder" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "folder"."resource_id")
+  case when not (select set_config('p9s.checked_folder_delete', '0', true) || set_config('p9s.writing_folder', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_folder_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_3_list"()) else set_config('p9s.checked_folder_delete', (coalesce(nullif(current_setting('p9s.checked_folder_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_3_check"("folder"."resource_id") end end
 )
 ;
 
@@ -3947,10 +4463,17 @@ drop policy if exists "document_app_user_select_policy" on "public"."document";
 create policy "document_app_user_select_policy" on "public"."document" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id") end
+  case when not (select set_config('p9s.checked_document_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_document', true) = statement_timestamp()::text) then case current_setting('p9s.checked_document_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_document_select', (coalesce(nullif(current_setting('p9s.checked_document_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "document"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting('p9s.checked_document_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_0_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_document_select', (coalesce(nullif(current_setting('p9s.checked_document_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "document"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config('p9s.checked_document_select', (coalesce(nullif(current_setting('p9s.checked_document_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id")) end) end
 )
 ;
 
@@ -3967,7 +4490,10 @@ drop policy if exists "document_app_user_update_policy" on "public"."document";
 create policy "document_app_user_update_policy" on "public"."document" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
+  case when not (select set_config('p9s.checked_document_update', '0', true) || set_config('p9s.writing_document', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_document_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_2_list"()) else set_config('p9s.checked_document_update', (coalesce(nullif(current_setting('p9s.checked_document_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_2_check"("document"."resource_id") end end
 )
 with check (
   exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
@@ -3979,7 +4505,10 @@ drop policy if exists "document_app_user_delete_policy" on "public"."document";
 create policy "document_app_user_delete_policy" on "public"."document" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "document"."resource_id")
+  case when not (select set_config('p9s.checked_document_delete', '0', true) || set_config('p9s.writing_document', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_document_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_3_list"()) else set_config('p9s.checked_document_delete', (coalesce(nullif(current_setting('p9s.checked_document_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_3_check"("document"."resource_id") end end
 )
 ;
 
@@ -3988,10 +4517,17 @@ drop policy if exists "comment_app_user_select_policy" on "public"."comment";
 create policy "comment_app_user_select_policy" on "public"."comment" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id") end
+  case when not (select set_config('p9s.checked_comment_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_comment', true) = statement_timestamp()::text) then case current_setting('p9s.checked_comment_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "comment"."resource_parent_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_comment_select', (coalesce(nullif(current_setting('p9s.checked_comment_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("comment"."resource_parent_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "comment"."resource_parent_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting('p9s.checked_comment_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "comment"."resource_parent_id" in (select "current_resource_access_0_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_comment_select', (coalesce(nullif(current_setting('p9s.checked_comment_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("comment"."resource_parent_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "comment"."resource_parent_id" in (select "current_resource_access_0_first"(3000)) end, set_config('p9s.checked_comment_select', (coalesce(nullif(current_setting('p9s.checked_comment_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("comment"."resource_parent_id")) end) end
 )
 ;
 
@@ -4008,7 +4544,10 @@ drop policy if exists "comment_app_user_update_policy" on "public"."comment";
 create policy "comment_app_user_update_policy" on "public"."comment" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+  case when not (select set_config('p9s.checked_comment_update', '0', true) || set_config('p9s.writing_comment', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_comment_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "comment"."resource_parent_id" in (select "current_resource_access_2_list"()) else set_config('p9s.checked_comment_update', (coalesce(nullif(current_setting('p9s.checked_comment_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_2_check"("comment"."resource_parent_id") end end
 )
 with check (
   exists (select from "current_resource_access_2" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
@@ -4019,7 +4558,10 @@ drop policy if exists "comment_app_user_delete_policy" on "public"."comment";
 create policy "comment_app_user_delete_policy" on "public"."comment" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_3" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
+  case when not (select set_config('p9s.checked_comment_delete', '0', true) || set_config('p9s.writing_comment', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_comment_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "comment"."resource_parent_id" in (select "current_resource_access_3_list"()) else set_config('p9s.checked_comment_delete', (coalesce(nullif(current_setting('p9s.checked_comment_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_3_check"("comment"."resource_parent_id") end end
 )
 ;
 
@@ -4028,10 +4570,17 @@ drop policy if exists "audit_event_app_user_select_policy" on "public"."audit_ev
 create policy "audit_event_app_user_select_policy" on "public"."audit_event" 
 as permissive for select to "app_user" 
 using (
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id") end
+  case when not (select set_config('p9s.checked_audit_event_select', '0', true)) is not null then null
+  when (select current_setting('p9s.writing_audit_event', true) = statement_timestamp()::text) then case current_setting('p9s.checked_audit_event_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "audit_event"."resource_parent_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_audit_event_select', (coalesce(nullif(current_setting('p9s.checked_audit_event_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("audit_event"."resource_parent_id") end
+  else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "audit_event"."resource_parent_id" in (select "current_resource_access_7_first"(1000)) end, case current_setting('p9s.checked_audit_event_select', true)
+    when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "audit_event"."resource_parent_id" in (select "current_resource_access_7_list"())
+    when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_audit_event_select', (coalesce(nullif(current_setting('p9s.checked_audit_event_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("audit_event"."resource_parent_id")
+    else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "audit_event"."resource_parent_id" in (select "current_resource_access_7_first"(3000)) end, set_config('p9s.checked_audit_event_select', (coalesce(nullif(current_setting('p9s.checked_audit_event_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("audit_event"."resource_parent_id")) end) end
 )
 ;
 
@@ -4048,7 +4597,10 @@ drop policy if exists "audit_event_app_user_update_policy" on "public"."audit_ev
 create policy "audit_event_app_user_update_policy" on "public"."audit_event" 
 as permissive for update to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
+  case when not (select set_config('p9s.checked_audit_event_update', '0', true) || set_config('p9s.writing_audit_event', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_audit_event_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "audit_event"."resource_parent_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_audit_event_update', (coalesce(nullif(current_setting('p9s.checked_audit_event_update', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("audit_event"."resource_parent_id") end end
 )
 with check (
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
@@ -4059,7 +4611,10 @@ drop policy if exists "audit_event_app_user_delete_policy" on "public"."audit_ev
 create policy "audit_event_app_user_delete_policy" on "public"."audit_event" 
 as permissive for delete to "app_user" 
 using (
-  exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
+  case when not (select set_config('p9s.checked_audit_event_delete', '0', true) || set_config('p9s.writing_audit_event', statement_timestamp()::text, true)) is not null then null
+  else case current_setting('p9s.checked_audit_event_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "audit_event"."resource_parent_id" in (select "current_resource_access_7_list"()) else set_config('p9s.checked_audit_event_delete', (coalesce(nullif(current_setting('p9s.checked_audit_event_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_7_check"("audit_event"."resource_parent_id") end end
 )
 ;
 
@@ -4099,6 +4654,9 @@ begin
     and substr("viewname", 25) ~ '^[0-9]+$'
     and not "viewname" = any (array['current_resource_access_0', 'current_resource_access_1', 'current_resource_access_2', 'current_resource_access_3', 'current_resource_access_4', 'current_resource_access_5', 'current_resource_access_6', 'current_resource_access_7']::text[])
   loop
+    execute format('drop function if exists %I', "the_view" || '_check');
+    execute format('drop function if exists %I', "the_view" || '_list');
+    execute format('drop function if exists %I', "the_view" || '_first');
     execute format('drop view %I', "the_view");
   end loop;
 end
@@ -4121,10 +4679,17 @@ begin
   select "folder".ctid from "public"."folder" as "folder"
   where ("folder"."name" ilike $1)
   and (
-  case when (select current_setting(''p9s.check_rows'', true)) = ''on'' then exists (
-    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "folder"."resource_id") end)' using "the_value";
+  case when not (select set_config(''p9s.checked_folder_select'', ''0'', true)) is not null then null
+  when (select current_setting(''p9s.writing_folder'', true) = statement_timestamp()::text) then case current_setting(''p9s.checked_folder_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_folder_select'', (coalesce(nullif(current_setting(''p9s.checked_folder_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then "folder"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting(''p9s.checked_folder_select'', true)
+    when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "folder"."resource_id" in (select "current_resource_access_0_list"())
+    when (select case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then ''0'' end) then set_config(''p9s.checked_folder_select'', (coalesce(nullif(current_setting(''p9s.checked_folder_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id")
+    else coalesce(case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then "folder"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config(''p9s.checked_folder_select'', (coalesce(nullif(current_setting(''p9s.checked_folder_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id")) end) end)' using "the_value";
 end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
@@ -4162,10 +4727,17 @@ begin
   select "document".ctid from "public"."document" as "document"
   where ("document"."title" ilike $1 or "document"."content" ilike $1)
   and (
-  case when (select current_setting(''p9s.check_rows'', true)) = ''on'' then exists (
-    select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id" offset 0
-  ) else 
-  exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "document"."resource_id") end)' using "the_value";
+  case when not (select set_config(''p9s.checked_document_select'', ''0'', true)) is not null then null
+  when (select current_setting(''p9s.writing_document'', true) = statement_timestamp()::text) then case current_setting(''p9s.checked_document_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_document_select'', (coalesce(nullif(current_setting(''p9s.checked_document_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id") end
+  else coalesce(case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then "document"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting(''p9s.checked_document_select'', true)
+    when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "document"."resource_id" in (select "current_resource_access_0_list"())
+    when (select case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then ''0'' end) then set_config(''p9s.checked_document_select'', (coalesce(nullif(current_setting(''p9s.checked_document_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id")
+    else coalesce(case when (select coalesce(current_setting(''p9s.check_rows'', true), '''') !~ ''^(on|off|[0-9]{1,9})$'') then "document"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config(''p9s.checked_document_select'', (coalesce(nullif(current_setting(''p9s.checked_document_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id")) end) end)' using "the_value";
 end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
@@ -4432,7 +5004,7 @@ end;
 $$ language plpgsql;
 
 select pg_temp.p9s_comment_relation(quote_ident("the_name"), '@behavior -*'), pg_temp.p9s_comment_functions("the_name", '@behavior -*')
-from unnest(array['resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_deleted', 'resource_edge_deleted_pkey', 'resource_node_soft_delete', 'resource_node_restore', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_deleted', 'role_edge_deleted_pkey', 'role_node_soft_delete', 'role_node_restore', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_deleted', 'assignment_edge_deleted_pkey', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_edge_resource_cache_insert_trigger_function', '07_assignment_edge_resource_cache_insert_trigger', 'assignment_edge_resource_cache_update_trigger_function', '07_assignment_edge_resource_cache_update_trigger', 'assignment_edge_resource_cache_delete_trigger_function', '07_assignment_edge_resource_cache_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'resource_parent_id', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'role_parent_id', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'resource_member_fkey', 'role_member_fkey', 'member_resource_trigger_function', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', 'member_role_trigger_function', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', 'member_resource_parent', 'member_role_parent', 'member_resource_parent_trigger_function', '10_member_resource_parent_trigger', 'member_role_parent_trigger_function', '10_member_role_parent_trigger', 'resource_api_key_fkey', 'role_api_key_fkey', 'api_key_resource_trigger_function', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', 'api_key_role_trigger_function', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', 'api_key_resource_parent', 'api_key_role_parent', 'api_key_resource_parent_trigger_function', '10_api_key_resource_parent_trigger', 'api_key_role_parent_trigger_function', '10_api_key_role_parent_trigger', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'resource_document_fkey', 'role_document_fkey', 'document_resource_trigger_function', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', 'document_role_trigger_function', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', 'document_resource_parent', 'document_role_parent', 'document_resource_parent_trigger_function', '10_document_resource_parent_trigger', 'document_role_parent_trigger_function', '10_document_role_parent_trigger', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'resource_audit_event_fkey', 'role_audit_event_fkey', 'audit_event_resource_trigger_function', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', 'audit_event_role_trigger_function', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', 'audit_event_resource_parent', 'audit_event_role_parent', 'audit_event_resource_parent_trigger_function', '10_audit_event_resource_parent_trigger', 'audit_event_role_parent_trigger_function', '10_audit_event_role_parent_trigger', 'folder_resource_parent_org_id', 'or_bitmap_8', 'truncate_guard_trigger_function', 'current_role_node', 'resource_deleted_permission', 'permission_flags', 'current_resource_access_0', 'current_resource_access_1', 'current_resource_access_2', 'current_resource_access_3', 'current_resource_access_4', 'current_resource_access_5', 'current_resource_access_6', 'current_resource_access_7', 'resource_share_check_app_user', 'resource_restore_app_user', 'folder_search_app_user', 'document_search_app_user']::text[]) as "the_name";
+from unnest(array['resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_deleted', 'resource_edge_deleted_pkey', 'resource_node_soft_delete', 'resource_node_restore', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_deleted', 'role_edge_deleted_pkey', 'role_node_soft_delete', 'role_node_restore', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_deleted', 'assignment_edge_deleted_pkey', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_role_insert_trigger_function', '20_assignment_edge_role_insert_trigger', 'assignment_edge_role_update_trigger_function', '20_assignment_edge_role_update_trigger', 'assignment_edge_role_delete_trigger_function', '20_assignment_edge_role_delete_trigger', 'assignment_edge_resource_cache_insert_trigger_function', '07_assignment_edge_resource_cache_insert_trigger', 'assignment_edge_resource_cache_update_trigger_function', '07_assignment_edge_resource_cache_update_trigger', 'assignment_edge_resource_cache_delete_trigger_function', '07_assignment_edge_resource_cache_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'resource_organization_fkey', 'role_organization_fkey', 'organization_resource_trigger_function', '10_organization_resource_insert_trigger', '10_organization_resource_update_trigger', '10_organization_resource_delete_trigger', 'organization_role_trigger_function', '10_organization_role_insert_trigger', '10_organization_role_update_trigger', '10_organization_role_delete_trigger', 'organization_resource_parent', 'organization_role_parent', 'resource_parent_id', 'organization_resource_parent_trigger_function', '10_organization_resource_parent_trigger', 'role_parent_id', 'organization_role_parent_trigger_function', '10_organization_role_parent_trigger', 'resource_team_fkey', 'role_team_fkey', 'team_resource_trigger_function', '10_team_resource_insert_trigger', '10_team_resource_update_trigger', '10_team_resource_delete_trigger', 'team_role_trigger_function', '10_team_role_insert_trigger', '10_team_role_update_trigger', '10_team_role_delete_trigger', 'team_resource_parent', 'team_role_parent', 'team_resource_parent_trigger_function', '10_team_resource_parent_trigger', 'team_role_parent_trigger_function', '10_team_role_parent_trigger', 'resource_member_fkey', 'role_member_fkey', 'member_resource_trigger_function', '10_member_resource_insert_trigger', '10_member_resource_update_trigger', '10_member_resource_delete_trigger', 'member_role_trigger_function', '10_member_role_insert_trigger', '10_member_role_update_trigger', '10_member_role_delete_trigger', 'member_resource_parent', 'member_role_parent', 'member_resource_parent_trigger_function', '10_member_resource_parent_trigger', 'member_role_parent_trigger_function', '10_member_role_parent_trigger', 'resource_api_key_fkey', 'role_api_key_fkey', 'api_key_resource_trigger_function', '10_api_key_resource_insert_trigger', '10_api_key_resource_update_trigger', '10_api_key_resource_delete_trigger', 'api_key_role_trigger_function', '10_api_key_role_insert_trigger', '10_api_key_role_update_trigger', '10_api_key_role_delete_trigger', 'api_key_resource_parent', 'api_key_role_parent', 'api_key_resource_parent_trigger_function', '10_api_key_resource_parent_trigger', 'api_key_role_parent_trigger_function', '10_api_key_role_parent_trigger', 'resource_folder_fkey', 'role_folder_fkey', 'folder_resource_trigger_function', '10_folder_resource_insert_trigger', '10_folder_resource_update_trigger', '10_folder_resource_delete_trigger', 'folder_role_trigger_function', '10_folder_role_insert_trigger', '10_folder_role_update_trigger', '10_folder_role_delete_trigger', 'folder_resource_parent', 'folder_role_parent', 'folder_resource_parent_trigger_function', '10_folder_resource_parent_trigger', 'folder_role_parent_trigger_function', '10_folder_role_parent_trigger', 'resource_document_fkey', 'role_document_fkey', 'document_resource_trigger_function', '10_document_resource_insert_trigger', '10_document_resource_update_trigger', '10_document_resource_delete_trigger', 'document_role_trigger_function', '10_document_role_insert_trigger', '10_document_role_update_trigger', '10_document_role_delete_trigger', 'document_resource_parent', 'document_role_parent', 'document_resource_parent_trigger_function', '10_document_resource_parent_trigger', 'document_role_parent_trigger_function', '10_document_role_parent_trigger', 'resource_comment_fkey', 'role_comment_fkey', 'comment_resource_trigger_function', '10_comment_resource_insert_trigger', '10_comment_resource_update_trigger', '10_comment_resource_delete_trigger', 'comment_role_trigger_function', '10_comment_role_insert_trigger', '10_comment_role_update_trigger', '10_comment_role_delete_trigger', 'comment_resource_parent', 'comment_role_parent', 'comment_resource_parent_trigger_function', '10_comment_resource_parent_trigger', 'comment_role_parent_trigger_function', '10_comment_role_parent_trigger', 'resource_audit_event_fkey', 'role_audit_event_fkey', 'audit_event_resource_trigger_function', '10_audit_event_resource_insert_trigger', '10_audit_event_resource_update_trigger', '10_audit_event_resource_delete_trigger', 'audit_event_role_trigger_function', '10_audit_event_role_insert_trigger', '10_audit_event_role_update_trigger', '10_audit_event_role_delete_trigger', 'audit_event_resource_parent', 'audit_event_role_parent', 'audit_event_resource_parent_trigger_function', '10_audit_event_resource_parent_trigger', 'audit_event_role_parent_trigger_function', '10_audit_event_role_parent_trigger', 'folder_resource_parent_org_id', 'or_bitmap_8', 'truncate_guard_trigger_function', 'current_role_node', 'resource_deleted_permission', 'permission_flags', 'current_resource_access_0', 'current_resource_access_0_check', 'current_resource_access_0_list', 'current_resource_access_0_first', 'current_resource_access_1', 'current_resource_access_1_check', 'current_resource_access_1_list', 'current_resource_access_1_first', 'current_resource_access_2', 'current_resource_access_2_check', 'current_resource_access_2_list', 'current_resource_access_2_first', 'current_resource_access_3', 'current_resource_access_3_check', 'current_resource_access_3_list', 'current_resource_access_3_first', 'current_resource_access_4', 'current_resource_access_4_check', 'current_resource_access_4_list', 'current_resource_access_4_first', 'current_resource_access_5', 'current_resource_access_5_check', 'current_resource_access_5_list', 'current_resource_access_5_first', 'current_resource_access_6', 'current_resource_access_6_check', 'current_resource_access_6_list', 'current_resource_access_6_first', 'current_resource_access_7', 'current_resource_access_7_check', 'current_resource_access_7_list', 'current_resource_access_7_first', 'resource_share_check_app_user', 'resource_restore_app_user', 'folder_search_app_user', 'document_search_app_user']::text[]) as "the_name";
 
 
 do $$

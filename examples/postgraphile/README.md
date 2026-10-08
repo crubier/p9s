@@ -74,6 +74,4 @@ The tables, the p9s configuration and the permission bits are those of the Next.
 - [`web`](./web) is the app: React, React Router and TanStack Query, with the components of the Next.js example. [`web/lib/operations.ts`](./web/lib/operations.ts) has every query and mutation, typed by [GraphQL Code Generator](https://the-guild.dev/graphql/codegen) from [`schema.graphql`](./schema.graphql): `bun run schema` writes both from the database.
 - The seed creates Acme through the GraphQL API, as its people. The mock organizations are written in bulk, then their month of activity goes through the API again.
 
-The front page of an organization asks for its recent documents with the `x-p9s-check-rows` header, which makes p9s check each row rather than collect what the member reads first: that is faster for a page of a large table, and the request is limited to 10ms, after which the app asks again without it.
-
 `P9S_TEST_DATABASE_URL=postgresql://postgres@localhost:5432/postgres bun run test` migrates and seeds a new database, then checks the API as each person, in the process and over HTTP: what they read and can do, sharing, moves, teams, API keys, search, viewing and acting as someone, the audit log, and the masking of errors.

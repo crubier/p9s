@@ -2366,6 +2366,61 @@ test('Default Migration', () => {
 
     select pg_temp.p9s_set_privileges('"current_resource_access_0"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
 
+    -- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+    -- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+    -- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+    -- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+    -- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+    -- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+    -- limit, stop at the first rows that match.
+    create or replace function "current_resource_access_0_check" ("the_resource_id" integer)
+      returns boolean
+      as $$
+    begin
+      return exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+    end
+    $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+    revoke execute on function "current_resource_access_0_check" (integer) from public;
+
+    grant execute on function "current_resource_access_0_check" (integer) to "user1";
+
+    create or replace function "current_resource_access_0_list" ()
+      returns setof integer
+      as $$
+    begin
+      return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access";
+    end
+    $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+    revoke execute on function "current_resource_access_0_list" () from public;
+
+    grant execute on function "current_resource_access_0_list" () to "user1";
+
+    -- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+    create or replace function "current_resource_access_0_first" ("the_count" bigint)
+      returns setof integer
+      as $$
+    declare
+      "var_count" bigint;
+    begin
+      return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access" limit "the_count";
+      get diagnostics "var_count" = row_count;
+      if "var_count" >= "the_count" then
+        return next null;
+      end if;
+    end
+    $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+      set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+    revoke execute on function "current_resource_access_0_first" (bigint) from public;
+
+    grant execute on function "current_resource_access_0_first" (bigint) to "user1";
+
     create or replace view "current_resource_access_1" with (security_barrier) as
     select
       "the_resource_edge"."child_id" as "resource_id"
@@ -2375,6 +2430,61 @@ test('Default Migration', () => {
     where "the_role_edge"."child_id" = "get_current_user_id"() and ("the_resource_edge"."permission" << 1)::bit = b'1' and ("the_assignment_edge"."permission" << 1)::bit = b'1' and ("the_role_edge"."permission" << 1)::bit = b'1';
 
     select pg_temp.p9s_set_privileges('"current_resource_access_1"'::regclass, array['user1']::text[], array[]::text[], array[]::text[]);
+
+    -- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+    -- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+    -- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+    -- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+    -- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+    -- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+    -- limit, stop at the first rows that match.
+    create or replace function "current_resource_access_1_check" ("the_resource_id" integer)
+      returns boolean
+      as $$
+    begin
+      return exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "the_resource_id");
+    end
+    $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
+
+
+    revoke execute on function "current_resource_access_1_check" (integer) from public;
+
+    grant execute on function "current_resource_access_1_check" (integer) to "user1";
+
+    create or replace function "current_resource_access_1_list" ()
+      returns setof integer
+      as $$
+    begin
+      return query select "var_access"."resource_id" from "current_resource_access_1" as "var_access";
+    end
+    $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+    revoke execute on function "current_resource_access_1_list" () from public;
+
+    grant execute on function "current_resource_access_1_list" () to "user1";
+
+    -- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+    create or replace function "current_resource_access_1_first" ("the_count" bigint)
+      returns setof integer
+      as $$
+    declare
+      "var_count" bigint;
+    begin
+      return query select "var_access"."resource_id" from "current_resource_access_1" as "var_access" limit "the_count";
+      get diagnostics "var_count" = row_count;
+      if "var_count" >= "the_count" then
+        return next null;
+      end if;
+    end
+    $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
+      set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+
+    revoke execute on function "current_resource_access_1_first" (bigint) from public;
+
+    grant execute on function "current_resource_access_1_first" (bigint) to "user1";
 
 
     -- What was shared with the current user: the resources assigned to it and to the roles above it, with the bits these
@@ -2483,10 +2593,17 @@ test('Default Migration', () => {
     create policy "blog_post_user1_select_policy" on "public"."blog_post" 
     as permissive for select to "user1" 
     using (
-      case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-        select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id" offset 0
-      ) else 
-      exists (select from "current_resource_access_0" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id") end
+      case when not (select set_config('p9s.checked_blog_post_select', '0', true)) is not null then null
+      when (select current_setting('p9s.writing_blog_post', true) = statement_timestamp()::text) then case current_setting('p9s.checked_blog_post_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_0_check"("blog_post"."resource_id") end
+      else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting('p9s.checked_blog_post_select', true)
+        when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"())
+        when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_0_check"("blog_post"."resource_id")
+        else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_0_check"("blog_post"."resource_id")) end) end
     )
     ;
 
@@ -2496,7 +2613,10 @@ test('Default Migration', () => {
     create policy "blog_post_user1_update_policy" on "public"."blog_post" 
     as permissive for update to "user1" 
     using (
-      exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id")
+      case when not (select set_config('p9s.checked_blog_post_update', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
+      else case current_setting('p9s.checked_blog_post_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.checked_blog_post_update', (coalesce(nullif(current_setting('p9s.checked_blog_post_update', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
     with check (
       exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id")
@@ -2507,7 +2627,10 @@ test('Default Migration', () => {
     create policy "blog_post_user1_delete_policy" on "public"."blog_post" 
     as permissive for delete to "user1" 
     using (
-      exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id")
+      case when not (select set_config('p9s.checked_blog_post_delete', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
+      else case current_setting('p9s.checked_blog_post_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.checked_blog_post_delete', (coalesce(nullif(current_setting('p9s.checked_blog_post_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
     ;
 
@@ -2529,6 +2652,9 @@ test('Default Migration', () => {
         and substr("viewname", 25) ~ '^[0-9]+$'
         and not "viewname" = any (array['current_resource_access_0', 'current_resource_access_1']::text[])
       loop
+        execute format('drop function if exists %I', "the_view" || '_check');
+        execute format('drop function if exists %I', "the_view" || '_list');
+        execute format('drop function if exists %I', "the_view" || '_first');
         execute format('drop view %I', "the_view");
       end loop;
     end

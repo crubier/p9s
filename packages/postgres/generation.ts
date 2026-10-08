@@ -1862,6 +1862,14 @@ const policyBits = (config: CompleteConfig<any>) => [...new Set(config.tables.fi
     .map(operation => bits?.[operation]).filter((bit): bit is number => bit != null))))].sort((a, b) => a - b);
 
 const currentAccessViewOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}`);
+const currentAccessCheckOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_check`);
+const currentAccessListOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_list`);
+const currentAccessFirstOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_first`);
+// Reads list this many resources the user has the bit on, once per statement: that costs about as much as checking 25
+// rows one by one, and is all of them for a user with few. For others, a read that goes past its first row lists more:
+// all of them for most users, at the cost of about 80 rows.
+export const FEW_RESOURCES = 1000;
+export const MORE_RESOURCES = 3000;
 
 // The part of the graph users can see. They have no privileges on the graph tables: the policies read these views,
 // which run as their owner and only return rows of the current user. As security barriers, a filter of the user runs
@@ -1999,6 +2007,52 @@ ${join(policyBits(config).map(bit => sql`
 create or replace view ${currentAccessViewOf(naming, bit)} with (security_barrier) as${access(bit)};
 
 ${setPrivileges(currentAccessViewOf(naming, bit), everyone, [])}
+
+-- The same as the policies use it: whether the current user has the bit on one resource, and every resource it has
+-- the bit on. In plpgsql, which keeps its plans for the session, and at the cost of one call:
+-- checking every row of a large scan would look costly enough to the planner to compile the query with JIT, and
+-- listing, which runs once, would count again for every lookup of a nested loop and keep it from using an index.
+-- Listing goes through the indexes, from the assignments of the user down. When the statistics say a parent has most
+-- of a cache table, the planner would rather scan the whole table, also for a user with few resources, and with a
+-- limit, stop at the first rows that match.
+create or replace function ${currentAccessCheckOf(naming, bit)} ("the_resource_id" ${idType})
+  returns boolean
+  as $$
+begin
+  return exists (select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = "the_resource_id");
+end
+$$ language plpgsql stable cost 1 set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${currentAccessCheckOf(naming, bit)} (${idType})`, everyone)}
+
+create or replace function ${currentAccessListOf(naming, bit)} ()
+  returns setof ${idType}
+  as $$
+begin
+  return query select "var_access".${assignment.resourceId} from ${currentAccessViewOf(naming, bit)} as "var_access";
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = ${naming.schema}, pg_temp
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+${grantExecute(sql`${currentAccessListOf(naming, bit)} ()`, everyone)}
+
+-- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
+create or replace function ${currentAccessFirstOf(naming, bit)} ("the_count" bigint)
+  returns setof ${idType}
+  as $$
+declare
+  "var_count" bigint;
+begin
+  return query select "var_access".${assignment.resourceId} from ${currentAccessViewOf(naming, bit)} as "var_access" limit "the_count";
+  get diagnostics "var_count" = row_count;
+  if "var_count" >= "the_count" then
+    return next null;
+  end if;
+end
+$$ language plpgsql stable cost 1 rows 1000 set search_path = ${naming.schema}, pg_temp
+  set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
+
+${grantExecute(sql`${currentAccessFirstOf(naming, bit)} (bigint)`, everyone)}
 `), ``)}
 
 -- What was shared with the current user: the resources assigned to it and to the roles above it, with the bits these
@@ -2187,11 +2241,52 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
     return binding && hasParent(binding) ? (table.resourceLeaf ? parentOfLeaf(binding, name) : parentOfInPolicy(binding, name)) : undefined;
   };
 
-  // What the select policy of a user lets through, for the policy and for the searches. Postgres checks a policy row
-  // by row, or lists once every resource the user has the bit on and looks rows up in that list, whichever it expects
-  // to be cheaper for the rows the scan returns. Under a limit, it still expects every row of the scan, and lists.
-  // With p9s.check_rows on, reads check the ancestors of the rows they return instead: offset 0 keeps the check from
-  // being turned into a list.
+  // What a policy reading rows lets through. Left to the planner, Postgres checks the rows one by one or lists once
+  // every resource the user has the bit on, for the rows it expects the scan to return. A filter that runs after the
+  // policy, like ilike, which is not leakproof, makes it expect few rows and check every row of the table. So the
+  // policy decides as the statement runs, and only reads the state it keeps for the rows it has not decided yet:
+  // - Reads first list a few resources the user has the bit on, all of them for a user with few.
+  // - For a row that is not among them, the first is checked by its ancestors, which is all a lookup by id reads.
+  // - Past it, reads list more, all of them for most users.
+  // - For a row that is not among these either, the policy checks rows one by one, 50 by default, then lists every
+  //   resource.
+  // Writes, which rarely read many rows, only check then list, and so does the select policy of the statement that
+  // writes, which Postgres runs after theirs: they mark the table as written by the statement, known by the time it
+  // started. Listing first would read every resource under the parents of the user, and the rows that writes leave
+  // there until a vacuum, while a check only reads the ancestors of the row. A statement sent in the same query string
+  // after a write is taken for a write too. With p9s.check_rows, statements check that many rows whoever the user is,
+  // every row with on, none with off. The count is a setting of the transaction, one per table and operation, that the
+  // statement resets first. Every way gives the same rows, they only differ in speed.
+  const setting = sql`coalesce(current_setting('p9s.check_rows', true), '')`;
+  const checkRows = sql`(select case when ${setting} = 'on' then '-1' when ${setting} = 'off' then '0'
+    when ${setting} ~ '^[0-9]{1,9}$' then (${setting}::bigint)::text else '50' end)`;
+  const readCheck = (table: CompleteConfig<User>["tables"][number], operation: "select" | "update" | "delete", target: SQL, bit: number) => {
+    const tableName = table.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const counter = textLiteral(`p9s.checked_${tableName}_${operation}`);
+    const writing = textLiteral(`p9s.writing_${tableName}`);
+    const list = sql`${target} in (select ${currentAccessListOf(naming, bit)}())`;
+    const reset = sql`(select set_config(${counter}, '0', true)) is not null`;
+    const check = sql`set_config(${counter}, (coalesce(nullif(current_setting(${counter}, true), '')::bigint, 0) + 1)::text, true) is not null
+    and ${currentAccessCheckOf(naming, bit)}(${target})`;
+    const checkThenList = sql`case current_setting(${counter}, true) when ${checkRows} then ${list} else ${check} end`;
+    if (operation !== "select") {
+      return sql`
+  case when not (select set_config(${counter}, '0', true) || set_config(${writing}, statement_timestamp()::text, true)) is not null then null
+  else ${checkThenList} end`;
+    }
+    const written = sql`(select current_setting(${writing}, true) = statement_timestamp()::text)`;
+    const auto = sql`(select ${setting} !~ '^(on|off|[0-9]{1,9})$')`;
+    const first = (count: number) => sql`case when ${auto} then ${target} in (select ${currentAccessFirstOf(naming, bit)}(${literal(count)})) end`;
+    return sql`
+  case when not ${reset} then null
+  when ${written} then ${checkThenList}
+  else coalesce(${first(FEW_RESOURCES)}, case current_setting(${counter}, true)
+    when ${checkRows} then ${list}
+    when (select case when ${auto} then '0' end) then ${check}
+    else coalesce(${first(MORE_RESOURCES)}, ${check}) end) end`;
+  };
+
+  // What the select policy of a user lets through, for the policy and for the searches
   const selectUsing = (table: CompleteConfig<User>["tables"][number], user: User) => {
     const { name, resourceId } = naming.tables[table.name]!;
     const bit = table.permission[user]!.select;
@@ -2199,10 +2294,7 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
     const softDelete = bindings.get(table.name)?.softDelete;
     const deletedCheck = softDelete && !table.resourceLeaf && sql`
   or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
-    return sql`
-  case when (select current_setting('p9s.check_rows', true)) = 'on' then exists (
-    select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = ${target} offset 0
-  ) else ${accessCheck(target, bit)} end${deletedCheck || sql``}`;
+    return sql`${readCheck(table, "select", target, bit)}${deletedCheck || sql``}`;
   };
 
   // RLS never runs an operator that is not leakproof, like ilike or @@, before a policy, so the indexes that serve it
@@ -2342,7 +2434,7 @@ with check (${accessCheck(parent, bit)}
 ${dropPolicy}
 create policy ${policyName} on ${schema}.${name} 
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
-using (${operation === "select" ? selectUsing(table, user as User) : sql`${ownCheck}${deletedCheck || sql``}`}
+using (${operation === "select" ? selectUsing(table, user as User) : sql`${readCheck(table, operation, target, bit)}${deletedCheck || sql``}`}
 )
 ${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
 )` : sql``};
@@ -2379,6 +2471,9 @@ begin
     and substr("viewname", ${literal(nameOf(naming.currentAccessView).length + 2)}) ~ '^[0-9]+$'
     and not "viewname" = any (${roleArray(policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))))})
   loop
+    execute format('drop function if exists %I', "the_view" || '_check');
+    execute format('drop function if exists %I', "the_view" || '_list');
+    execute format('drop function if exists %I', "the_view" || '_first');
     execute format('drop view %I', "the_view");
   end loop;
 end
@@ -2744,7 +2839,7 @@ union all
     nameOf(naming.orBitmap), nameOf(naming.truncateGuardFunction), nameOf(naming.currentRoleNodeFunction), nameOf(naming.deletedPermissionFunction),
     // The conversion of bitmaps, for SQL: the API has its result in the permission fields
     nameOf(naming.permissionFlags),
-    ...policyBits(config).map(bit => nameOf(currentAccessViewOf(naming, bit))),
+    ...policyBits(config).flatMap(bit => [currentAccessViewOf, currentAccessCheckOf, currentAccessListOf, currentAccessFirstOf].map(of => nameOf(of(naming, bit)))),
     ...config.engine.users.map(user => `${nameOf(naming.shareFunction)}_check_${user}`),
     ...config.engine.users.map(user => `${nameOf(naming.restoreFunction)}_${user}`),
     ...config.tables.flatMap(table => Object.keys(table.search ?? {}).flatMap(key => config.engine.users.map(user => `${table.name}_${key}_${user}`))),

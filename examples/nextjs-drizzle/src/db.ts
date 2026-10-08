@@ -71,24 +71,6 @@ export const readGraph = async <T>(tx: Tx, query: ReturnType<typeof sql>) => {
 
 export const rows = async <T>(tx: Tx | Db, query: ReturnType<typeof sql>) => (await tx.execute(query)).rows as T[];
 
-// For reads that stop early, like a page. The policies list once every resource the user can read, then look rows up
-// in that list. With p9s.check_rows on, they check the ancestors of each row the scan walks instead, about the size
-// of the page divided by the share of rows the user can read: a user who reads few would walk most of the table, so
-// past `timeout` the read runs again, listing. Rolling back to the savepoint also restores both settings.
-export const pageRows = async <T>(tx: Tx, query: ReturnType<typeof sql>, timeout = "10ms") => {
-  await tx.execute(sql`savepoint page_rows`);
-  try {
-    await tx.execute(sql`select set_config('p9s.check_rows', 'on', true), set_config('statement_timeout', ${timeout}, true)`);
-    return await rows<T>(tx, query);
-  } catch (error) {
-    if (databaseError(error)?.code !== "57014") throw error;
-    await tx.execute(sql`rollback to savepoint page_rows`);
-    return rows<T>(tx, query);
-  } finally {
-    await tx.execute(sql`rollback to savepoint page_rows`);
-  }
-};
-
 // Turns the errors raised by RLS and p9s into messages for the user
 export const describeError = (error: unknown): string => {
   if (error instanceof ForbiddenError || error instanceof NotFoundError) return error.message;

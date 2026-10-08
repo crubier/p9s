@@ -492,40 +492,10 @@ describe.skipIf(!rootUrl || version < 150000)("postgraphile example", () => {
       expect(result.errors).toEqual([expect.objectContaining({ message: "You don't have permission to do that.", extensions: { code: "42501" } })]);
     });
 
-    test("pages checked row by row give the same rows", async () => {
-      const cookie = await signIn(mockEmail(13));
-      const query = `{ organizationBySlug(slug: "globex") { documents(first: 8, orderBy: [UPDATED_AT_DESC, ROW_ID_DESC]) { nodes { rowId } } } }`;
-      const plain = await post(query, { cookie, "x-p9s-org": "globex" });
-      const checked = await post(query, { cookie, "x-p9s-org": "globex", "x-p9s-check-rows": "on" });
-      // Checking row by row may give up after its short timeout, which the app answers by asking again without
-      if (checked.errors) expect(checked.errors.map((error) => error.extensions?.code)).toEqual(["57014"]);
-      else expect(checked.data).toEqual(plain.data);
-      expect(plain.data.organizationBySlug.documents.nodes.length).toBe(8);
-    });
-
     test("GraphiQL opens with the query and the organization of the link", async () => {
       const html = await (await fetch(`${origin}/graphiql?${new URLSearchParams({ query: "{ currentMember { name } }", org: "acme" })}`)).text();
       expect(html).toContain("RURU_CONFIG");
       expect(html).toContain("initialHeaders");
-    });
-
-    test("the app asks again without checking rows when that times out", async () => {
-      const { request } = await import("../web/lib/graphql");
-      const sent: (string | null)[] = [];
-      const realFetch = globalThis.fetch;
-      globalThis.fetch = (async (_url: string, init: RequestInit) => {
-        const checkRows = new Headers(init.headers).get("x-p9s-check-rows");
-        sent.push(checkRows);
-        const body = checkRows ? { errors: [{ message: "The request took too long.", extensions: { code: "57014" } }] } : { data: { ok: true } };
-        return new Response(JSON.stringify(body));
-      }) as typeof fetch;
-      try {
-        const ok = await request<{ ok: boolean }, Record<string, never>>({ toString: () => "{ ok }" } as never, {}, { org: "acme", checkRows: true });
-        expect(ok).toEqual({ ok: true });
-      } finally {
-        globalThis.fetch = realFetch;
-      }
-      expect(sent).toEqual(["on", null]);
     });
   });
 });
