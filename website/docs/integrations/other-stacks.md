@@ -42,18 +42,23 @@ MIDDLEWARE = [..., "django.contrib.auth.middleware.AuthenticationMiddleware", "p
 
 ## Rails
 
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/ruby) gem reads the role and the setting from `p9s.config.json`, runs an Active Record block as the user, and runs every action of a controller as `current_user.id`. [`examples/rails`](https://github.com/crubier/p9s/tree/main/examples/rails) adopts p9s in an existing Rails app with it:
+
 ```ruby
-def as_user(user_id)
-  ActiveRecord::Base.transaction do
-    ActiveRecord::Base.connection.execute(ActiveRecord::Base.sanitize_sql_array(
-      ["select set_config('role', 'app_user', true), set_config('app.role_id', ?, true)", user_id.to_s]
-    ))
-    yield
+class ApplicationController < ActionController::API
+  include P9s::Controller
+
+  rescue_from ActiveRecord::StatementInvalid do |error|
+    raise error unless P9s.refused?(error)
+
+    render json: { error: "forbidden" }, status: :forbidden
   end
 end
 
-as_user(current_user.role_id) { @documents = Document.order(updated_at: :desc).limit(50).to_a }
+P9s.as_user(current_user.id) { @documents = Document.order(updated_at: :desc).limit(50).to_a }
 ```
+
+Models ignore the columns p9s adds, with `self.ignored_columns += ["resource_id"]`, and `belongs_to` a parent the user may not read is `optional: true`, as the database checks the foreign key. `db/schema.rb` cannot hold the policies of p9s, so use `config.active_record.schema_format = :sql`.
 
 ## GORM
 

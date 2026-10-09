@@ -1,0 +1,251 @@
+diff --git a/Gemfile b/Gemfile
+index a70e321..00809d0 100644
+--- a/Gemfile
++++ b/Gemfile
+@@ -2,6 +2,8 @@ source "https://rubygems.org"
+ 
+ gem "actionpack", "~> 8.1"
+ gem "activerecord", "~> 8.1"
++# p9s from RubyGems in an app, from this repository in the example
++gem "p9s", path: "../../../packages/ruby"
+ gem "pg", "~> 1.6"
+ gem "puma", "~> 8.0"
+ gem "railties", "~> 8.1"
+diff --git a/Gemfile.lock b/Gemfile.lock
+index a0554d9..bad6921 100644
+--- a/Gemfile.lock
++++ b/Gemfile.lock
+@@ -1,3 +1,9 @@
++PATH
++  remote: ../../../packages/ruby
++  specs:
++    p9s (0.1.0)
++      activerecord (>= 7.0)
++
+ GEM
+   remote: https://rubygems.org/
+   specs:
+@@ -153,6 +159,7 @@ PLATFORMS
+ DEPENDENCIES
+   actionpack (~> 8.1)
+   activerecord (~> 8.1)
++  p9s!
+   pg (~> 1.6)
+   puma (~> 8.0)
+   railties (~> 8.1)
+diff --git a/app/controllers/application_controller.rb b/app/controllers/application_controller.rb
+index c303e43..f74b513 100644
+--- a/app/controllers/application_controller.rb
++++ b/app/controllers/application_controller.rb
+@@ -1,6 +1,15 @@
+-# A real app signs users in, with a session or a token, this one reads the user from a header
++# A real app signs users in, with a session or a token, this one reads the user from a header. Then every action runs in
++# a transaction as its user, and the policies of p9s decide what it reads and writes.
+ class ApplicationController < ActionController::API
+   before_action :authenticate
++  include P9s::Controller
++
++  # A write the policies do not let through, after its transaction rolled back
++  rescue_from ActiveRecord::StatementInvalid do |error|
++    raise error unless P9s.refused?(error)
++
++    forbidden
++  end
+ 
+   private
+ 
+@@ -10,6 +19,14 @@ class ApplicationController < ActionController::API
+     render json: { error: "unauthorized" }, status: :unauthorized if @user_id.nil?
+   end
+ 
++  def p9s_user_id
++    @user_id
++  end
++
++  def p9s_read_only?
++    request.get?
++  end
++
+   def not_found
+     render json: { error: "not found" }, status: :not_found
+   end
+diff --git a/app/controllers/documents_controller.rb b/app/controllers/documents_controller.rb
+index 11fada0..7b2fd2c 100644
+--- a/app/controllers/documents_controller.rb
++++ b/app/controllers/documents_controller.rb
+@@ -1,50 +1,38 @@
+ class DocumentsController < ApplicationController
+   def index
+-    render json: Permissions.readable_documents(@user_id).as_json(only: %i[id project_id title])
++    render json: Document.order(:id).as_json(only: %i[id project_id title])
+   end
+ 
+   def create
+-    return forbidden unless Permissions.project_bits(@user_id, params[:project_id]).include?("write")
+-
+     document = Document.create!(project_id: params[:project_id], title: params[:title], body: params[:body] || "")
+     render json: document, status: :created
+   end
+ 
++  # A document the user does not read is not found, one they read but cannot change is forbidden
+   def show
+-    bits = Permissions.document_bits(@user_id, params[:id])
+-    return not_found unless bits&.include?("read")
+-
+-    render json: Document.find(params[:id])
++    document = Document.find_by(id: params[:id])
++    document ? render(json: document) : not_found
+   end
+ 
+   def update
+-    bits = Permissions.document_bits(@user_id, params[:id])
+-    return not_found unless bits&.include?("read")
+-    return forbidden unless bits.include?("write")
++    return not_found unless Document.exists?(params[:id])
++    return forbidden if Document.where(id: params[:id]).update_all(params.permit(:title, :body).to_h).zero?
+ 
+-    Document.where(id: params[:id]).update_all(params.permit(:title, :body).to_h)
+     render json: Document.find(params[:id])
+   end
+ 
+   def destroy
+-    bits = Permissions.document_bits(@user_id, params[:id])
+-    return not_found unless bits&.include?("read")
+-    return forbidden unless bits.include?("delete")
++    return not_found unless Document.exists?(params[:id])
++    return forbidden if Document.where(id: params[:id]).delete_all.zero?
+ 
+-    Document.where(id: params[:id]).delete_all
+     head :no_content
+   end
+ 
++  # p9s refuses a share that gives, or takes away, bits the user does not have
+   def share
+-    bits = Permissions.document_bits(@user_id, params[:id])
+-    return not_found unless bits&.include?("read")
+-
+-    share = DocumentShare.find_or_initialize_by(document_id: params[:id], user_id: params[:user_id])
+-    given = Permissions::BITS.fetch(params[:access])
+-    taken = share.access ? Permissions::BITS[share.access] : []
+-    return forbidden unless (given + taken).all? { |bit| bits.include?(bit) }
++    return not_found unless Document.exists?(params[:id])
+ 
+-    share.update!(access: params[:access])
++    DocumentShare.find_or_initialize_by(document_id: params[:id], user_id: params[:user_id]).update!(access: params[:access])
+     head :no_content
+   end
+ end
+diff --git a/app/controllers/projects_controller.rb b/app/controllers/projects_controller.rb
+index 3693940..955197c 100644
+--- a/app/controllers/projects_controller.rb
++++ b/app/controllers/projects_controller.rb
+@@ -1,5 +1,5 @@
+ class ProjectsController < ApplicationController
+   def index
+-    render json: Permissions.readable_projects(@user_id).as_json(only: %i[id name])
++    render json: Project.order(:id).as_json(only: %i[id name])
+   end
+ end
+diff --git a/app/models/document.rb b/app/models/document.rb
+index 3f85b2d..32bc5e5 100644
+--- a/app/models/document.rb
++++ b/app/models/document.rb
+@@ -1,5 +1,9 @@
+ # Deleting a document deletes its shares in the database, with on_delete: :cascade
+ class Document < ApplicationRecord
+-  belongs_to :project
++  # The column p9s adds, with its default, which the app neither reads nor writes
++  self.ignored_columns += ["resource_id"]
++  # The database checks the foreign key, and the policies whether the user writes in the project. belongs_to would
++  # check that the project exists by reading it, as the user, who may not see it.
++  belongs_to :project, optional: true
+   has_many :document_shares
+ end
+diff --git a/app/models/document_share.rb b/app/models/document_share.rb
+index 236f1c4..4fdfca2 100644
+--- a/app/models/document_share.rb
++++ b/app/models/document_share.rb
+@@ -1,5 +1,6 @@
+ class DocumentShare < ApplicationRecord
+   self.primary_key = %i[document_id user_id]
+-  belongs_to :document
+-  belongs_to :user
++  # The database checks the foreign keys, and app_user does not read users
++  belongs_to :document, optional: true
++  belongs_to :user, optional: true
+ end
+diff --git a/app/models/permissions.rb a/app/models/permissions.rb
+deleted file mode 100644
+index 547c0d1..0000000
+--- a/app/models/permissions.rb
++++ /dev/null
+@@ -1,39 +0,0 @@
+-# Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-# shares of documents with the user
+-module Permissions
+-  BITS = { "viewer" => %w[read], "editor" => %w[read write], "owner" => %w[read write delete] }.freeze
+-
+-  module_function
+-
+-  def teams_of(user_id)
+-    TeamMember.where(user_id: user_id).select(:team_id)
+-  end
+-
+-  def project_bits(user_id, project_id)
+-    ProjectShare.where(project_id: project_id, team_id: teams_of(user_id)).pluck(:access).flat_map { |access| BITS[access] }.to_set
+-  end
+-
+-  # The bits of the user on the document, or nil when there is no such document
+-  def document_bits(user_id, document_id)
+-    project_id = Document.where(id: document_id).pick(:project_id)
+-    return nil if project_id.nil?
+-
+-    share = DocumentShare.where(document_id: document_id, user_id: user_id).pick(:access)
+-    project_bits(user_id, project_id) | (share ? BITS[share] : [])
+-  end
+-
+-  # Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects or
+-  # shared with them
+-  def readable_project_ids(user_id)
+-    ProjectShare.where(team_id: teams_of(user_id)).select(:project_id)
+-  end
+-
+-  def readable_projects(user_id)
+-    Project.where(id: readable_project_ids(user_id)).order(:id)
+-  end
+-
+-  def readable_documents(user_id)
+-    shared = DocumentShare.where(user_id: user_id).select(:document_id)
+-    Document.where(project_id: readable_project_ids(user_id)).or(Document.where(id: shared)).order(:id)
+-  end
+-end
+diff --git a/app/models/project.rb b/app/models/project.rb
+index e743421..d11158f 100644
+--- a/app/models/project.rb
++++ b/app/models/project.rb
+@@ -1,4 +1,6 @@
+ class Project < ApplicationRecord
++  # The column p9s adds, with its default, which the app neither reads nor writes
++  self.ignored_columns += ["resource_id"]
+   has_many :project_shares
+   has_many :documents
+ end
+diff --git a/app/models/team.rb b/app/models/team.rb
+index f0436a4..5a1a7b0 100644
+--- a/app/models/team.rb
++++ b/app/models/team.rb
+@@ -1,3 +1,5 @@
+ class Team < ApplicationRecord
++  # The column p9s adds, with its default, which the app neither reads nor writes
++  self.ignored_columns += ["role_id"]
+   has_many :team_members
+ end
+diff --git a/app/models/user.rb b/app/models/user.rb
+index 379658a..38dad74 100644
+--- a/app/models/user.rb
++++ b/app/models/user.rb
+@@ -1,2 +1,4 @@
+ class User < ApplicationRecord
++  # The column p9s adds, with its default, which the app neither reads nor writes
++  self.ignored_columns += ["role_id"]
+ end

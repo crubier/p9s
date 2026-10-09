@@ -157,3 +157,8 @@ examples/*/.adoption*
 .venv
 __pycache__/
 .pytest_cache/
+
+# Ruby
+.bundle/
+**/vendor/bundle/
+*.gem

@@ -21,3 +21,7 @@ const pyproject = path.resolve(import.meta.dir, "..", "packages", "python", "pyp
 const project = await Bun.file(pyproject).text();
 await Bun.write(pyproject, project.replace(/^version = ".*"$/m, `version = ${JSON.stringify(version)}`));
 console.log(`p9s (PyPI) ${version}`);
+const gemVersion = path.resolve(import.meta.dir, "..", "packages", "ruby", "lib", "p9s", "version.rb");
+const gem = await Bun.file(gemVersion).text();
+await Bun.write(gemVersion, gem.replace(/VERSION = ".*"/, `VERSION = ${JSON.stringify(version)}`));
+console.log(`p9s (RubyGems) ${version}`);

@@ -197,6 +197,13 @@
         "typescript": "^5.9.3",
       },
     },
+    "examples/rails": {
+      "name": "@p9s/example-rails",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/supabase": {
       "name": "@p9s/example-supabase",
       "dependencies": {
@@ -1272,6 +1279,8 @@
     "@p9s/example-postgraphile-rls": ["@p9s/example-postgraphile-rls@workspace:examples/postgraphile-rls"],
 
     "@p9s/example-prisma": ["@p9s/example-prisma@workspace:examples/prisma"],
+
+    "@p9s/example-rails": ["@p9s/example-rails@workspace:examples/rails"],
 
     "@p9s/example-supabase": ["@p9s/example-supabase@workspace:examples/supabase"],
 

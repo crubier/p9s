@@ -29,7 +29,7 @@ export interface Descriptor {
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
-export const generated = new Set(["node_modules", ".adoption", ".adoption-before", ".adoption-after", ".adoption-edit", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log", "bin"]);
+export const generated = new Set(["node_modules", ".adoption", ".adoption-before", ".adoption-after", ".adoption-edit", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log"]);
 
 export const copyApp = async (from: string, to: string) => {
   await rm(to, { recursive: true, force: true });
@@ -37,7 +37,7 @@ export const copyApp = async (from: string, to: string) => {
 };
 
 export const applyPatch = async (patch: string, directory: string) => {
-  if (await Bun.file(patch).exists()) await run(`patch -p1 --forward --quiet < "${patch}"`, directory);
+  if (await Bun.file(patch).exists()) await run(`patch -p1 -E --forward --quiet < "${patch}"`, directory);
 };
 
 // A command that hangs fails on its own, rather than the test that runs it
@@ -179,7 +179,9 @@ const expectedAccess = async (client: pg.Client) => {
 // What each user reads, and which writes the database lets through, each write rolled back
 export const checkDatabase = async (url: string, config: unknown) => {
   const identity = createIdentity(config as Parameters<typeof createIdentity>[0]);
-  const client = new pg.Client({ connectionString: url });
+  // Ids are bigint in some stacks, like Rails, and the seed keeps them small
+  const types = { getTypeParser: ((oid: number, format?: "text" | "binary") => oid === pg.types.builtins.INT8 ? Number : pg.types.getTypeParser(oid, format as "text")) as typeof pg.types.getTypeParser };
+  const client = new pg.Client({ connectionString: url, types });
   await client.connect();
   try {
     const { projects, documents, expected } = await expectedAccess(client);

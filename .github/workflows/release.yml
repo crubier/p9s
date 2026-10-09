@@ -64,3 +64,32 @@ jobs:
         with:
           packages-dir: packages/python/dist
           skip-existing: true
+
+  # RubyGems trusts this workflow, with trusted publishing: the role it assumes is the variable RUBYGEMS_ROLE
+  publish-ruby:
+    runs-on: ubuntu-latest
+    environment: rubygems
+    defaults:
+      run:
+        working-directory: packages/ruby
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - name: Version matches the tag
+        run: |
+          version=$(ruby -r ./lib/p9s/version -e 'print P9s::VERSION')
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "p9s is $version, the tag is $GITHUB_REF_NAME"; exit 1; }
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
+        with:
+          role-to-assume: ${{ vars.RUBYGEMS_ROLE }}
+      - name: Publish
+        run: |
+          gem build p9s.gemspec
+          version=$(ruby -r ./lib/p9s/version -e 'print P9s::VERSION')
+          if gem list --remote --exact --all p9s | grep -q "[( ]$version[,)]"; then
+            echo "p9s $version is already published"
+          else
+            gem push "p9s-$version.gem"
+          fi
