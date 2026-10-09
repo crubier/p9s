@@ -21,7 +21,7 @@ describe('migration status', () => {
 
   test('missing before the migration, current after it, outdated for another config', async () => {
     const config = blogMigrationConfig(context);
-    const other = { ...config, engine: { ...config.engine, resourceCache: "assigned" as const } };
+    const other = { ...config, engine: { ...config.engine, authentication: { getCurrentUserId: "another_user_id" } } };
     await setupBlogTables(context);
     expect((await withClient(client => migrationStatus(client, config))).state).toBe("missing");
 
