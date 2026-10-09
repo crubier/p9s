@@ -1,0 +1,63 @@
+{
+  "name": "@p9s/prisma",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Vincent Lecrubier",
+  "homepage": "https://p9s.vercel.app",
+  "bugs": "https://github.com/crubier/p9s/issues",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crubier/p9s.git",
+    "directory": "packages/prisma"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "*.ts",
+    "!*.test.ts"
+  ],
+  "description": "Runs Prisma queries as a user of p9s, through the policies",
+  "keywords": [
+    "postgres",
+    "rls",
+    "permissions",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test",
+    "generate": "prisma generate --schema test/schema.prisma"
+  },
+  "dependencies": {
+    "@p9s/postgres": "workspace:*"
+  },
+  "peerDependencies": {
+    "@prisma/client": ">=6"
+  },
+  "peerDependenciesMeta": {
+    "@prisma/client": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@p9s/core": "workspace:*",
+    "@p9s/postgres-testing": "workspace:*",
+    "prisma": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "pg": "^8.23.1",
+    "pg-sql2": "^4.14.1"
+  }
+}

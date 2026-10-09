@@ -42,6 +42,7 @@ import { readFileSync } from "node:fs";
 import { createIdentity, createMigrationSql, expectedMigrationRecord, migrationStatus } from "@p9s/postgres";
 import { validateConfig } from "@p9s/core";
 import { withUser } from "@p9s/drizzle";
+import { userClient, withUser as withPrismaUser } from "@p9s/prisma";
 const config = JSON.parse(readFileSync("p9s.config.json", "utf8"));
 if (!validateConfig(config).success) throw new Error("config rejected");
 const sql = createMigrationSql(config);
@@ -49,6 +50,7 @@ if (!sql.includes("create policy")) throw new Error("no policies in the migratio
 if (!sql.includes("current_setting('app.role_id', true)")) throw new Error("no current user function in the migration");
 const { text } = createIdentity(config).statement("r1");
 if (!text.startsWith("select set_config(") || typeof withUser !== "function") throw new Error("no identity helpers");
+if (typeof userClient !== "function" || typeof withPrismaUser !== "function") throw new Error("no Prisma helpers");
 if (typeof migrationStatus !== "function" || !sql.includes(expectedMigrationRecord(config).hash)) throw new Error("no migration record");
 console.log("node: migration of " + sql.length + " characters");
 `);
@@ -62,6 +64,7 @@ console.log("node: migration of " + sql.length + " characters");
 import { createMigrationSql } from "@p9s/postgres";
 import { getCompleteConfig, type Config } from "@p9s/core";
 import { generateConfigurationFromDrizzleSchema } from "@p9s/drizzle";
+import { userClient } from "@p9s/prisma";
 const config: Config<"app_user"> = { engine: { users: ["app_user"] }, tables: [] };
 const sql: string = createMigrationSql(config);
 // Each of these fails to compile only if the types resolved
@@ -71,6 +74,8 @@ createMigrationSql(42);
 getCompleteConfig(config).engine.nope;
 // @ts-expect-error
 generateConfigurationFromDrizzleSchema();
+// @ts-expect-error
+userClient({});
 `);
   await $`npx tsc -p .`.cwd(project);
   console.log("typescript: types resolve with nodenext");

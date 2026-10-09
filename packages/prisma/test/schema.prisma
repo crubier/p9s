@@ -1,0 +1,17 @@
+// The blog post table of the tests of @p9s/postgres, with the columns p9s adds left out
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model BlogPost {
+  id      Int    @id @default(autoincrement())
+  name    String @default("")
+  groupId Int?   @map("group_id")
+
+  @@map("blog_post")
+}
