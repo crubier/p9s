@@ -609,11 +609,23 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
   });
 });
 
+// What a user writes, which getCompleteConfig merges into the defaults: the engine takes the parts it leaves out from
+// defaultConfig, and a permission refuses the operations it does not name
+const { permission: enginePermission, authentication, id } = engineConfigBaseSchema.shape;
+const userEngineConfigSchema = engineConfigBaseSchema.extend({
+  permission: z.object({ bitmap: enginePermission.shape.bitmap.partial(), maxDepth: enginePermission.shape.maxDepth.partial() }).partial(),
+  authentication: authentication.partial(),
+  id: id.partial(),
+}).partial();
+const userTableConfigSchema = tableConfigSchema.extend({
+  permission: z.record(z.string(), permissionPerOperationSchema.partial()),
+}).partial();
+
 // User-facing config schema (partial version for user input)
 export const configSchema = z.object({
-  engine: engineConfigBaseSchema.partial().optional(),
+  engine: userEngineConfigSchema.optional(),
   migration: migrationConfigSchema.partial().optional(),
-  tables: z.array(tableConfigSchema.partial()).optional(),
+  tables: z.array(userTableConfigSchema).optional(),
   links: z.array(linkConfigSchema).optional(),
 });
 

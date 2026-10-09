@@ -1,4 +1,5 @@
 {
+  "$schema": "https://p9s.vercel.app/p9s.config.schema.json",
   "engine": {
     "users": [
       "authenticated"

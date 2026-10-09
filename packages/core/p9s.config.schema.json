@@ -1,0 +1,1496 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "engine": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "graphWriters": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "type": "object",
+          "properties": {
+            "bitmap": {
+              "type": "object",
+              "properties": {
+                "size": {
+                  "type": "number"
+                },
+                "names": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxDepth": {
+              "type": "object",
+              "properties": {
+                "resource": {
+                  "type": "number"
+                },
+                "role": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "authentication": {
+          "type": "object",
+          "properties": {
+            "getCurrentUserId": {
+              "type": "string"
+            },
+            "setting": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$"
+            },
+            "key": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "table",
+                "column"
+              ],
+              "additionalProperties": false
+            },
+            "claim": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "grantPrivileges": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "integer",
+                "uuid"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "combineAssignmentsWith": {
+          "type": "string",
+          "enum": [
+            "none",
+            "role",
+            "resource"
+          ]
+        },
+        "resourceCache": {
+          "default": "full",
+          "type": "string",
+          "enum": [
+            "full",
+            "assigned"
+          ]
+        },
+        "postgraphile": {
+          "type": "boolean"
+        },
+        "naming": {
+          "type": "object",
+          "properties": {
+            "prefix": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "resource": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "idSequence": {
+                  "type": "string"
+                },
+                "pkey": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string"
+                },
+                "edge": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": "string"
+                },
+                "childId": {
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                },
+                "home": {
+                  "type": "string"
+                },
+                "edgePkey": {
+                  "type": "string"
+                },
+                "edgeGuardTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeGuardInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeGuardUpdateTrigger": {
+                  "type": "string"
+                },
+                "edgeGuardDeleteTrigger": {
+                  "type": "string"
+                },
+                "parentValidateFunction": {
+                  "type": "string"
+                },
+                "nodeInsertFunction": {
+                  "type": "string"
+                },
+                "nodeUpdateFunction": {
+                  "type": "string"
+                },
+                "nodeDeleteFunction": {
+                  "type": "string"
+                },
+                "edgeDeleted": {
+                  "type": "string"
+                },
+                "edgeDeletedPkey": {
+                  "type": "string"
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string"
+                },
+                "nodeRestoreFunction": {
+                  "type": "string"
+                },
+                "parentFkey": {
+                  "type": "string"
+                },
+                "childFkey": {
+                  "type": "string"
+                },
+                "edgeParentIdIndex": {
+                  "type": "string"
+                },
+                "edgeChildIdIndex": {
+                  "type": "string"
+                },
+                "edgeCache": {
+                  "type": "string"
+                },
+                "edgeCachePkey": {
+                  "type": "string"
+                },
+                "edgeCacheParentFkey": {
+                  "type": "string"
+                },
+                "edgeCacheChildFkey": {
+                  "type": "string"
+                },
+                "edgeCacheParentIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheChildIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheParentCompute": {
+                  "type": "string"
+                },
+                "edgeCacheChildCompute": {
+                  "type": "string"
+                },
+                "varParentId": {
+                  "type": "string"
+                },
+                "varChildId": {
+                  "type": "string"
+                },
+                "edgeCacheView": {
+                  "type": "string"
+                },
+                "edgeCacheBackfill": {
+                  "type": "string"
+                },
+                "edgeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeUpdateTrigger": {
+                  "type": "string"
+                },
+                "edgeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeDeleteTrigger": {
+                  "type": "string"
+                },
+                "nodeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeInsertTrigger": {
+                  "type": "string"
+                },
+                "nodeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeUpdateTrigger": {
+                  "type": "string"
+                },
+                "nodeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeDeleteTrigger": {
+                  "type": "string"
+                },
+                "enableTriggerFunction": {
+                  "type": "string"
+                },
+                "disableTriggerFunction": {
+                  "type": "string"
+                },
+                "linked": {
+                  "type": "string"
+                },
+                "linkRefreshFunction": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "idSequence",
+                "pkey",
+                "node",
+                "edge",
+                "parentId",
+                "childId",
+                "permission",
+                "home",
+                "edgePkey",
+                "edgeGuardTriggerFunction",
+                "edgeGuardInsertTrigger",
+                "edgeGuardUpdateTrigger",
+                "edgeGuardDeleteTrigger",
+                "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
+                "parentFkey",
+                "childFkey",
+                "edgeParentIdIndex",
+                "edgeChildIdIndex",
+                "edgeCache",
+                "edgeCachePkey",
+                "edgeCacheParentFkey",
+                "edgeCacheChildFkey",
+                "edgeCacheParentIdIndex",
+                "edgeCacheChildIdIndex",
+                "edgeCacheParentCompute",
+                "edgeCacheChildCompute",
+                "varParentId",
+                "varChildId",
+                "edgeCacheView",
+                "edgeCacheBackfill",
+                "edgeInsertTriggerFunction",
+                "edgeInsertTrigger",
+                "edgeUpdateTriggerFunction",
+                "edgeUpdateTrigger",
+                "edgeDeleteTriggerFunction",
+                "edgeDeleteTrigger",
+                "nodeInsertTriggerFunction",
+                "nodeInsertTrigger",
+                "nodeUpdateTriggerFunction",
+                "nodeUpdateTrigger",
+                "nodeDeleteTriggerFunction",
+                "nodeDeleteTrigger",
+                "enableTriggerFunction",
+                "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction"
+              ],
+              "additionalProperties": false
+            },
+            "role": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "idSequence": {
+                  "type": "string"
+                },
+                "pkey": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string"
+                },
+                "edge": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": "string"
+                },
+                "childId": {
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                },
+                "home": {
+                  "type": "string"
+                },
+                "edgePkey": {
+                  "type": "string"
+                },
+                "edgeGuardTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeGuardInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeGuardUpdateTrigger": {
+                  "type": "string"
+                },
+                "edgeGuardDeleteTrigger": {
+                  "type": "string"
+                },
+                "parentValidateFunction": {
+                  "type": "string"
+                },
+                "nodeInsertFunction": {
+                  "type": "string"
+                },
+                "nodeUpdateFunction": {
+                  "type": "string"
+                },
+                "nodeDeleteFunction": {
+                  "type": "string"
+                },
+                "edgeDeleted": {
+                  "type": "string"
+                },
+                "edgeDeletedPkey": {
+                  "type": "string"
+                },
+                "nodeSoftDeleteFunction": {
+                  "type": "string"
+                },
+                "nodeRestoreFunction": {
+                  "type": "string"
+                },
+                "parentFkey": {
+                  "type": "string"
+                },
+                "childFkey": {
+                  "type": "string"
+                },
+                "edgeParentIdIndex": {
+                  "type": "string"
+                },
+                "edgeChildIdIndex": {
+                  "type": "string"
+                },
+                "edgeCache": {
+                  "type": "string"
+                },
+                "edgeCachePkey": {
+                  "type": "string"
+                },
+                "edgeCacheParentFkey": {
+                  "type": "string"
+                },
+                "edgeCacheChildFkey": {
+                  "type": "string"
+                },
+                "edgeCacheParentIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheChildIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheParentCompute": {
+                  "type": "string"
+                },
+                "edgeCacheChildCompute": {
+                  "type": "string"
+                },
+                "varParentId": {
+                  "type": "string"
+                },
+                "varChildId": {
+                  "type": "string"
+                },
+                "edgeCacheView": {
+                  "type": "string"
+                },
+                "edgeCacheBackfill": {
+                  "type": "string"
+                },
+                "edgeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeUpdateTrigger": {
+                  "type": "string"
+                },
+                "edgeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeDeleteTrigger": {
+                  "type": "string"
+                },
+                "nodeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeInsertTrigger": {
+                  "type": "string"
+                },
+                "nodeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeUpdateTrigger": {
+                  "type": "string"
+                },
+                "nodeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "nodeDeleteTrigger": {
+                  "type": "string"
+                },
+                "enableTriggerFunction": {
+                  "type": "string"
+                },
+                "disableTriggerFunction": {
+                  "type": "string"
+                },
+                "linked": {
+                  "type": "string"
+                },
+                "linkRefreshFunction": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "idSequence",
+                "pkey",
+                "node",
+                "edge",
+                "parentId",
+                "childId",
+                "permission",
+                "home",
+                "edgePkey",
+                "edgeGuardTriggerFunction",
+                "edgeGuardInsertTrigger",
+                "edgeGuardUpdateTrigger",
+                "edgeGuardDeleteTrigger",
+                "parentValidateFunction",
+                "nodeInsertFunction",
+                "nodeUpdateFunction",
+                "nodeDeleteFunction",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "nodeSoftDeleteFunction",
+                "nodeRestoreFunction",
+                "parentFkey",
+                "childFkey",
+                "edgeParentIdIndex",
+                "edgeChildIdIndex",
+                "edgeCache",
+                "edgeCachePkey",
+                "edgeCacheParentFkey",
+                "edgeCacheChildFkey",
+                "edgeCacheParentIdIndex",
+                "edgeCacheChildIdIndex",
+                "edgeCacheParentCompute",
+                "edgeCacheChildCompute",
+                "varParentId",
+                "varChildId",
+                "edgeCacheView",
+                "edgeCacheBackfill",
+                "edgeInsertTriggerFunction",
+                "edgeInsertTrigger",
+                "edgeUpdateTriggerFunction",
+                "edgeUpdateTrigger",
+                "edgeDeleteTriggerFunction",
+                "edgeDeleteTrigger",
+                "nodeInsertTriggerFunction",
+                "nodeInsertTrigger",
+                "nodeUpdateTriggerFunction",
+                "nodeUpdateTrigger",
+                "nodeDeleteTriggerFunction",
+                "nodeDeleteTrigger",
+                "enableTriggerFunction",
+                "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction"
+              ],
+              "additionalProperties": false
+            },
+            "assignment": {
+              "type": "object",
+              "properties": {
+                "edge": {
+                  "type": "string"
+                },
+                "resourceId": {
+                  "type": "string"
+                },
+                "roleId": {
+                  "type": "string"
+                },
+                "edgePkey": {
+                  "type": "string"
+                },
+                "resourceFkey": {
+                  "type": "string"
+                },
+                "roleFkey": {
+                  "type": "string"
+                },
+                "edgeResourceIdIndex": {
+                  "type": "string"
+                },
+                "edgeRoleIdIndex": {
+                  "type": "string"
+                },
+                "edgeDeleted": {
+                  "type": "string"
+                },
+                "edgeDeletedPkey": {
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                },
+                "edgeCache": {
+                  "type": "string"
+                },
+                "edgeCachePkey": {
+                  "type": "string"
+                },
+                "edgeCacheResourceFkey": {
+                  "type": "string"
+                },
+                "edgeCacheRoleFkey": {
+                  "type": "string"
+                },
+                "edgeCacheResourceIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheRoleIdIndex": {
+                  "type": "string"
+                },
+                "edgeCacheView": {
+                  "type": "string"
+                },
+                "edgeCacheBackfill": {
+                  "type": "string"
+                },
+                "edgeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeUpdateTrigger": {
+                  "type": "string"
+                },
+                "edgeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeDeleteTrigger": {
+                  "type": "string"
+                },
+                "edgeValidateTriggerFunction": {
+                  "type": "string"
+                },
+                "edgeValidateInsertTrigger": {
+                  "type": "string"
+                },
+                "edgeValidateUpdateTrigger": {
+                  "type": "string"
+                },
+                "combinedEdgeInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "combinedEdgeInsertTrigger": {
+                  "type": "string"
+                },
+                "combinedEdgeUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "combinedEdgeUpdateTrigger": {
+                  "type": "string"
+                },
+                "combinedEdgeDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "combinedEdgeDeleteTrigger": {
+                  "type": "string"
+                },
+                "resourceCacheInsertTriggerFunction": {
+                  "type": "string"
+                },
+                "resourceCacheInsertTrigger": {
+                  "type": "string"
+                },
+                "resourceCacheUpdateTriggerFunction": {
+                  "type": "string"
+                },
+                "resourceCacheUpdateTrigger": {
+                  "type": "string"
+                },
+                "resourceCacheDeleteTriggerFunction": {
+                  "type": "string"
+                },
+                "resourceCacheDeleteTrigger": {
+                  "type": "string"
+                },
+                "enableTriggerFunction": {
+                  "type": "string"
+                },
+                "disableTriggerFunction": {
+                  "type": "string"
+                },
+                "edgePolicy": {
+                  "type": "string"
+                },
+                "linked": {
+                  "type": "string"
+                },
+                "linkRefreshFunction": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "edge",
+                "resourceId",
+                "roleId",
+                "edgePkey",
+                "resourceFkey",
+                "roleFkey",
+                "edgeResourceIdIndex",
+                "edgeRoleIdIndex",
+                "edgeDeleted",
+                "edgeDeletedPkey",
+                "permission",
+                "edgeCache",
+                "edgeCachePkey",
+                "edgeCacheResourceFkey",
+                "edgeCacheRoleFkey",
+                "edgeCacheResourceIdIndex",
+                "edgeCacheRoleIdIndex",
+                "edgeCacheView",
+                "edgeCacheBackfill",
+                "edgeInsertTriggerFunction",
+                "edgeInsertTrigger",
+                "edgeUpdateTriggerFunction",
+                "edgeUpdateTrigger",
+                "edgeDeleteTriggerFunction",
+                "edgeDeleteTrigger",
+                "edgeValidateTriggerFunction",
+                "edgeValidateInsertTrigger",
+                "edgeValidateUpdateTrigger",
+                "combinedEdgeInsertTriggerFunction",
+                "combinedEdgeInsertTrigger",
+                "combinedEdgeUpdateTriggerFunction",
+                "combinedEdgeUpdateTrigger",
+                "combinedEdgeDeleteTriggerFunction",
+                "combinedEdgeDeleteTrigger",
+                "resourceCacheInsertTriggerFunction",
+                "resourceCacheInsertTrigger",
+                "resourceCacheUpdateTriggerFunction",
+                "resourceCacheUpdateTrigger",
+                "resourceCacheDeleteTriggerFunction",
+                "resourceCacheDeleteTrigger",
+                "enableTriggerFunction",
+                "disableTriggerFunction",
+                "edgePolicy",
+                "linked",
+                "linkRefreshFunction"
+              ],
+              "additionalProperties": false
+            },
+            "node": {
+              "type": "string"
+            },
+            "edge": {
+              "type": "string"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "child": {
+              "type": "string"
+            },
+            "pkey": {
+              "type": "string"
+            },
+            "fkey": {
+              "type": "string"
+            },
+            "function": {
+              "type": "string"
+            },
+            "index": {
+              "type": "string"
+            },
+            "cache": {
+              "type": "string"
+            },
+            "permission": {
+              "type": "string"
+            },
+            "compute": {
+              "type": "string"
+            },
+            "var": {
+              "type": "string"
+            },
+            "view": {
+              "type": "string"
+            },
+            "reverse": {
+              "type": "string"
+            },
+            "backfill": {
+              "type": "string"
+            },
+            "refresh": {
+              "type": "string"
+            },
+            "trigger": {
+              "type": "string"
+            },
+            "policy": {
+              "type": "string"
+            },
+            "select": {
+              "type": "string"
+            },
+            "insert": {
+              "type": "string"
+            },
+            "update": {
+              "type": "string"
+            },
+            "delete": {
+              "type": "string"
+            },
+            "recursive": {
+              "type": "string"
+            },
+            "enable": {
+              "type": "string"
+            },
+            "disable": {
+              "type": "string"
+            },
+            "home": {
+              "type": "string"
+            },
+            "sequence": {
+              "type": "string"
+            },
+            "guard": {
+              "type": "string"
+            },
+            "validate": {
+              "type": "string"
+            },
+            "truncate": {
+              "type": "string"
+            },
+            "link": {
+              "type": "string"
+            },
+            "linked": {
+              "type": "string"
+            },
+            "triggerPrefix": {
+              "type": "string"
+            },
+            "schema": {
+              "type": "string"
+            },
+            "orBitmap": {
+              "type": "string"
+            },
+            "truncateGuardFunction": {
+              "type": "string"
+            },
+            "truncateGuardTrigger": {
+              "type": "string"
+            },
+            "currentRoleNodeFunction": {
+              "type": "string"
+            },
+            "permissionFunction": {
+              "type": "string"
+            },
+            "permissionFlags": {
+              "type": "string"
+            },
+            "currentAccessView": {
+              "type": "string"
+            },
+            "currentAssignmentView": {
+              "type": "string"
+            },
+            "currentResourceEdgeView": {
+              "type": "string"
+            },
+            "currentRoleView": {
+              "type": "string"
+            },
+            "accessView": {
+              "type": "string"
+            },
+            "roleAccessView": {
+              "type": "string"
+            },
+            "shareFunction": {
+              "type": "string"
+            },
+            "unshareFunction": {
+              "type": "string"
+            },
+            "currentDeletedView": {
+              "type": "string"
+            },
+            "deletedPermissionFunction": {
+              "type": "string"
+            },
+            "restoreFunction": {
+              "type": "string"
+            },
+            "tables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "resourceId": {
+                    "type": "string"
+                  },
+                  "resourceFkey": {
+                    "type": "string"
+                  },
+                  "roleId": {
+                    "type": "string"
+                  },
+                  "roleFkey": {
+                    "type": "string"
+                  },
+                  "resourceTriggerFunction": {
+                    "type": "string"
+                  },
+                  "resourceInsertTrigger": {
+                    "type": "string"
+                  },
+                  "resourceUpdateTrigger": {
+                    "type": "string"
+                  },
+                  "resourceDeleteTrigger": {
+                    "type": "string"
+                  },
+                  "roleTriggerFunction": {
+                    "type": "string"
+                  },
+                  "roleInsertTrigger": {
+                    "type": "string"
+                  },
+                  "roleUpdateTrigger": {
+                    "type": "string"
+                  },
+                  "roleDeleteTrigger": {
+                    "type": "string"
+                  },
+                  "resourceParentFunction": {
+                    "type": "string"
+                  },
+                  "roleParentFunction": {
+                    "type": "string"
+                  },
+                  "resourceParentId": {
+                    "type": "string"
+                  },
+                  "resourceLeafTriggerFunction": {
+                    "type": "string"
+                  },
+                  "resourceLeafTrigger": {
+                    "type": "string"
+                  },
+                  "roleParentId": {
+                    "type": "string"
+                  },
+                  "roleLeafTriggerFunction": {
+                    "type": "string"
+                  },
+                  "roleLeafTrigger": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "select": {
+                          "type": "string"
+                        },
+                        "insert": {
+                          "type": "string"
+                        },
+                        "update": {
+                          "type": "string"
+                        },
+                        "delete": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "select",
+                        "insert",
+                        "update",
+                        "delete"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "schema",
+                  "name",
+                  "resourceId",
+                  "resourceFkey",
+                  "roleId",
+                  "roleFkey",
+                  "resourceTriggerFunction",
+                  "resourceInsertTrigger",
+                  "resourceUpdateTrigger",
+                  "resourceDeleteTrigger",
+                  "roleTriggerFunction",
+                  "roleInsertTrigger",
+                  "roleUpdateTrigger",
+                  "roleDeleteTrigger",
+                  "resourceParentFunction",
+                  "roleParentFunction",
+                  "resourceParentId",
+                  "resourceLeafTriggerFunction",
+                  "resourceLeafTrigger",
+                  "roleParentId",
+                  "roleLeafTriggerFunction",
+                  "roleLeafTrigger",
+                  "permission"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "links": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "syncFunction": {
+                    "type": "string"
+                  },
+                  "triggerFunction": {
+                    "type": "string"
+                  },
+                  "insertTrigger": {
+                    "type": "string"
+                  },
+                  "updateTrigger": {
+                    "type": "string"
+                  },
+                  "deleteTrigger": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "schema",
+                  "name",
+                  "syncFunction",
+                  "triggerFunction",
+                  "insertTrigger",
+                  "updateTrigger",
+                  "deleteTrigger"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "migration": {
+      "type": "object",
+      "properties": {
+        "output": {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isResource": {
+            "type": "boolean"
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "resourceFkey": {
+            "type": "string"
+          },
+          "resourceParent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string"
+                  },
+                  "table": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "column"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "table": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "column"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            ]
+          },
+          "resourceLeaf": {
+            "type": "boolean"
+          },
+          "isRole": {
+            "type": "boolean"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "roleFkey": {
+            "type": "string"
+          },
+          "roleParent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string"
+                  },
+                  "table": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "column"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "table": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "column"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            ]
+          },
+          "roleLeaf": {
+            "type": "boolean"
+          },
+          "permission": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "select": {
+                  "type": "number"
+                },
+                "insert": {
+                  "type": "number"
+                },
+                "update": {
+                  "type": "number"
+                },
+                "delete": {
+                  "type": "number"
+                },
+                "manageAccess": {
+                  "type": "number"
+                },
+                "share": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "softDelete": {
+            "type": "string"
+          },
+          "search": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "columns": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "like",
+                    "ilike",
+                    "~",
+                    "~*",
+                    "%",
+                    "@@"
+                  ]
+                }
+              },
+              "required": [
+                "columns",
+                "operator"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "resource",
+              "role",
+              "assignment"
+            ]
+          },
+          "parent": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "column",
+              "table"
+            ],
+            "additionalProperties": false
+          },
+          "child": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "column",
+              "table"
+            ],
+            "additionalProperties": false
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "column",
+              "table"
+            ],
+            "additionalProperties": false
+          },
+          "role": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "column",
+              "table"
+            ],
+            "additionalProperties": false
+          },
+          "permission": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "column",
+                  "values"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "privileges": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "select",
+                  "insert",
+                  "update",
+                  "delete"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "$schema": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://p9s.vercel.app/p9s.config.schema.json",
+  "title": "p9s config",
+  "description": "The config of p9s, hierarchical permissions for Postgres enforced with Row Level Security, see https://p9s.vercel.app/docs"
+}

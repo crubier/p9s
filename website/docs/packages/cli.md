@@ -8,7 +8,36 @@ sidebar_position: 2
 npm install --save-dev @p9s/cli
 ```
 
-The `p9s` command reads its config from `p9s.config.ts`, `p9s.config.js`, `.p9src.json` or the `p9s` key of `package.json`, or from any file given with `--config <path>`, like `p9s.config.json`. Commands that connect to a database take `--database-url`, or read `DATABASE_URL`.
+Without Node, each [release](https://github.com/crubier/p9s/releases) has a standalone executable for Linux, macOS and Windows, on x64 and arm64 (Windows on x64 only), with their `SHA256SUMS`:
+
+```bash
+curl -fsSL -o p9s https://github.com/crubier/p9s/releases/latest/download/p9s-linux-x64
+chmod +x p9s
+./p9s postgres migrate --config p9s.config.json
+```
+
+The `p9s` command reads its config from `p9s.config.json`, `p9s.config.yaml`, `p9s.config.ts`, `p9s.config.js`, `.p9src.json` or the `p9s` key of `package.json`, or from any file given with `--config <path>`. Commands that connect to a database take `--database-url`, or read `DATABASE_URL`.
+
+### The JSON Schema of the config
+
+[`p9s.config.schema.json`](https://p9s.vercel.app/p9s.config.schema.json) describes the config, for editors to complete and check it. In JSON, name it with `$schema`:
+
+```json
+{
+  "$schema": "https://p9s.vercel.app/p9s.config.schema.json",
+  "engine": { "users": ["app_user"] }
+}
+```
+
+In YAML, with the YAML extension of VS Code or any editor that uses its language server, a comment does the same:
+
+```yaml
+# yaml-language-server: $schema=https://p9s.vercel.app/p9s.config.schema.json
+engine:
+  users: [app_user]
+```
+
+The schema takes no keys the config does not have, so that a typo shows. `p9s validate config` also checks what goes across keys, like a parent table that the config has. `@p9s/core` holds the same file, as `@p9s/core/p9s.config.schema.json`.
 
 ## init
 

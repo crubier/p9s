@@ -20,11 +20,13 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./p9s.config.schema.json": "./p9s.config.schema.json"
   },
   "files": [
     "dist",
     "*.ts",
+    "p9s.config.schema.json",
     "!*.test.ts"
   ],
   "description": "Configuration of p9s, hierarchical permissions for Postgres enforced with Row Level Security",
@@ -43,6 +45,7 @@
     "zod": "4.3.5"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "ajv": "^8.20.0"
   }
 }

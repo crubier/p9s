@@ -5786,9 +5786,6 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               "type": "string",
             },
           },
-          "required": [
-            "getCurrentUserId",
-          ],
           "type": "object",
         },
         "combineAssignmentsWith": {
@@ -5820,9 +5817,6 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
               "type": "string",
             },
           },
-          "required": [
-            "mode",
-          ],
           "type": "object",
         },
         "naming": {
@@ -6820,9 +6814,6 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "type": "number",
                 },
               },
-              "required": [
-                "size",
-              ],
               "type": "object",
             },
             "maxDepth": {
@@ -6835,17 +6826,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "type": "number",
                 },
               },
-              "required": [
-                "resource",
-                "role",
-              ],
               "type": "object",
             },
           },
-          "required": [
-            "bitmap",
-            "maxDepth",
-          ],
           "type": "object",
         },
         "postgraphile": {
@@ -7095,12 +7078,6 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                   "type": "number",
                 },
               },
-              "required": [
-                "select",
-                "insert",
-                "update",
-                "delete",
-              ],
               "type": "object",
             },
             "propertyNames": {

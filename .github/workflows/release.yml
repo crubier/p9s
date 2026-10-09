@@ -189,3 +189,24 @@ jobs:
           fi
         env:
           TOKEN: ${{ secrets.PHP_SPLIT_TOKEN }}
+
+  # Standalone executables of the CLI, which need no Node, attached to the GitHub release of the tag
+  binaries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/binaries.ts
+      - name: The binary runs
+        run: test "v$(./binaries/p9s-linux-x64 --version)" = "$GITHUB_REF_NAME"
+      - name: Attach to the release
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          gh release upload "$GITHUB_REF_NAME" binaries/* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -165,3 +165,6 @@ __pycache__/
 
 # Rust
 packages/rust/target/
+
+# Standalone executables of the CLI, see scripts/binaries.ts
+binaries/
