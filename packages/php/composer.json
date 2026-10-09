@@ -1,0 +1,37 @@
+{
+    "name": "p9s/laravel",
+    "description": "Act as a user of p9s, permissions of trees in Postgres, from Laravel and Eloquent",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["postgres", "permissions", "row level security", "laravel", "eloquent"],
+    "homepage": "https://github.com/crubier/p9s",
+    "support": {
+        "issues": "https://github.com/crubier/p9s/issues",
+        "source": "https://github.com/crubier/p9s"
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/http": "^11.0 || ^12.0 || ^13.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5 || ^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "P9s\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "P9s\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

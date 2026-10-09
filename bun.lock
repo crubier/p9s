@@ -95,6 +95,13 @@
         "typescript": "^5.9.3",
       },
     },
+    "examples/laravel": {
+      "name": "@p9s/example-laravel",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/nextjs-drizzle": {
       "name": "@p9s/example-nextjs-drizzle",
       "version": "0.1.0",
@@ -1296,6 +1303,8 @@
     "@p9s/example-gorm": ["@p9s/example-gorm@workspace:examples/gorm"],
 
     "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/kysely"],
+
+    "@p9s/example-laravel": ["@p9s/example-laravel@workspace:examples/laravel"],
 
     "@p9s/example-nextjs-drizzle": ["@p9s/example-nextjs-drizzle@workspace:examples/nextjs-drizzle"],
 

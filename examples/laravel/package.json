@@ -1,0 +1,10 @@
+{
+  "name": "@p9s/example-laravel",
+  "private": true,
+  "type": "module",
+  "description": "A Laravel app that checks permissions in its code, and the change that hands them to p9s",
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest"
+  }
+}

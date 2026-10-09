@@ -1,0 +1,6 @@
+{
+  "setup": ["composer install --no-interaction --no-progress --quiet"],
+  "migrate": "DB_URL=\"$DATABASE_URL\" php artisan migrate --force --no-interaction",
+  "start": "env DB_URL=\"$DATABASE_URL\" php -S 127.0.0.1:$PORT public/index.php",
+  "env": { "APP_ENV": "production", "APP_DEBUG": "false", "DB_CONNECTION": "pgsql", "LOG_CHANNEL": "stderr" }
+}

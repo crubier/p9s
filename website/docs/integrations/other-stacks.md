@@ -103,12 +103,18 @@ The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/elixir) package re
 
 ## Laravel
 
+The [`p9s/laravel`](https://github.com/crubier/p9s/tree/main/packages/php) package reads the role and the setting from `p9s.config.json`, and runs a closure in a transaction as the user. The `AsUser` middleware runs every request as its user. [`examples/laravel`](https://github.com/crubier/p9s/tree/main/examples/laravel) adopts p9s in an existing Laravel app with it:
+
 ```php
-$documents = DB::transaction(function () use ($userId) {
-    DB::select("select set_config('role', 'app_user', true), set_config('app.role_id', ?, true)", [(string) $userId]);
-    return Document::orderByDesc('updated_at')->limit(50)->get();
-});
+use P9s\AsUser;
+use P9s\P9s;
+
+Route::middleware(['auth:sanctum', AsUser::class])->group(function () { /* ... */ });
+
+$documents = P9s::asUser($user->id, fn () => Document::orderByDesc('updated_at')->limit(50)->get(), readOnly: true);
 ```
+
+`P9s::isRefused($error)` tells a write the policies refused, through the `QueryException` of Laravel, for an exception handler that answers 403. Models hide the columns p9s adds, with `protected $hidden = ['resource_id'];`.
 
 ## Kysely
 

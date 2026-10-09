@@ -166,3 +166,26 @@ jobs:
           fi
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
+  # Packagist reads a package from the root of a repository: this job pushes packages/php, with its history, to the
+  # repository of the variable PHP_REPOSITORY, like crubier/p9s-php, which Packagist watches, and tags it. The token is
+  # the secret PHP_SPLIT_TOKEN, which may push to that repository.
+  split-php:
+    runs-on: ubuntu-latest
+    environment: packagist
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Push packages/php and its tag
+        run: |
+          git subtree split --prefix packages/php --branch php
+          remote="https://x-access-token:${TOKEN}@github.com/${{ vars.PHP_REPOSITORY }}.git"
+          git push "$remote" php:refs/heads/main
+          if git ls-remote --exit-code --tags "$remote" "refs/tags/$GITHUB_REF_NAME" >/dev/null; then
+            echo "$GITHUB_REF_NAME exists"
+          else
+            git push "$remote" "php:refs/tags/$GITHUB_REF_NAME"
+          fi
+        env:
+          TOKEN: ${{ secrets.PHP_SPLIT_TOKEN }}

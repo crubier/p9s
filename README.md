@@ -63,7 +63,7 @@ The migration adds a `resource_id` column to `folder` and `document` and fills i
 
 The migration can be re-run safely, it never drops your data. Databases created by earlier versions, with `resource_node` and `role_node` tables, are upgraded in place, see the [upgrade guide](./website/docs/configuration/upgrading.md). The `p9s` CLI (`@p9s/cli`) does the same from a config file, proposes one from an existing database with `p9s init`, and checks a database with `p9s postgres status` and `p9s postgres doctor`, see [the CLI](./website/docs/packages/cli.md). `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
 
-Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle`, `@p9s/kysely` and `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). [`p9s` for Python](./packages/python) does it for SQLAlchemy and Django, [the `p9s` gem](./packages/ruby) for Active Record and Rails, [the Go module](./packages/go) for `database/sql`, pgx and GORM, [the Rust crate](./packages/rust) for sqlx and axum, and [the Elixir package](./packages/elixir) for Ecto and Phoenix. Any other stack runs one statement at the start of each transaction, see the recipes for [Laravel and others](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
+Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle`, `@p9s/kysely` and `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). [`p9s` for Python](./packages/python) does it for SQLAlchemy and Django, [the `p9s` gem](./packages/ruby) for Active Record and Rails, [the Go module](./packages/go) for `database/sql`, pgx and GORM, [the Rust crate](./packages/rust) for sqlx and axum, [the Elixir package](./packages/elixir) for Ecto and Phoenix, and [`p9s/laravel`](./packages/php) for Laravel and Eloquent. Any other stack runs one statement at the start of each transaction, see [other stacks](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
 
 Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles only see their own part of the graph and cannot write edges and assignments, writes that touch the graph must use `READ COMMITTED`, and `TRUNCATE` is rejected on p9s-managed tables.
 
@@ -217,9 +217,9 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
   - [x] Elixir
     - [x] [`p9s`](./packages/elixir) for Hex, which the release workflow publishes: `P9s.as_user(Repo, user_id, fn -> ... end)` for Ecto, and `use P9s.Controller` for Phoenix, which wraps every action, as a plug cannot.
     - [x] Example: [Phoenix](./examples/phoenix).
-  - [ ] PHP
-    - [ ] `p9s/laravel` on Packagist: `P9s::asUser($userId, fn () => ...)` and a Laravel middleware.
-    - [ ] Example: Laravel.
+  - [x] PHP
+    - [x] [`p9s/laravel`](./packages/php) for Packagist, which the release workflow pushes to a repository of its own, as Packagist reads the root of a repository: `P9s::asUser($userId, fn () => ...)` for Eloquent, and the `AsUser` middleware, which also rolls back a request that Laravel turned from an exception into a response.
+    - [x] Example: [Laravel](./examples/laravel).
   - [ ] TypeScript
     - [x] `@p9s/kysely`, and a recipe for node-postgres pools without an ORM: `createIdentity(config).run(pool, userId, fn)`.
     - [x] Example: [Kysely](./examples/kysely), with Hono.

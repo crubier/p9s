@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm, axum, phoenix]
+        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm, axum, phoenix, laravel]
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18
@@ -98,6 +98,13 @@ jobs:
         with:
           elixir-version: "1.18"
           otp-version: "27"
+      - uses: shivammathur/setup-php@v2
+        if: matrix.example == 'laravel'
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql
+          tools: composer
+          coverage: none
       - name: Adoption of ${{ matrix.example }}
         run: bun test examples/${{ matrix.example }}
         env:
@@ -257,6 +264,38 @@ jobs:
           P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       - name: Builds the package
         run: mix hex.build
+
+  # The PHP package, on Laravel and Eloquent, see packages/php
+  php:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: packages/php
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql
+          tools: composer
+          coverage: none
+      - run: composer validate --strict
+      - run: composer install --no-interaction --no-progress
+      - run: vendor/bin/phpunit
+        env:
+          P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   # Runs the base and this revision in turns on the same server and fails when a median got significantly slower, see
   # the Benchmarks page. In parallel with the tests, which take about as long.

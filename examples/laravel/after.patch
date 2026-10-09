@@ -1,0 +1,402 @@
+diff --git a/app/Http/Controllers/Controller.php b/app/Http/Controllers/Controller.php
+index ae92f8a..a7077d7 100644
+--- a/app/Http/Controllers/Controller.php
++++ b/app/Http/Controllers/Controller.php
+@@ -3,15 +3,9 @@
+ namespace App\Http\Controllers;
+ 
+ use Illuminate\Http\JsonResponse;
+-use Illuminate\Http\Request;
+ 
+ abstract class Controller
+ {
+-    protected function userId(Request $request): int
+-    {
+-        return $request->attributes->get('user_id');
+-    }
+-
+     protected function notFound(): JsonResponse
+     {
+         return response()->json(['error' => 'not found'], 404);
+diff --git a/app/Http/Controllers/DocumentController.php b/app/Http/Controllers/DocumentController.php
+index 7ac4c48..991cd16 100644
+--- a/app/Http/Controllers/DocumentController.php
++++ b/app/Http/Controllers/DocumentController.php
+@@ -3,82 +3,62 @@
+ namespace App\Http\Controllers;
+ 
+ use App\Models\Document;
+-use App\Permissions;
+ use Illuminate\Http\Request;
+ use Illuminate\Support\Facades\DB;
+ 
+ class DocumentController extends Controller
+ {
+-    public function index(Request $request)
++    public function index()
+     {
+-        return Permissions::readableDocuments($this->userId($request))->get(['id', 'project_id', 'title']);
++        return Document::orderBy('id')->get(['id', 'project_id', 'title']);
+     }
+ 
+     public function store(Request $request)
+     {
+         $data = $request->validate(['project_id' => 'required|integer', 'title' => 'required|string', 'body' => 'string']);
+-        if (! in_array('write', Permissions::projectBits($this->userId($request), $data['project_id']), true)) {
+-            return $this->forbidden();
+-        }
+-
+         $document = Document::create(['body' => '', ...$data]);
+ 
+         return response()->json($document, 201);
+     }
+ 
+-    public function show(Request $request, int $id)
++    /** A document the user does not read is not found, one they read but cannot change is forbidden */
++    public function show(int $id)
+     {
+-        $bits = Permissions::documentBits($this->userId($request), $id);
+-        if (! in_array('read', $bits ?? [], true)) {
+-            return $this->notFound();
+-        }
+-
+-        return Document::find($id);
++        return Document::find($id) ?? $this->notFound();
+     }
+ 
+     public function update(Request $request, int $id)
+     {
+-        $bits = Permissions::documentBits($this->userId($request), $id);
+-        if (! in_array('read', $bits ?? [], true)) {
++        if (! Document::whereKey($id)->exists()) {
+             return $this->notFound();
+         }
+-        if (! in_array('write', $bits, true)) {
++        if (Document::whereKey($id)->update($request->only(['title', 'body'])) === 0) {
+             return $this->forbidden();
+         }
+ 
+-        Document::whereKey($id)->update($request->only(['title', 'body']));
+-
+         return Document::find($id);
+     }
+ 
+-    public function destroy(Request $request, int $id)
++    public function destroy(int $id)
+     {
+-        $bits = Permissions::documentBits($this->userId($request), $id);
+-        if (! in_array('read', $bits ?? [], true)) {
++        if (! Document::whereKey($id)->exists()) {
+             return $this->notFound();
+         }
+-        if (! in_array('delete', $bits, true)) {
++        if (Document::whereKey($id)->delete() === 0) {
+             return $this->forbidden();
+         }
+ 
+-        Document::whereKey($id)->delete();
+-
+         return response()->noContent();
+     }
+ 
++    /** p9s refuses a share that gives, or takes away, bits the user does not have */
+     public function share(Request $request, int $id, int $userId)
+     {
+         $access = $request->validate(['access' => 'required|in:viewer,editor'])['access'];
+-        $bits = Permissions::documentBits($this->userId($request), $id);
+-        if (! in_array('read', $bits ?? [], true)) {
++        if (! Document::whereKey($id)->exists()) {
+             return $this->notFound();
+         }
+ 
+-        $previous = DB::table('document_shares')->where(['document_id' => $id, 'user_id' => $userId])->value('access');
+-        if (array_diff([...Permissions::bitsOf($access), ...Permissions::bitsOf($previous)], $bits) !== []) {
+-            return $this->forbidden();
+-        }
+-
+         DB::table('document_shares')->upsert(
+             ['document_id' => $id, 'user_id' => $userId, 'access' => $access],
+             ['document_id', 'user_id'],
+diff --git a/app/Http/Controllers/ProjectController.php b/app/Http/Controllers/ProjectController.php
+index 0356c19..a7d9d2e 100644
+--- a/app/Http/Controllers/ProjectController.php
++++ b/app/Http/Controllers/ProjectController.php
+@@ -2,13 +2,12 @@
+ 
+ namespace App\Http\Controllers;
+ 
+-use App\Permissions;
+-use Illuminate\Http\Request;
++use App\Models\Project;
+ 
+ class ProjectController extends Controller
+ {
+-    public function index(Request $request)
++    public function index()
+     {
+-        return Permissions::readableProjects($this->userId($request))->get(['id', 'name']);
++        return Project::orderBy('id')->get(['id', 'name']);
+     }
+ }
+diff --git a/app/Models/Document.php b/app/Models/Document.php
+index e352e04..3715fb6 100644
+--- a/app/Models/Document.php
++++ b/app/Models/Document.php
+@@ -9,5 +9,8 @@ class Document extends Model
+ {
+     public $timestamps = false;
+ 
++    /** The id of the resource of the row in the graph of p9s, which the API does not show */
++    protected $hidden = ['resource_id'];
++
+     protected $fillable = ['project_id', 'title', 'body'];
+ }
+diff --git a/app/Models/Project.php b/app/Models/Project.php
+index cc2490b..434c218 100644
+--- a/app/Models/Project.php
++++ b/app/Models/Project.php
+@@ -8,5 +8,8 @@ class Project extends Model
+ {
+     public $timestamps = false;
+ 
++    /** The id of the resource of the row in the graph of p9s, which the API does not show */
++    protected $hidden = ['resource_id'];
++
+     protected $fillable = ['name'];
+ }
+diff --git a/app/Permissions.php a/app/Permissions.php
+deleted file mode 100644
+index b45c666..0000000
+--- a/app/Permissions.php
++++ /dev/null
+@@ -1,80 +0,0 @@
+-<?php
+-
+-namespace App;
+-
+-use App\Models\Document;
+-use App\Models\Project;
+-use Illuminate\Database\Eloquent\Builder;
+-use Illuminate\Database\Query\Builder as QueryBuilder;
+-use Illuminate\Support\Facades\DB;
+-
+-/**
+- * Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+- * shares of documents with the user
+- */
+-class Permissions
+-{
+-    public const BITS = ['viewer' => ['read'], 'editor' => ['read', 'write'], 'owner' => ['read', 'write', 'delete']];
+-
+-    /** @return list<string> */
+-    public static function bitsOf(?string $access): array
+-    {
+-        return $access === null ? [] : self::BITS[$access];
+-    }
+-
+-    /** @return list<string> */
+-    public static function projectBits(int $userId, mixed $projectId): array
+-    {
+-        $accesses = DB::table('project_shares')
+-            ->where('project_id', $projectId)
+-            ->whereIn('team_id', self::teamsOf($userId))
+-            ->pluck('access');
+-
+-        return array_values(array_unique($accesses->flatMap(self::bitsOf(...))->all()));
+-    }
+-
+-    /**
+-     * The bits of the user on the document, or null when there is no such document
+-     *
+-     * @return list<string>|null
+-     */
+-    public static function documentBits(int $userId, int $documentId): ?array
+-    {
+-        $projectId = Document::whereKey($documentId)->value('project_id');
+-        if ($projectId === null) {
+-            return null;
+-        }
+-        $share = DB::table('document_shares')->where(['document_id' => $documentId, 'user_id' => $userId])->value('access');
+-
+-        return array_values(array_unique([...self::projectBits($userId, $projectId), ...self::bitsOf($share)]));
+-    }
+-
+-    /**
+-     * Every share gives read, so a user reads the projects shared with their teams, and the documents of those
+-     * projects or shared with them
+-     */
+-    public static function readableProjects(int $userId): Builder
+-    {
+-        return Project::whereIn('id', self::readableProjectIds($userId))->orderBy('id');
+-    }
+-
+-    public static function readableDocuments(int $userId): Builder
+-    {
+-        $shared = DB::table('document_shares')->where('user_id', $userId)->select('document_id');
+-
+-        return Document::where(fn (Builder $documents) => $documents
+-            ->whereIn('project_id', self::readableProjectIds($userId))
+-            ->orWhereIn('id', $shared))
+-            ->orderBy('id');
+-    }
+-
+-    private static function teamsOf(int $userId): QueryBuilder
+-    {
+-        return DB::table('team_members')->where('user_id', $userId)->select('team_id');
+-    }
+-
+-    private static function readableProjectIds(int $userId): QueryBuilder
+-    {
+-        return DB::table('project_shares')->whereIn('team_id', self::teamsOf($userId))->select('project_id');
+-    }
+-}
+diff --git a/bootstrap/app.php b/bootstrap/app.php
+index c8107c1..4cda2cd 100644
+--- a/bootstrap/app.php
++++ b/bootstrap/app.php
+@@ -1,8 +1,11 @@
+ <?php
+ 
++use Illuminate\Database\QueryException;
+ use Illuminate\Foundation\Application;
+ use Illuminate\Foundation\Configuration\Exceptions;
+ use Illuminate\Foundation\Configuration\Middleware;
++use Illuminate\Http\Request;
++use P9s\P9s;
+ 
+ return Application::configure(basePath: dirname(__DIR__))
+     ->withRouting(
+@@ -13,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
+         $middleware->alias(['authenticate' => \App\Http\Middleware\Authenticate::class]);
+     })
+     ->withExceptions(function (Exceptions $exceptions) {
+-        //
++        $exceptions->render(fn (QueryException $error) => P9s::isRefused($error)
++            ? response()->json(['error' => 'forbidden'], 403)
++            : null);
++    })
++    ->booted(function () {
++        P9s::resolveUserIdUsing(fn (Request $request) => $request->attributes->get('user_id'));
+     })
+     ->create();
+diff --git a/composer.json b/composer.json
+index 0fbc5ed..da8336e 100644
+--- a/composer.json
++++ b/composer.json
+@@ -5,7 +5,8 @@
+     "license": "MIT",
+     "require": {
+         "php": "^8.3",
+-        "laravel/framework": "^13.0"
++        "laravel/framework": "^13.0",
++        "p9s/laravel": "^0.1"
+     },
+     "autoload": {
+         "psr-4": {
+@@ -17,5 +18,16 @@
+         "sort-packages": true
+     },
+     "minimum-stability": "stable",
+-    "prefer-stable": true
++    "prefer-stable": true,
++    "repositories": [
++        {
++            "type": "path",
++            "url": "../../../packages/php",
++            "options": {
++                "versions": {
++                    "p9s/laravel": "0.1.0"
++                }
++            }
++        }
++    ]
+ }
+diff --git a/composer.lock b/composer.lock
+index ebe4bb4..c1d3b11 100644
+--- a/composer.lock
++++ b/composer.lock
+@@ -4,7 +4,7 @@
+         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+         "This file is @generated automatically"
+     ],
+-    "content-hash": "7bd4bcabe1c6ca3f7c7da57831aa9607",
++    "content-hash": "27794dccf52c9bbbb81096f73ac8a06d",
+     "packages": [
+         {
+             "name": "brick/math",
+@@ -2422,6 +2422,58 @@
+             ],
+             "time": "2026-02-16T23:10:27+00:00"
+         },
++        {
++            "name": "p9s/laravel",
++            "version": "0.1.0",
++            "dist": {
++                "type": "path",
++                "url": "../../../packages/php",
++                "reference": "1f5d662e30e9f178dd2f9a5ac3868f866d2ff2e6"
++            },
++            "require": {
++                "illuminate/database": "^11.0 || ^12.0 || ^13.0",
++                "illuminate/http": "^11.0 || ^12.0 || ^13.0",
++                "php": "^8.2"
++            },
++            "require-dev": {
++                "phpunit/phpunit": "^11.5 || ^12.0"
++            },
++            "type": "library",
++            "autoload": {
++                "psr-4": {
++                    "P9s\\": "src/"
++                }
++            },
++            "autoload-dev": {
++                "psr-4": {
++                    "P9s\\Tests\\": "tests/"
++                }
++            },
++            "scripts": {
++                "test": [
++                    "phpunit"
++                ]
++            },
++            "license": [
++                "MIT"
++            ],
++            "description": "Act as a user of p9s, permissions of trees in Postgres, from Laravel and Eloquent",
++            "homepage": "https://github.com/crubier/p9s",
++            "keywords": [
++                "eloquent",
++                "laravel",
++                "permissions",
++                "postgres",
++                "row level security"
++            ],
++            "support": {
++                "issues": "https://github.com/crubier/p9s/issues",
++                "source": "https://github.com/crubier/p9s"
++            },
++            "transport-options": {
++                "relative": true
++            }
++        },
+         {
+             "name": "phpoption/phpoption",
+             "version": "1.10.0",
+diff --git a/routes/api.php b/routes/api.php
+index c037d77..b86256d 100644
+--- a/routes/api.php
++++ b/routes/api.php
+@@ -3,10 +3,11 @@
+ use App\Http\Controllers\DocumentController;
+ use App\Http\Controllers\ProjectController;
+ use Illuminate\Support\Facades\Route;
++use P9s\AsUser;
+ 
+ Route::get('/health', fn () => response('ok'));
+ 
+-Route::middleware('authenticate')->group(function () {
++Route::middleware(['authenticate', AsUser::class])->group(function () {
+     Route::get('/projects', [ProjectController::class, 'index']);
+     Route::get('/documents', [DocumentController::class, 'index']);
+     Route::post('/documents', [DocumentController::class, 'store']);
