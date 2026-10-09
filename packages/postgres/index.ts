@@ -1,4 +1,5 @@
 export * from "./generation.ts";
 export * from "./identity.ts";
+export * from "./introspection.ts";
 export * from "./status.ts";
 export * from "./version.ts";

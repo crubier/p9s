@@ -80,6 +80,7 @@ generateConfigurationFromDrizzleSchema();
   if (version !== expected) throw new Error(`p9s --version printed ${version}, expected ${expected}`);
   await $`npx p9s postgres generate --config p9s.config.json --output migration.sql`.cwd(project).quiet();
   if (!(await Bun.file(path.join(project, "migration.sql")).text()).includes("create policy")) throw new Error("the CLI wrote no policies");
+  if (!(await $`npx p9s init --help`.cwd(project).text()).includes("--users")) throw new Error("no init command");
   if (!(await $`npx p9s postgres status --help`.cwd(project).text()).includes("--database-url")) throw new Error("no status command");
   console.log(`cli: p9s ${version} generates the migration`);
 } finally {

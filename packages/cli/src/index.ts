@@ -5,6 +5,7 @@ import packageJson from "../package.json" with { type: "json" };
 import { postgres } from "./commands/postgres.js";
 import { validate } from "./commands/validate.js";
 import { drizzle } from "./commands/drizzle.js";
+import { init } from "./commands/init.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -15,6 +16,7 @@ async function main() {
     .description("Permission Tree CLI - manage permissions for PostgreSQL")
     .version(packageJson.version, "-v, --version", "display the version number");
 
+  program.addCommand(init);
   program.addCommand(postgres);
   program.addCommand(validate);
   program.addCommand(drizzle);

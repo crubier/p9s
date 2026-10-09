@@ -131,6 +131,48 @@ describe("p9s CLI", () => {
     }
   });
 
+  test.skipIf(!process.env.P9S_TEST_DATABASE_URL)("init proposes a config from a database, which generates a migration that runs", async () => {
+    const rootUrl = process.env.P9S_TEST_DATABASE_URL!;
+    const databaseName = `p9s_cli_init_${Date.now()}`;
+    const url = new URL(rootUrl);
+    url.pathname = `/${databaseName}`;
+    const initConfigPath = path.resolve(testDir, "init.config.ts");
+    const initOutputPath = path.resolve(testDir, "init.sql");
+    const pg = (await import("pg")).default;
+    const run = async (connectionString: string, text: string) => {
+      const client = new pg.Client({ connectionString });
+      await client.connect();
+      try { await client.query(text); } finally { await client.end(); }
+    };
+    await run(rootUrl, `create database ${databaseName}`);
+    try {
+      await run(url.toString(), `
+        do $$ begin create role app_user; exception when duplicate_object then null; end $$;
+        create table organization (id bigint primary key generated always as identity, name text);
+        create table project (id bigint primary key generated always as identity, org_id bigint not null references organization);
+        create table task (id bigint primary key generated always as identity, project_id bigint not null references project, parent_id bigint references task);`);
+
+      const output = await $`bun run ${cliPath} init --database-url ${url.toString()} --output ${initConfigPath}`.text();
+      expect(output).toContain("task: a resource under task (task.parent_id), or else project (task.project_id)");
+      const written = fs.readFileSync(initConfigPath, "utf-8");
+      expect(written).toContain(`const config: Config<"app_user"> = {`);
+      expect(written).toContain("// - organization: a resource at the top of the tree, and a role");
+
+      const again = await $`bun run ${cliPath} init --database-url ${url.toString()} --output ${initConfigPath}`.nothrow().quiet();
+      expect(again.exitCode).toBe(1);
+      expect(again.stderr.toString()).toContain("--force");
+
+      await $`bun run ${cliPath} postgres generate --config ${initConfigPath} --output ${initOutputPath}`.quiet();
+      await run(url.toString(), fs.readFileSync(initOutputPath, "utf-8"));
+      const status = await $`bun run ${cliPath} postgres status --config ${initConfigPath} --database-url ${url.toString()}`.nothrow().quiet();
+      expect(status.stdout.toString()).toContain("Up to date");
+    } finally {
+      fs.rmSync(initConfigPath, { force: true });
+      fs.rmSync(initOutputPath, { force: true });
+      await run(rootUrl, `drop database if exists ${databaseName} with (force)`);
+    }
+  });
+
   test("fails gracefully when no config file found", async () => {
     const fakeConfig = path.resolve(testDir, "nonexistent.config.ts");
 
