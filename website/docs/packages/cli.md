@@ -33,6 +33,16 @@ npx p9s postgres generate --output migrations/p9s.sql
 
 Writes the migration of the config, to `migration.output.sql` of the config or `p9s-migration.sql` by default. Run it with your migrations, as the owner of the tables. Running it again on a database that ran an earlier one updates it, see [upgrading](../configuration/upgrading).
 
+## postgres migrate
+
+```bash
+npx p9s postgres migrate --config p9s.config.json
+```
+
+Runs the migration of the config on the database, as the role of the URL, which should own the tables. It runs in one transaction, so a migration that fails changes nothing, and it does nothing when the database already ran the migration of this config, as `postgres status` tells: run it on every deploy. `--force` runs it anyway.
+
+Users and graph writers of the config that do not exist become roles without login, granted to the role that migrates, which then needs to be allowed to create roles. With `--no-create-roles`, the migration fails on a missing role instead.
+
 ## postgres status
 
 ```bash

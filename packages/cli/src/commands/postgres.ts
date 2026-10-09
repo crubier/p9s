@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Command } from "commander";
 import { compile } from "pg-sql2";
-import { createMigration, diagnose, migrationStatus, type MigrationRecord } from "@p9s/postgres";
+import { createMigration, diagnose, migrate, migrationStatus, type MigrationRecord } from "@p9s/postgres";
 import { getCompleteConfig } from "@p9s/core";
 import { loadConfig } from "../config.js";
 import { connect } from "../database.js";
@@ -43,6 +43,26 @@ postgres
   });
 
 postgres
+  .command("migrate")
+  .description("Run the migration of the config on a database, in one transaction, unless the database already ran it")
+  .option("-c, --config <path>", "path to config file")
+  .option("-d, --database-url <url>", "database to migrate (default: DATABASE_URL)")
+  .option("--force", "run the migration even when the database already ran it")
+  .option("--no-create-roles", "fail instead of creating the users and graph writers of the config that do not exist")
+  .action(async (opts) => {
+    const config = await loadConfig({ configPath: opts.config });
+    const client = await connect(opts.databaseUrl);
+    try {
+      const { ran, createdRoles, before } = await migrate(client, config, { force: opts.force, createRoles: opts.createRoles });
+      const describe = (record: MigrationRecord) => `p9s ${record.version}, migration ${record.hash}`;
+      if (createdRoles.length > 0) console.log(`Created roles: ${createdRoles.join(", ")}`);
+      console.log(ran ? `Migrated: ${describe(before.expected)}` : `Up to date: ${describe(before.expected)}`);
+    } finally {
+      await client.end();
+    }
+  });
+
+postgres
   .command("doctor")
   .description("Check a database against the config: migration, RLS, grants, indexes, JIT and caches, exiting with 1 on an error")
   .option("-c, --config <path>", "path to config file")
@@ -73,7 +93,7 @@ postgres
       const { state, expected, installed } = await migrationStatus(client, config);
       const describe = (record: MigrationRecord) => `p9s ${record.version}, migration ${record.hash}`;
       if (state === "current") console.log(`Up to date: ${describe(expected)}`);
-      if (state === "missing") console.log(`No p9s migration in this database. Generate it with p9s postgres generate and run it: ${describe(expected)}`);
+      if (state === "missing") console.log(`No p9s migration in this database. Run p9s postgres migrate, or generate it with p9s postgres generate and run it: ${describe(expected)}`);
       if (state === "outdated") console.log(`Outdated: the database ran ${describe(installed!)}, the config makes ${describe(expected)}`);
       process.exitCode = state === "current" ? 0 : 1;
     } finally {

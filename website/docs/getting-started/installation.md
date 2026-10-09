@@ -29,7 +29,13 @@ npm install @p9s/drizzle   # or @p9s/prisma
    create index on document (folder_id);
    ```
 
-3. **Generate the migration**, and run it with your other migrations, as the owner of the tables:
+3. **Run the migration**, as the owner of the tables, in one transaction, and only when the database did not run it yet:
+
+   ```bash
+   npx p9s postgres migrate
+   ```
+
+   Or generate it, and run it with your other migrations:
 
    ```bash
    npx p9s postgres generate --output migrations/p9s.sql
