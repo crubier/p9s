@@ -1,0 +1,5 @@
+{
+  "setup": ["bun x tsc -p ."],
+  "migrate": "bun x graphile-migrate migrate",
+  "start": "bun src/server.ts"
+}

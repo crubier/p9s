@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # PostGraphile
 
-[PostGraphile](https://postgraphile.org) builds a GraphQL API from the tables, views and functions of a schema, and runs every request as a database role, so that RLS decides what it reads and writes. With `engine.postgraphile: true`, the migration adds what it needs to serve p9s too. [`examples/postgraphile`](https://github.com/crubier/p9s/tree/main/examples/postgraphile) is a complete app built that way: a team workspace whose React front end only talks to GraphQL, with a GraphiQL link on every page.
+[PostGraphile](https://postgraphile.org) builds a GraphQL API from the tables, views and functions of a schema, and runs every request as a database role, so that RLS decides what it reads and writes. With `engine.postgraphile: true`, the migration adds what it needs to serve p9s too. [`examples/postgraphile`](https://github.com/crubier/p9s/tree/main/examples/postgraphile) is a complete app built that way: a team workspace whose React front end only talks to GraphQL, with a GraphiQL link on every page. [`examples/postgraphile-rls`](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls) adopts p9s in a PostGraphile app whose policies were written by hand, and tests it end to end.
 
 ```ts
 const config = {
@@ -72,7 +72,7 @@ const config = {
   ```
 
   Leaf rows, like comments, have no home edge: their create mutations work as they are. Updates and deletes too.
-- **An error for the rows RLS keeps from an update or a delete.** The policies of p9s filter what a user may not change, so Postgres updates no row, and PostGraphile 5 answers with a null row and no error: a user who can read a document but not edit it is told the edit worked. A plan wrapper can refuse it, as [`src/graphile.config.ts`](https://github.com/crubier/p9s/tree/main/examples/postgraphile/src/graphile.config.ts) of the example does:
+- **An error for the rows RLS keeps from an update or a delete.** The policies of p9s filter what a user may not change, so Postgres updates no row, and PostGraphile 5 answers an update with a null row and no error: a user who can read a document but not edit it is told the edit worked. Since 5.1, it answers a delete with an error of its own, `No values were deleted in collection …`, which has no SQLSTATE. A plan wrapper can refuse both with `insufficient_privilege`, as [`src/graphile.config.ts`](https://github.com/crubier/p9s/tree/main/examples/postgraphile/src/graphile.config.ts) of the example does:
 
   ```ts
   import { sideEffect } from "postgraphile/grafast";

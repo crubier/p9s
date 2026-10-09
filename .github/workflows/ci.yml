@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [kysely, prisma, supabase]
+        example: [kysely, prisma, supabase, drizzle, postgraphile-rls]
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18

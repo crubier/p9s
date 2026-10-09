@@ -1,0 +1,80 @@
+diff --git b/migrations/committed/000002-p9s-decides.sql b/migrations/committed/000002-p9s-decides.sql
+new file mode 100644
+index 0000000..bfb1047
+--- /dev/null
++++ b/migrations/committed/000002-p9s-decides.sql
+@@ -0,0 +1,13 @@
++--! Previous: sha1:fbfdacecf5e3522a6b166ce0fbf3dca82dbd1577
++--! Hash: sha1:cb28150a6ba39b95d5b15b4faec39d3f6ddad6ea
++--! Message: p9s decides
++
++-- p9s decides who reads and writes what, from p9s.config.json: the policies, the check of shares and the functions
++-- they used go
++drop policy projects_select on projects;
++drop policy documents_select on documents;
++drop policy documents_insert on documents;
++drop policy documents_update on documents;
++drop policy documents_delete on documents;
++drop trigger document_shares_check on document_shares;
++drop schema app_private cascade;
+diff --git a/src/graphql.ts b/src/graphql.ts
+index e66a57a..93757a0 100644
+--- a/src/graphql.ts
++++ b/src/graphql.ts
+@@ -1,8 +1,10 @@
++import { createIdentity } from "@p9s/postgres";
+ import { postgraphile } from "postgraphile";
+ import { makePgService } from "postgraphile/adaptors/pg";
+ import { grafast } from "postgraphile/grafast";
+ import type { ExecutionResult } from "postgraphile/graphql";
+ import { PostGraphileAmberPreset } from "postgraphile/presets/amber";
++import config from "../p9s.config.json";
+ 
+ declare global {
+   namespace Grafast {
+@@ -13,8 +15,8 @@ declare global {
+   }
+ }
+ 
+-// What a request of the user runs with: the role the policies are for, and the id of the user they read
+-const pgSettingsOf = (userId: number | undefined) => ({ role: "app_user", "app.user_id": userId === undefined ? "" : String(userId) });
++// What a request of the user runs with: the role and the setting of the config of p9s, whose policies read the user
++const users = createIdentity(config);
+ 
+ const userIdOf = (header: string | undefined) => {
+   const userId = Number(header);
+@@ -26,7 +28,7 @@ const preset: GraphileConfig.Preset = {
+   pgServices: [makePgService({ connectionString: process.env.DATABASE_URL, schemas: ["public"] })],
+   grafast: {
+     context: requestContext => ({
+-      pgSettings: pgSettingsOf(requestContext.userId ?? userIdOf(requestContext.honov4?.ctx.req.header("x-user-id"))),
++      pgSettings: users.pgSettings(requestContext.userId ?? userIdOf(requestContext.honov4?.ctx.req.header("x-user-id"))),
+     }),
+   },
+   grafserv: { graphqlPath: "/graphql", watch: false },
+diff --git a/src/server.ts b/src/server.ts
+index ce4fe9f..23bbc34 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,10 +1,10 @@
+ import { Hono } from "hono";
++import { isRefused } from "@p9s/postgres";
+ import { grafserv } from "postgraphile/grafserv/hono/v4";
+ import { graphql, pgl } from "./graphql.ts";
+ 
+ // The GraphQL API of PostGraphile on /graphql, and the routes of the API the tests call, each a GraphQL operation run
+-// in the process as its user, as the front end would send it. The policies of the migrations decide what they read
+-// and write.
++// in the process as its user, as the front end would send it. The policies of p9s decide what they read and write.
+ const app = new Hono<{ Variables: { userId: number } }>();
+ 
+ type Access = "viewer" | "editor" | "owner";
+@@ -29,7 +29,7 @@ app.use("*", async (c, next) => {
+ // row they hide with an error of its own
+ const hidden = /^No values were deleted in collection/;
+ app.onError((error, c) => {
+-  if ((error as { originalError?: { code?: string } }).originalError?.code === "42501" || hidden.test(error.message)) return c.json(forbidden, 403);
++  if (isRefused(error) || hidden.test(error.message)) return c.json(forbidden, 403);
+   throw error;
+ });
+ 

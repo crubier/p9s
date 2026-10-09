@@ -1,0 +1,52 @@
+{
+  "engine": {
+    "users": ["app_user"],
+    "authentication": {
+      "getCurrentUserId": "current_role_id",
+      "setting": "app.user_id",
+      "key": { "table": "users", "column": "id" }
+    },
+    "grantPrivileges": true,
+    "permission": { "bitmap": { "size": 8, "names": { "read": 0, "write": 1, "delete": 2 } } }
+  },
+  "tables": [
+    { "name": "users", "isRole": true, "roleId": "role_id" },
+    { "name": "teams", "isRole": true, "roleId": "role_id" },
+    {
+      "name": "projects",
+      "isResource": true,
+      "resourceId": "resource_id",
+      "permission": { "app_user": { "select": 0 } }
+    },
+    {
+      "name": "documents",
+      "isResource": true,
+      "resourceId": "resource_id",
+      "resourceParent": { "column": "project_id", "table": "projects", "key": "id" },
+      "permission": { "app_user": { "select": 0, "insert": 1, "update": 1, "delete": 2 } }
+    }
+  ],
+  "links": [
+    {
+      "name": "team_members",
+      "kind": "role",
+      "parent": { "column": "team_id", "table": "teams", "key": "id" },
+      "child": { "column": "user_id", "table": "users", "key": "id" }
+    },
+    {
+      "name": "project_shares",
+      "kind": "assignment",
+      "resource": { "column": "project_id", "table": "projects", "key": "id" },
+      "role": { "column": "team_id", "table": "teams", "key": "id" },
+      "permission": { "column": "access", "values": { "viewer": ["read"], "editor": ["read", "write"], "owner": ["read", "write", "delete"] } }
+    },
+    {
+      "name": "document_shares",
+      "kind": "assignment",
+      "resource": { "column": "document_id", "table": "documents", "key": "id" },
+      "role": { "column": "user_id", "table": "users", "key": "id" },
+      "permission": { "column": "access", "values": { "viewer": ["read"], "editor": ["read", "write"] } },
+      "privileges": { "app_user": ["select", "insert", "update"] }
+    }
+  ]
+}

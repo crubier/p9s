@@ -1,0 +1,4 @@
+{
+  // graphile-migrate reads DATABASE_URL, and to commit, SHADOW_DATABASE_URL and ROOT_DATABASE_URL
+  "migrationsFolder": "./migrations"
+}

@@ -126,7 +126,7 @@ Any client that runs a transaction can do the same, see [other stacks](../integr
 
 ## Refused writes
 
-Postgres refuses a row the policies do not let through, a statement the role has no privilege for, and a share of bits the user does not have, with `insufficient_privilege` (`42501`). Clients wrap that error: node-postgres and Kysely give it as is, Drizzle as its `cause`, and Prisma in the `meta` of a `PrismaClientKnownRequestError`. `isRefused` of `@p9s/postgres` looks through all of them, so an API can answer 403:
+Postgres refuses a row the policies do not let through, a statement the role has no privilege for, and a share of bits the user does not have, with `insufficient_privilege` (`42501`). Clients wrap that error: node-postgres and Kysely give it as is, Drizzle as its `cause`, Prisma in the `meta` of a `PrismaClientKnownRequestError`, supabase-js as the `error` of the query, and GraphQL servers like PostGraphile as the `originalError` of a `GraphQLError`. `isRefused` of `@p9s/postgres` looks through all of them, so an API can answer 403:
 
 ```ts
 import { isRefused } from "@p9s/postgres";

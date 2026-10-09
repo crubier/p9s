@@ -1,0 +1,20 @@
+{
+  "name": "@p9s/example-drizzle",
+  "private": true,
+  "type": "module",
+  "description": "A Hono and Drizzle app that checks permissions in its code, and the change that hands them to p9s",
+  "dependencies": {
+    "@p9s/drizzle": "workspace:*",
+    "@p9s/postgres": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^5.9.3"
+  }
+}

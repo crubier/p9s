@@ -1,0 +1,5 @@
+{
+  "setup": ["bun x tsc -p ."],
+  "migrate": "bun x drizzle-kit migrate",
+  "start": "bun src/server.ts"
+}

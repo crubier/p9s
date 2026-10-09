@@ -1,0 +1,20 @@
+{
+  "name": "@p9s/example-postgraphile-rls",
+  "private": true,
+  "type": "module",
+  "description": "A PostGraphile app whose permissions are RLS policies written by hand, and the change that hands them to p9s",
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "graphql": "16.14.2",
+    "hono": "^4.13.13",
+    "pg": "^8.23.1",
+    "postgraphile": "^5.1.5"
+  },
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "graphile-migrate": "^1.4.1",
+    "typescript": "^5.9.3"
+  }
+}

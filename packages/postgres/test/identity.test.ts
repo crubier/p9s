@@ -111,6 +111,7 @@ describe('identity of the transactions of a user', () => {
     expect(isRefused(postgres)).toBe(true);
     expect(isRefused(Object.assign(new Error("Failed query"), { cause: postgres }))).toBe(true);
     expect(isRefused({ code: "P2039", meta: { driverAdapterError: { cause: { code: "42501" } } } })).toBe(true);
+    expect(isRefused(Object.assign(new Error("new row violates row-level security policy"), { originalError: postgres }))).toBe(true);
     expect(isRefused(Object.assign(new Error("duplicate key"), { code: "23505" }))).toBe(false);
     expect(isRefused(undefined)).toBe(false);
   });

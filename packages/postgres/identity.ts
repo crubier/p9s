@@ -46,12 +46,13 @@ export interface Identity {
 
 // Whether an error is Postgres refusing a statement to the user, with insufficient_privilege: a row the policies do not
 // let through, a statement the role has no privilege for, or a share of bits the user does not have. Clients wrap the
-// error of Postgres: node-postgres gives it as is, Drizzle as its cause, and Prisma in its meta.
+// error of Postgres: node-postgres gives it as is, Drizzle as its cause, Prisma in its meta, and GraphQL as its
+// originalError.
 export const isRefused = (error: unknown): boolean => {
   for (let current = error, depth = 0; current && typeof current === "object" && depth < 8; depth++) {
-    const { code, cause, meta } = current as { code?: unknown, cause?: unknown, meta?: { driverAdapterError?: { cause?: unknown } } };
+    const { code, cause, meta, originalError } = current as { code?: unknown, cause?: unknown, originalError?: unknown, meta?: { driverAdapterError?: { cause?: unknown } } };
     if (code === "42501") return true;
-    current = meta?.driverAdapterError?.cause ?? cause;
+    current = meta?.driverAdapterError?.cause ?? cause ?? originalError;
   }
   return false;
 };
