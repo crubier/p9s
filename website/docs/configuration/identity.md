@@ -53,6 +53,21 @@ select set_config('role', 'app_user', true), set_config('app.user_id', '7', true
 
 The key is any unique column of a role table, of any type, like an email or the subject of a token. The function runs as the owner, so the policies of the users table do not hide the row, and once per query. A key that matches no row reads as no one.
 
+### A claim of the JWT
+
+PostgREST, and so Supabase, sets the claims of the JWT of a request as JSON, in `request.jwt.claims`. With `claim`, the setting holds such claims, and the user is that claim of them, the role id, or with `key`, the key:
+
+```ts
+authentication: {
+  getCurrentUserId: "current_role_id",
+  setting: "request.jwt.claims",
+  claim: "sub",
+  key: { table: "users", column: "id" },
+}
+```
+
+A request with a JWT whose `sub` is `7` then runs as the user 7 of the users table, with no function to write. `createIdentity` sets the same claims, `{"sub":"7"}`, for a server that connects directly. [`examples/supabase`](https://github.com/crubier/p9s/tree/main/examples/supabase) uses it.
+
 ## node-postgres, Neon and PGlite
 
 `createIdentity` from `@p9s/postgres` builds these statements from the config:

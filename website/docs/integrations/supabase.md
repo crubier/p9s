@@ -33,6 +33,28 @@ export default {
 
 `p9s init --users authenticated` proposes the tables of such a config from the tables and foreign keys of the database, then replace its `engine` with the preset. Index the parent columns, like `task (project_id)`: p9s looks rows up by them, and [`p9s postgres doctor`](../packages/cli#doctor) tells which are missing.
 
+### Apps with a users table of their own
+
+An app whose users have ids of its own, rather than the uuids of `auth.users`, keeps them: with `claim`, p9s reads the user from a claim of the JWT, which a [custom access token hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook) or [third party auth](https://supabase.com/docs/guides/auth/third-party/overview) gives, and with `key`, finds them in the users table, see [a claim of the JWT](../configuration/identity#a-claim-of-the-jwt):
+
+```json
+{
+  "engine": {
+    "users": ["authenticated"],
+    "graphWriters": ["service_role"],
+    "authentication": {
+      "getCurrentUserId": "current_role_id",
+      "setting": "request.jwt.claims",
+      "claim": "sub",
+      "key": { "table": "users", "column": "id" }
+    },
+    "grantPrivileges": true
+  }
+}
+```
+
+[`examples/supabase`](https://github.com/crubier/p9s/tree/main/examples/supabase) moves such an app, whose server read and wrote everything with the service role key, to requests that run as the user, with `npx @p9s/cli postgres migrate`, and tests it end to end.
+
 ## Migration
 
 Generate the migration into the migrations of the Supabase CLI, and apply it like the others:
@@ -45,6 +67,15 @@ npx supabase db push
 After a change of the config, or an upgrade of p9s, generate a new migration file the same way: the migration runs again on a database that ran an earlier one, see [upgrading](../configuration/upgrading).
 
 Supabase gives `anon` and `authenticated` every privilege on the new tables, sequences and functions of `public`. The migration takes back what they have on the objects of p9s, so neither reads the graph or calls its internal functions, and grants `authenticated` what the [security model](../configuration/security-model#database-roles) gives users.
+
+The tables of the app keep the privileges Supabase gave them, which p9s never takes back: a signed in user could join a team by inserting into its memberships through the API. Take them back in a migration of the app, and let `grantPrivileges` grant what the config names:
+
+```sql
+revoke all on all tables in schema public from anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
+alter default privileges in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
+```
 
 ## Reading and writing
 

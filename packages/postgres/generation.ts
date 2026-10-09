@@ -581,13 +581,17 @@ const currentUserIdFunction = (config: CompleteConfig<any>) => identifier(...con
 
 // With a setting, the current user is the role id the server sets it to for the transaction, none when it is empty
 export const createMigrationAuthentication = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { setting, key } = config.engine.authentication;
+  const { setting, key, claim } = config.engine.authentication;
   if (key && !setting) throw new Error("engine.authentication.key needs a setting, which holds the key of the current user");
+  if (claim && !setting) throw new Error("engine.authentication.claim needs a setting, which holds the claims");
   if (key && !config.tables.some(table => table.name === key.table && table.isRole)) {
     throw new Error(`Table "${key.table}" of engine.authentication.key is not a role table of the config`);
   }
   if (!setting) return sql``;
   const fn = currentUserIdFunction(config);
+  const value = claim
+    ? sql`nullif(nullif(current_setting(${textLiteral(setting)}, true), '')::jsonb ->> ${textLiteral(claim)}, '')`
+    : sql`nullif(current_setting(${textLiteral(setting)}, true), '')`;
   const { type: idType } = getIdType(config);
   const keyTable = key && naming.tables[key.table];
   // With a key, the role id of the row that has it. In plpgsql, whose %type reads the type of the key when it first
@@ -596,13 +600,13 @@ export const createMigrationAuthentication = <User extends string>(naming: Namin
 create or replace function ${fn} () returns ${idType}
   as $$
 declare
-  "the_key" ${keyTable.schema}.${keyTable.name}.${identifier(key!.column)}%type := nullif(current_setting(${textLiteral(setting)}, true), '');
+  "the_key" ${keyTable.schema}.${keyTable.name}.${identifier(key!.column)}%type := ${value};
 begin
   return (select ${keyTable.roleId} from ${keyTable.schema}.${keyTable.name} where ${identifier(key!.column)} = "the_key");
 end
 $$ language plpgsql stable ${definer(naming)};` : sql`
 create or replace function ${fn} () returns ${idType}
-  as $$ select nullif(current_setting(${textLiteral(setting)}, true), '')::${idType} $$
+  as $$ select (${value})::${idType} $$
   language sql stable;`;
   return sql`
 

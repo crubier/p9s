@@ -3,6 +3,7 @@ import { query as sql, identifier, raw, type SQL } from "pg-sql2";
 import { setupTests } from '@p9s/postgres-testing';
 import type { Config } from '@p9s/core';
 import { createMigration } from '../generation';
+import { createIdentity } from '../identity';
 import { defaultResourceCache, type TestContext } from './helpers';
 
 // An application adopts p9s with nothing but the migration: the server tells p9s the id of the user in its own users
@@ -12,11 +13,12 @@ describe('adoption', () => {
   beforeEach(setup);
   afterEach(teardown);
 
-  const adoptionConfig = (ctx: TestContext, column = "id"): Config<string> => ({
+  type Authentication = NonNullable<Config<string>["engine"]>["authentication"];
+  const adoptionConfig = (ctx: TestContext, column = "id", authentication?: Authentication): Config<string> => ({
     engine: {
       resourceCache: defaultResourceCache,
       users: [ctx.database_user_username],
-      authentication: { getCurrentUserId: "current_role_id", setting: "app.user_id", key: { table: "app_user", column } },
+      authentication: authentication ?? { getCurrentUserId: "current_role_id", setting: "app.user_id", key: { table: "app_user", column } },
       grantPrivileges: true,
       permission: { bitmap: { size: 8, names: { read: 0, write: 1 } } },
     },
@@ -47,7 +49,7 @@ describe('adoption', () => {
   });
 
   // Tables as the application made them, without a grant to the role of the users
-  const load = async (column = "id") => {
+  const load = async (column = "id", authentication?: Authentication) => {
     await context.exec(sql`
       create table "app_user" ("id" serial primary key, "name" text not null unique);
       create table "team" ("id" serial primary key, "name" text not null);
@@ -62,17 +64,17 @@ describe('adoption', () => {
       insert into "folder" ("name") values ('specs'), ('deals');
       insert into "folder_share" values (1, 1, 'editor'), (2, 2, 'viewer');
       insert into "document" ("folder_id", "title") values (1, 'plan'), (2, 'budget');`);
-    await context.exec(createMigration(adoptionConfig(context, column)));
+    await context.exec(createMigration(adoptionConfig(context, column, authentication)));
   };
 
-  const asUser = async (key: string, statement: SQL) => {
+  const asUser = async (key: string, statement: SQL, setting = "app.user_id") => {
     const results = await context.runTestQuery(sql`
       set local role ${identifier(context.database_user_username)};
-      select set_config('app.user_id', ${raw(`'${key}'`)}, true);
+      select set_config(${raw(`'${setting}'`)}, ${raw(`'${key}'`)}, true);
       ${statement}`);
     return results.at(-1) as any[];
   };
-  const titlesOf = async (key: string) => (await asUser(key, sql`select "title" from "document" order by "title"`)).map((row: { title: string }) => row.title);
+  const titlesOf = async (key: string, setting?: string) => (await asUser(key, sql`select "title" from "document" order by "title"`, setting)).map((row: { title: string }) => row.title);
 
   test('the setting holds the id of the user in the users table of the app', async () => {
     await load();
@@ -90,6 +92,27 @@ describe('adoption', () => {
     expect(await titlesOf("nobody")).toEqual([]);
   });
 
+  test('the setting can hold JSON claims, as PostgREST sets them from the JWT', async () => {
+    const authentication = { getCurrentUserId: "current_role_id", setting: "request.jwt.claims", claim: "user_id", key: { table: "app_user", column: "id" } };
+    await load("id", authentication);
+    const claims = (value: object) => JSON.stringify({ sub: "8c5e", role: context.database_user_username, ...value });
+    expect(await titlesOf(claims({ user_id: 1 }), "request.jwt.claims")).toEqual(["plan"]);
+    expect(await titlesOf(claims({ user_id: "2" }), "request.jwt.claims")).toEqual(["budget"]);
+    expect(await titlesOf(claims({}), "request.jwt.claims")).toEqual([]);
+    expect(await titlesOf("", "request.jwt.claims")).toEqual([]);
+    // A server that connects directly sets the same claims
+    const { text, values } = createIdentity(adoptionConfig(context, "id", authentication)).statement(2);
+    expect(values).toEqual(["role", context.database_user_username, "request.jwt.claims", '{"user_id":"2"}']);
+    const results = await context.runTestQuery(sql`${raw(text.replace(/\$(\d+)/g, (_, i) => `'${values[Number(i) - 1]}'`))}; select "title" from "document" order by "title"`);
+    expect((results.at(-1) as Array<{ title: string }>).map(row => row.title)).toEqual(["budget"]);
+  });
+
+  test('a claim without a key holds the role id', async () => {
+    await load("id", { getCurrentUserId: "current_role_id", setting: "request.jwt.claims", claim: "sub" });
+    const [{ role_id }] = (await context.runTestQuery(sql`select "role_id" from "app_user" where "name" = 'alice'`)).at(-1) as [{ role_id: number }];
+    expect(await titlesOf(JSON.stringify({ sub: String(role_id) }), "request.jwt.claims")).toEqual(["plan"]);
+  });
+
   test('users run what the config lets them, with no other grant', async () => {
     await load();
     // Inserting takes the sequence of the identity column
@@ -105,10 +128,11 @@ describe('adoption', () => {
     await expect(asUser("1", sql`update "document_share" set "user_id" = 2`)).rejects.toThrow(/permission denied/);
   });
 
-  test('the key needs a setting and a role table', () => {
+  test('the key needs a setting and a role table, and the claim a setting', () => {
     const config = adoptionConfig(context);
     const withAuthentication = (authentication: NonNullable<Config<string>["engine"]>["authentication"]) => ({ ...config, engine: { ...config.engine, authentication } });
     expect(() => createMigration(withAuthentication({ getCurrentUserId: "uid", key: { table: "app_user", column: "id" } }))).toThrow(/needs a setting/);
     expect(() => createMigration(withAuthentication({ getCurrentUserId: "uid", setting: "app.user_id", key: { table: "folder", column: "id" } }))).toThrow(/not a role table/);
+    expect(() => createMigration(withAuthentication({ getCurrentUserId: "uid", claim: "sub" }))).toThrow(/claim needs a setting/);
   });
 });

@@ -224,7 +224,7 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
     - [x] `@p9s/kysely`, and a recipe for node-postgres pools without an ORM: `createIdentity(config).run(pool, userId, fn)`.
     - [x] Example: [Kysely](./examples/kysely), with Hono.
     - [x] Example: [Prisma](./examples/prisma), with `@p9s/prisma` and Hono. A refused write reaches the app wrapped by Prisma, which `isRefused(error)` of `@p9s/postgres` tells, for any client.
-    - [ ] Example: Supabase, with supabase-js and the preset.
+    - [x] Example: [Supabase](./examples/supabase), with supabase-js through PostgREST, and the preset but for the current user: `authentication.claim` reads the user from a claim of the JWT, here `sub`, which holds the id of the user in the users table of the app. Its test runs PostgREST on Postgres with the roles, `auth` schema and grants of a Supabase project, and checks that after p9s the API itself lets neither `anon` read a table nor a user join a team.
     - [ ] Example: Drizzle, and PostGraphile, in that shape too: a `before/` codebase and its end to end test, next to the existing full apps.
   - [ ] Each package reads the role and the setting from the p9s config, like `createIdentity`, rather than repeating them, and passes the same conformance suite: reads and writes go through the policies, `insert ... returning` works, a refused write is an error, a rolled back transaction leaves nothing on the pooled connection, and two users on one pool never see each other's rows.
   - [ ] Migrations in the format of each stack: `p9s postgres generate --format alembic`, `django`, `rails`, `goose`, `sqlx`, `ecto` or `laravel` wraps the SQL in a migration of that tool, so p9s runs with the other migrations of the app.

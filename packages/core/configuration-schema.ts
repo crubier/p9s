@@ -388,6 +388,9 @@ export const engineConfigBaseSchema = z.object({
     // The setting then holds a key of the app, like the id of the user in its users table, rather than the role id:
     // the current user function looks the role id up in that table
     key: z.object({ table: z.string(), column: z.string() }).optional(),
+    // The setting then holds JSON claims, like request.jwt.claims that PostgREST and Supabase set from the JWT, and
+    // the current user is this claim of them, like "sub" or a claim of the app's own, like "user_id"
+    claim: z.string().optional(),
   }),
   // The migration grants each user role of a table the statements its permission names, and the sequences it needs
   // to insert. Grants of the app stay, the migration only adds.
@@ -577,7 +580,10 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
       }
     }
   });
-  const { key, setting } = data.engine.authentication;
+  const { key, setting, claim } = data.engine.authentication;
+  if (claim !== undefined && setting === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A claim needs a setting, which holds the claims`, path: ["engine", "authentication", "claim"] });
+  }
   if (key !== undefined) {
     if (setting === undefined) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A key needs a setting, which holds the key of the current user`, path: ["engine", "authentication", "key"] });

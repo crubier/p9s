@@ -1,0 +1,7 @@
+{
+  "stack": "supabase",
+  "setup": ["bun x tsc -p ."],
+  "migrate": "bun x supabase migration up --db-url \"$DATABASE_URL\"",
+  "start": "bun src/server.ts",
+  "env": { "PGSSLMODE": "disable" }
+}

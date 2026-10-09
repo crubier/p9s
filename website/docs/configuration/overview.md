@@ -89,6 +89,7 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `authentication.setting`          | `string`                         | Setting holding that role id, like `app.role_id`: the migration then creates `getCurrentUserId`, see [acting as a user](./identity) (default: none) |
 | `authentication.key`              | `{ table, column }`              | Column of a role table the setting holds instead of the role id, like the id of the user in the users table of the app, see [the id of the user in the app](./identity#the-id-of-the-user-in-the-app) (default: none) |
+| `authentication.claim`            | `string`                         | Claim of the JSON the setting holds, like `sub` of `request.jwt.claims` that PostgREST sets, which holds the role id, or the key, see [a claim of the JWT](./identity#a-claim-of-the-jwt) (default: none) |
 | `grantPrivileges`                 | `boolean`                        | Grant users the statements their permissions name, see [privileges](#privileges) (default: `false`) |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |

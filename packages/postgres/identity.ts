@@ -60,6 +60,9 @@ export interface IdentityOptions {
   // The setting the current user function reads, when the migration does not create that function, like
   // request.jwt.claim.sub, which auth.uid() of Supabase reads. engine.authentication.setting by default.
   setting?: string;
+  // The claim of that setting that holds the user, when the setting holds JSON claims.
+  // engine.authentication.claim by default, when the setting is too.
+  claim?: string;
 }
 
 // Only the engine of the config counts, so that a config read from JSON fits too, whose tables and links TypeScript
@@ -68,7 +71,7 @@ export interface IdentityConfig {
   engine?: {
     users?: readonly string[];
     graphWriters?: readonly string[];
-    authentication?: { getCurrentUserId?: string; setting?: string };
+    authentication?: { getCurrentUserId?: string; setting?: string; claim?: string };
   };
   [key: string]: unknown;
 }
@@ -79,6 +82,8 @@ export const createIdentity = (config: IdentityConfig, options: IdentityOptions 
   if (!setting) {
     throw new Error("p9s: set engine.authentication.setting, like \"app.user_id\", for the migration to read the current user from it, or pass the setting the current user function reads");
   }
+  const claim = options.claim ?? (options.setting === undefined ? engine.authentication.claim : undefined);
+  const valueOf = (userId: UserId) => userId == null ? "" : claim ? JSON.stringify({ [claim]: String(userId) }) : String(userId);
   const [role] = engine.users;
   if (!role) throw new Error("p9s: engine.users is empty");
   const roles = new Set<string>([...engine.users, ...engine.graphWriters]);
@@ -88,7 +93,7 @@ export const createIdentity = (config: IdentityConfig, options: IdentityOptions 
     if (!roles.has(chosen)) throw new Error(`p9s: ${chosen} is not a role of engine.users or engine.graphWriters`);
     return [
       ["role", chosen],
-      [setting, userId == null ? "" : String(userId)],
+      [setting, valueOf(userId)],
       ...Object.entries(options.settings ?? {}).map(([name, value]): [string, string] => [name, value == null ? "" : String(value)]),
     ];
   };

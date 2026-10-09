@@ -1,0 +1,188 @@
+diff --git a/src/db.ts b/src/db.ts
+index fb04f87..7c7df90 100644
+--- a/src/db.ts
++++ b/src/db.ts
+@@ -1,12 +1,23 @@
+ import { createClient, PostgrestError } from "@supabase/supabase-js";
++import { sign } from "hono/jwt";
+ import type { Database } from "./database.types.ts";
+ 
+ export type { Access } from "./database.types.ts";
+ 
+ const options = { auth: { persistSession: false, autoRefreshToken: false } };
+ 
+-// The server reads and writes every table with the service role key, which RLS lets through
+-export const supabase = createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, options);
++// A client of the user, whose requests PostgREST runs as authenticated with the claims of their JWT, which p9s reads
++// the user from. A real app passes on the access token of the session. This one signs a token for the user of the
++// request, whose subject is their id in the users table, as a custom JWT or third party auth does.
++export const clientOf = async (userId: number) => {
++  const token = await sign({ sub: String(userId), role: "authenticated", exp: Math.floor(Date.now() / 1000) + 60 }, process.env.SUPABASE_JWT_SECRET!);
++  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
++    ...options,
++    global: { headers: { Authorization: `Bearer ${token}` } },
++  });
++};
++
++export type Client = Awaited<ReturnType<typeof clientOf>>;
+ 
+ type Result<T> = PromiseLike<{ data: T, error: PostgrestError | null }>;
+ 
+diff --git a/src/permissions.ts a/src/permissions.ts
+deleted file mode 100644
+index 680bc5e..0000000
+--- a/src/permissions.ts
++++ /dev/null
+@@ -1,42 +0,0 @@
+-import { maybeRow, rows, supabase, type Access } from "./db.ts";
+-
+-// Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-// shares of documents with the user
+-
+-export type Bit = "read" | "write" | "delete";
+-
+-export const bitsOf: Record<Access, Bit[]> = { viewer: ["read"], editor: ["read", "write"], owner: ["read", "write", "delete"] };
+-
+-const teamsOf = async (userId: number) =>
+-  (await rows(supabase.from("team_members").select("team_id").eq("user_id", userId))).map(member => member.team_id);
+-
+-const sharesOf = async (userId: number) =>
+-  rows(supabase.from("project_shares").select("project_id, access").in("team_id", await teamsOf(userId)));
+-
+-export const projectBits = async (userId: number, projectId: number) =>
+-  new Set((await sharesOf(userId)).filter(share => share.project_id === projectId).flatMap(share => bitsOf[share.access]));
+-
+-// The bits of the user on the document, or undefined when there is no such document
+-export const documentBits = async (userId: number, documentId: number) => {
+-  const document = await maybeRow(supabase.from("documents").select("project_id").eq("id", documentId).maybeSingle());
+-  if (!document) return undefined;
+-  const share = await maybeRow(supabase.from("document_shares").select("access").eq("document_id", documentId).eq("user_id", userId).maybeSingle());
+-  return new Set([...await projectBits(userId, document.project_id), ...(share ? bitsOf[share.access] : [])]);
+-};
+-
+-export const hasBits = (bits: Set<Bit>, needed: Bit[]) => needed.every(bit => bits.has(bit));
+-
+-// Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects
+-// or shared with them
+-const readableProjectIds = async (userId: number) => [...new Set((await sharesOf(userId)).map(share => share.project_id))];
+-
+-export const readableProjects = async (userId: number) =>
+-  rows(supabase.from("projects").select("id, name").in("id", await readableProjectIds(userId)).order("id"));
+-
+-export const readableDocuments = async (userId: number) => {
+-  const shared = await rows(supabase.from("document_shares").select("document_id").eq("user_id", userId));
+-  const projects = await readableProjectIds(userId);
+-  return rows(supabase.from("documents").select("id, project_id, title")
+-    .or(`project_id.in.(${projects.join(",")}),id.in.(${shared.map(share => share.document_id).join(",")})`)
+-    .order("id"));
+-};
+diff --git a/src/server.ts b/src/server.ts
+index 5adeb9d..07690c2 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,8 +1,9 @@
+ import { Hono } from "hono";
+-import { maybeRow, rows, supabase, type Access } from "./db.ts";
+-import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
++import { isRefused } from "@p9s/postgres";
++import { clientOf, maybeRow, rows, type Access, type Client } from "./db.ts";
+ 
+-const app = new Hono<{ Variables: { userId: number } }>();
++// Every request goes through PostgREST as its user, and the policies of p9s decide what it reads and writes
++const app = new Hono<{ Variables: { supabase: Client } }>();
+ 
+ const columns = "id, project_id, title, body";
+ const notFound = { error: "not found" };
+@@ -14,54 +15,56 @@ app.get("/health", c => c.text("ok"));
+ app.use("*", async (c, next) => {
+   const userId = Number(c.req.header("x-user-id"));
+   if (!Number.isInteger(userId)) return c.json({ error: "unauthorized" }, 401);
+-  c.set("userId", userId);
++  c.set("supabase", await clientOf(userId));
+   await next();
+ });
+ 
+-app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
++// A write the policies do not let through
++app.onError((error, c) => {
++  if (isRefused(error)) return c.json(forbidden, 403);
++  throw error;
++});
++
++app.get("/projects", async c => c.json(await rows(c.get("supabase").from("projects").select("id, name").order("id"))));
+ 
+-app.get("/documents", async c => c.json(await readableDocuments(c.get("userId"))));
++app.get("/documents", async c => c.json(await rows(c.get("supabase").from("documents").select("id, project_id, title").order("id"))));
+ 
+ app.get("/documents/:id", async c => {
+-  const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  return c.json(await rows(supabase.from("documents").select(columns).eq("id", id).single()));
++  const document = await maybeRow(c.get("supabase").from("documents").select(columns).eq("id", Number(c.req.param("id"))).maybeSingle());
++  return document ? c.json(document) : c.json(notFound, 404);
+ });
+ 
+ app.post("/documents", async c => {
+   const { project_id, title, body } = await c.req.json<{ project_id: number, title: string, body?: string }>();
+-  if (!(await projectBits(c.get("userId"), project_id)).has("write")) return c.json(forbidden, 403);
+-  return c.json(await rows(supabase.from("documents").insert({ project_id, title, body }).select(columns).single()), 201);
++  return c.json(await rows(c.get("supabase").from("documents").insert({ project_id, title, body }).select(columns).single()), 201);
+ });
+ 
++// A document the user does not read is not found, one they read but cannot change is forbidden
++const readable = async (supabase: Client, id: number) =>
++  await maybeRow(supabase.from("documents").select("id").eq("id", id).maybeSingle()) !== null;
++
+ app.patch("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+   const { title, body } = await c.req.json<{ title?: string, body?: string }>();
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("write")) return c.json(forbidden, 403);
+-  return c.json(await rows(supabase.from("documents").update({ title, body }).eq("id", id).select(columns).single()));
++  if (!await readable(c.get("supabase"), id)) return c.json(notFound, 404);
++  const [document] = await rows(c.get("supabase").from("documents").update({ title, body }).eq("id", id).select(columns));
++  return document ? c.json(document) : c.json(forbidden, 403);
+ });
+ 
+ app.delete("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("delete")) return c.json(forbidden, 403);
+-  await rows(supabase.from("documents").delete().eq("id", id));
+-  return c.body(null, 204);
++  if (!await readable(c.get("supabase"), id)) return c.json(notFound, 404);
++  const deleted = await rows(c.get("supabase").from("documents").delete().eq("id", id).select("id"));
++  return deleted.length > 0 ? c.body(null, 204) : c.json(forbidden, 403);
+ });
+ 
++// p9s refuses a share that gives, or takes away, bits the user does not have
+ app.put("/documents/:id/shares/:userId", async c => {
+   const documentId = Number(c.req.param("id"));
+   const userId = Number(c.req.param("userId"));
+   const { access } = await c.req.json<{ access: Exclude<Access, "owner"> }>();
+-  const bits = await documentBits(c.get("userId"), documentId);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  const previous = await maybeRow(supabase.from("document_shares").select("access").eq("document_id", documentId).eq("user_id", userId).maybeSingle());
+-  if (!hasBits(bits, bitsOf[access]) || (previous && !hasBits(bits, bitsOf[previous.access]))) return c.json(forbidden, 403);
+-  await rows(supabase.from("document_shares").upsert({ document_id: documentId, user_id: userId, access }));
++  if (!await readable(c.get("supabase"), documentId)) return c.json(notFound, 404);
++  await rows(c.get("supabase").from("document_shares").upsert({ document_id: documentId, user_id: userId, access }));
+   return c.body(null, 204);
+ });
+ 
+diff --git b/supabase/migrations/20260201000000_api_grants.sql b/supabase/migrations/20260201000000_api_grants.sql
+new file mode 100644
+index 0000000..05787f6
+--- /dev/null
++++ b/supabase/migrations/20260201000000_api_grants.sql
+@@ -0,0 +1,7 @@
++-- Supabase grants every role of its API every privilege on the tables of public. p9s grants authenticated what its
++-- config names, and these take back the rest, so that a signed in user cannot join a team or share a project through
++-- the API, and anon reads nothing.
++revoke all on all tables in schema public from anon, authenticated;
++revoke all on all sequences in schema public from anon, authenticated;
++alter default privileges in schema public revoke all on tables from anon, authenticated;
++alter default privileges in schema public revoke all on sequences from anon, authenticated;

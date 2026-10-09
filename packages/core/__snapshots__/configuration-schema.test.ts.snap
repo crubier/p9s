@@ -3023,6 +3023,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
     "authentication": {
       "additionalProperties": false,
       "properties": {
+        "claim": {
+          "type": "string",
+        },
         "getCurrentUserId": {
           "type": "string",
         },
@@ -4199,6 +4202,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
         "authentication": {
           "additionalProperties": false,
           "properties": {
+            "claim": {
+              "type": "string",
+            },
             "getCurrentUserId": {
               "type": "string",
             },
@@ -5753,6 +5759,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
         "authentication": {
           "additionalProperties": false,
           "properties": {
+            "claim": {
+              "type": "string",
+            },
             "getCurrentUserId": {
               "type": "string",
             },

@@ -1,0 +1,17 @@
+{
+  "name": "@p9s/example-supabase",
+  "private": true,
+  "type": "module",
+  "description": "A Hono and supabase-js app that checks permissions in its code with the service role key, and the change that hands them to p9s",
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "@supabase/supabase-js": "^2.117.3",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest",
+    "supabase": "^2.120.0",
+    "typescript": "^5.9.3"
+  }
+}

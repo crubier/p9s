@@ -4,6 +4,7 @@ import path from "node:path";
 import pg from "pg";
 import { createIdentity } from "@p9s/postgres";
 import { scenario, users, type Step, type UserName } from "./scenario.ts";
+import { prepareSupabase, startSupabase } from "./supabase.ts";
 
 // The adoption test of an example, see the README of this folder
 
@@ -22,6 +23,9 @@ export interface Descriptor {
   // Starts the app on PORT, in the foreground
   start: string;
   env?: Record<string, string>;
+  // What the platform of the app gives it. With "supabase": its roles, auth schema and grants in each database, and
+  // PostgREST under /rest/v1 of SUPABASE_URL, with SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_JWT_SECRET
+  stack?: "supabase";
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
@@ -57,12 +61,12 @@ const freePort = () => {
 };
 
 // The app in the foreground of its own process group, so that stopping it stops what its command started
-const startApp = async (directory: string, descriptor: Descriptor, url: string, log: string) => {
+const startApp = async (directory: string, descriptor: Descriptor, url: string, log: string, stackEnv: Record<string, string> = {}) => {
   const port = freePort();
   const output = Bun.file(log);
   const child = Bun.spawn(["sh", "-c", `exec ${descriptor.start}`], {
     cwd: directory,
-    env: { ...process.env, ...descriptor.env, DATABASE_URL: url, PORT: String(port) },
+    env: { ...process.env, ...descriptor.env, ...stackEnv, DATABASE_URL: url, PORT: String(port) },
     stdin: "ignore",
     stdout: output,
     stderr: output,
@@ -263,15 +267,18 @@ export const describeAdoption = (example: string) => {
   const prepare = async (app: "before" | "after") => {
     await admin(`drop database if exists ${databases[app]} with (force)`);
     await admin(`create database ${databases[app]}`);
+    if (descriptor.stack === "supabase") await prepareSupabase(urls[app]);
     await run(descriptor.migrate, apps[app], { ...descriptor.env, DATABASE_URL: urls[app] });
     const client = new pg.Client({ connectionString: urls[app] });
     await client.connect();
     try { await client.query(await readFile(seed, "utf8")); } finally { await client.end(); }
   };
   const serve = async (app: "before" | "after") => {
-    const server = await startApp(apps[app], descriptor, urls[app], path.join(work, `${app}.log`));
+    const stack = descriptor.stack === "supabase" ? await startSupabase(urls[app], path.join(work, `${app}.supabase.log`)) : undefined;
+    if (stack) stops.push(stack.stop);
+    const server = await startApp(apps[app], descriptor, urls[app], path.join(work, `${app}.log`), stack?.env);
     stops.push(server.stop);
-    return server;
+    return { base: server.base, leaks: stack?.leaks ?? (async () => []), stop: async () => { await server.stop(); await stack?.stop(); } };
   };
 
   describe.skipIf(!base)(`adoption of ${name}`, () => {
@@ -323,8 +330,10 @@ export const describeAdoption = (example: string) => {
       expect(await p9s("postgres migrate --config p9s.config.json", apps.after, urls.after)).toMatch(/Migrated/);
       const server = await serve("after");
       const { answers: after } = await runScenario(server.base);
+      const leaks = await server.leaks();
       await server.stop();
       expect(after).toEqual(before);
+      expect(leaks).toEqual([]);
       const { actual, wanted } = await checkDatabase(urls.after, config);
       expect(actual).toEqual(wanted);
     }, timeout);
