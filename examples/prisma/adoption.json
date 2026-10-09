@@ -1,0 +1,5 @@
+{
+  "setup": ["bun x prisma generate", "bun x tsc -p ."],
+  "migrate": "bun x prisma migrate deploy",
+  "start": "bun src/server.ts"
+}

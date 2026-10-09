@@ -44,6 +44,18 @@ export interface Identity {
   run<Client extends Queryable, T>(pool: PoolLike<Client>, userId: UserId, fn: (client: Client) => Promise<T>, options?: RunOptions): Promise<T>;
 }
 
+// Whether an error is Postgres refusing a statement to the user, with insufficient_privilege: a row the policies do not
+// let through, a statement the role has no privilege for, or a share of bits the user does not have. Clients wrap the
+// error of Postgres: node-postgres gives it as is, Drizzle as its cause, and Prisma in its meta.
+export const isRefused = (error: unknown): boolean => {
+  for (let current = error, depth = 0; current && typeof current === "object" && depth < 8; depth++) {
+    const { code, cause, meta } = current as { code?: unknown, cause?: unknown, meta?: { driverAdapterError?: { cause?: unknown } } };
+    if (code === "42501") return true;
+    current = meta?.driverAdapterError?.cause ?? cause;
+  }
+  return false;
+};
+
 export interface IdentityOptions {
   // The setting the current user function reads, when the migration does not create that function, like
   // request.jwt.claim.sub, which auth.uid() of Supabase reads. engine.authentication.setting by default.

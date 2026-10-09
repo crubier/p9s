@@ -103,9 +103,26 @@ await withUser(prisma, users, session.roleId, async tx => {
 
 `userClient` is a [client extension](https://www.prisma.io/docs/orm/prisma-client/client-extensions) that sends each query in a batch transaction after the settings of the user, and keeps the types of the client. Its tests run Prisma 7 with the `@prisma/adapter-pg` driver adapter.
 
+[`examples/prisma`](https://github.com/crubier/p9s/tree/main/examples/prisma) moves a Prisma app from checks in its code to `withUser`.
+
 ## Other languages
 
 Any client that runs a transaction can do the same, see [other stacks](../integrations/other-stacks).
+
+## Refused writes
+
+Postgres refuses a row the policies do not let through, a statement the role has no privilege for, and a share of bits the user does not have, with `insufficient_privilege` (`42501`). Clients wrap that error: node-postgres and Kysely give it as is, Drizzle as its `cause`, and Prisma in the `meta` of a `PrismaClientKnownRequestError`. `isRefused` of `@p9s/postgres` looks through all of them, so an API can answer 403:
+
+```ts
+import { isRefused } from "@p9s/postgres";
+
+app.onError((error, c) => {
+  if (isRefused(error)) return c.json({ error: "forbidden" }, 403);
+  throw error;
+});
+```
+
+An update or a delete of a row the user reads but cannot change is not an error: the row is not there for the statement, which changes 0 rows.
 
 ## Inserting and reading back
 

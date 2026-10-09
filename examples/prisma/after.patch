@@ -1,0 +1,161 @@
+diff --git a/src/permissions.ts a/src/permissions.ts
+deleted file mode 100644
+index 7e32904..0000000
+--- a/src/permissions.ts
++++ /dev/null
+@@ -1,39 +0,0 @@
+-import { prisma, type Access } from "./db.ts";
+-
+-// Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-// shares of documents with the user
+-
+-export type Bit = "read" | "write" | "delete";
+-
+-export const bitsOf: Record<Access, Bit[]> = { viewer: ["read"], editor: ["read", "write"], owner: ["read", "write", "delete"] };
+-
+-const inTeamOf = (userId: number) => ({ team: { members: { some: { userId } } } });
+-
+-export const projectBits = async (userId: number, projectId: number) => {
+-  const shares = await prisma.projectShare.findMany({ where: { projectId, ...inTeamOf(userId) }, select: { access: true } });
+-  return new Set(shares.flatMap(share => bitsOf[share.access as Access]));
+-};
+-
+-// The bits of the user on the document, or undefined when there is no such document
+-export const documentBits = async (userId: number, documentId: number) => {
+-  const document = await prisma.document.findUnique({ where: { id: documentId }, select: { projectId: true } });
+-  if (!document) return undefined;
+-  const share = await prisma.documentShare.findUnique({ where: { documentId_userId: { documentId, userId } }, select: { access: true } });
+-  return new Set([...await projectBits(userId, document.projectId), ...(share ? bitsOf[share.access as Access] : [])]);
+-};
+-
+-export const hasBits = (bits: Set<Bit>, needed: Bit[]) => needed.every(bit => bits.has(bit));
+-
+-// Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects
+-// or shared with them
+-export const readableProjects = (userId: number) => prisma.project.findMany({
+-  where: { shares: { some: inTeamOf(userId) } },
+-  select: { id: true, name: true },
+-  orderBy: { id: "asc" },
+-});
+-
+-export const readableDocuments = (userId: number) => prisma.document.findMany({
+-  where: { OR: [{ project: { shares: { some: inTeamOf(userId) } } }, { shares: { some: { userId } } }] },
+-  select: { id: true, projectId: true, title: true },
+-  orderBy: { id: "asc" },
+-});
+diff --git a/src/server.ts b/src/server.ts
+index 8e553dc..35591df 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,12 +1,17 @@
+ import { Hono } from "hono";
++import { createIdentity, isRefused } from "@p9s/postgres";
++import { withUser } from "@p9s/prisma";
++import config from "../p9s.config.json";
+ import { documentOf, prisma, type Access } from "./db.ts";
+-import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
+ 
+ const app = new Hono<{ Variables: { userId: number } }>();
+ 
+ const notFound = { error: "not found" };
+ const forbidden = { error: "forbidden" };
+ 
++// Every query of a request runs in a transaction as its user, and the policies of p9s decide what it reads and writes
++const users = createIdentity(config);
++
+ app.get("/health", c => c.text("ok"));
+ 
+ // A real app reads the user from its session, this one from a header
+@@ -17,56 +22,66 @@ app.use("*", async (c, next) => {
+   await next();
+ });
+ 
+-app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
++// A write the policies do not let through
++app.onError((error, c) => {
++  if (isRefused(error)) return c.json(forbidden, 403);
++  throw error;
++});
++
++app.get("/projects", async c => c.json(await withUser(prisma, users, c.get("userId"), tx =>
++  tx.project.findMany({ select: { id: true, name: true }, orderBy: { id: "asc" } }), { readOnly: true })));
+ 
+-app.get("/documents", async c => c.json((await readableDocuments(c.get("userId")))
++app.get("/documents", async c => c.json((await withUser(prisma, users, c.get("userId"), tx =>
++  tx.document.findMany({ select: { id: true, projectId: true, title: true }, orderBy: { id: "asc" } }), { readOnly: true }))
+   .map(({ id, projectId, title }) => ({ id, project_id: projectId, title }))));
+ 
+ app.get("/documents/:id", async c => {
+-  const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  return c.json(documentOf(await prisma.document.findUniqueOrThrow({ where: { id } })));
++  const document = await withUser(prisma, users, c.get("userId"), tx =>
++    tx.document.findUnique({ where: { id: Number(c.req.param("id")) } }), { readOnly: true });
++  return document ? c.json(documentOf(document)) : c.json(notFound, 404);
+ });
+ 
+ app.post("/documents", async c => {
+   const { project_id, title, body } = await c.req.json<{ project_id: number, title: string, body?: string }>();
+-  if (!(await projectBits(c.get("userId"), project_id)).has("write")) return c.json(forbidden, 403);
+-  return c.json(documentOf(await prisma.document.create({ data: { projectId: project_id, title, body } })), 201);
++  const document = await withUser(prisma, users, c.get("userId"), tx => tx.document.create({ data: { projectId: project_id, title, body } }));
++  return c.json(documentOf(document), 201);
+ });
+ 
++// A document the user does not read is not found, one they read but cannot change is forbidden
+ app.patch("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+   const { title, body } = await c.req.json<{ title?: string, body?: string }>();
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("write")) return c.json(forbidden, 403);
+-  return c.json(documentOf(await prisma.document.update({ where: { id }, data: { title, body } })));
++  return withUser(prisma, users, c.get("userId"), async tx => {
++    if (!await tx.document.findUnique({ where: { id }, select: { id: true } })) return c.json(notFound, 404);
++    const { count } = await tx.document.updateMany({ where: { id }, data: { title, body } });
++    if (count === 0) return c.json(forbidden, 403);
++    return c.json(documentOf(await tx.document.findUniqueOrThrow({ where: { id } })));
++  });
+ });
+ 
+ app.delete("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("delete")) return c.json(forbidden, 403);
+-  await prisma.document.delete({ where: { id } });
+-  return c.body(null, 204);
++  return withUser(prisma, users, c.get("userId"), async tx => {
++    if (!await tx.document.findUnique({ where: { id }, select: { id: true } })) return c.json(notFound, 404);
++    const { count } = await tx.document.deleteMany({ where: { id } });
++    return count === 0 ? c.json(forbidden, 403) : c.body(null, 204);
++  });
+ });
+ 
++// p9s refuses a share that gives, or takes away, bits the user does not have
+ app.put("/documents/:id/shares/:userId", async c => {
+   const documentId = Number(c.req.param("id"));
+   const userId = Number(c.req.param("userId"));
+   const { access } = await c.req.json<{ access: Exclude<Access, "owner"> }>();
+-  const bits = await documentBits(c.get("userId"), documentId);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  const previous = await prisma.documentShare.findUnique({ where: { documentId_userId: { documentId, userId } } });
+-  if (!hasBits(bits, bitsOf[access]) || (previous && !hasBits(bits, bitsOf[previous.access as Access]))) return c.json(forbidden, 403);
+-  await prisma.documentShare.upsert({
+-    where: { documentId_userId: { documentId, userId } },
+-    create: { documentId, userId, access },
+-    update: { access },
++  return withUser(prisma, users, c.get("userId"), async tx => {
++    if (!await tx.document.findUnique({ where: { id: documentId }, select: { id: true } })) return c.json(notFound, 404);
++    await tx.documentShare.upsert({
++      where: { documentId_userId: { documentId, userId } },
++      create: { documentId, userId, access },
++      update: { access },
++    });
++    return c.body(null, 204);
+   });
+-  return c.body(null, 204);
+ });
+ 
+ Bun.serve({ port: Number(process.env.PORT ?? 3000), fetch: app.fetch });

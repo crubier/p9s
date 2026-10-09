@@ -131,6 +131,24 @@
         "vite": "^8.3.3",
       },
     },
+    "examples/prisma": {
+      "name": "@p9s/example-prisma",
+      "dependencies": {
+        "@p9s/postgres": "workspace:*",
+        "@p9s/prisma": "workspace:*",
+        "@prisma/adapter-pg": "7.10.0",
+        "@prisma/client": "7.10.0",
+        "hono": "^4.13.13",
+        "pg": "^8.23.1",
+      },
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+        "prisma": "7.10.0",
+        "typescript": "^5.9.3",
+      },
+    },
     "packages/cli": {
       "name": "@p9s/cli",
       "version": "0.1.0",
@@ -1176,6 +1194,8 @@
     "@p9s/example-nextjs-drizzle": ["@p9s/example-nextjs-drizzle@workspace:examples/nextjs-drizzle"],
 
     "@p9s/example-postgraphile": ["@p9s/example-postgraphile@workspace:examples/postgraphile"],
+
+    "@p9s/example-prisma": ["@p9s/example-prisma@workspace:examples/prisma"],
 
     "@p9s/kysely": ["@p9s/kysely@workspace:packages/kysely"],
 

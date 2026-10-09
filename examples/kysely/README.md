@@ -39,7 +39,7 @@ app.get("/documents", async c => c.json(await withUser(db, users, c.get("userId"
 ```
 
 The policies decide what each query reads and writes. A write they refuse fails with `insufficient_privilege`, which the
-app answers with 403. The app keeps writing its own tables: sharing a document is still an insert into
+app answers with 403 when `isRefused(error)` of `@p9s/postgres` says so. The app keeps writing its own tables: sharing a document is still an insert into
 `document_shares`, which p9s checks gives no more than the user has.
 
 ## The test

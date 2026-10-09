@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [kysely]
+        example: [kysely, prisma]
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18

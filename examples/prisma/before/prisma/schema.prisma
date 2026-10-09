@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  name           String          @unique
+  memberships    TeamMember[]
+  documentShares DocumentShare[]
+
+  @@map("users")
+}
+
+model Team {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  members       TeamMember[]
+  projectShares ProjectShare[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId Int  @map("team_id")
+  userId Int  @map("user_id")
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("team_members")
+}
+
+model Project {
+  id        Int            @id @default(autoincrement())
+  name      String
+  shares    ProjectShare[]
+  documents Document[]
+
+  @@map("projects")
+}
+
+// access is viewer, editor or owner
+model ProjectShare {
+  projectId Int     @map("project_id")
+  teamId    Int     @map("team_id")
+  access    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, teamId])
+  @@map("project_shares")
+}
+
+model Document {
+  id        Int             @id @default(autoincrement())
+  projectId Int             @map("project_id")
+  title     String
+  body      String          @default("")
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shares    DocumentShare[]
+
+  @@index([projectId], map: "documents_project_id_idx")
+  @@map("documents")
+}
+
+// access is viewer or editor
+model DocumentShare {
+  documentId Int      @map("document_id")
+  userId     Int      @map("user_id")
+  access     String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@map("document_shares")
+}

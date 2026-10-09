@@ -63,7 +63,7 @@ The migration adds a `resource_id` column to `folder` and `document` and fills i
 
 The migration can be re-run safely, it never drops your data. Databases created by earlier versions, with `resource_node` and `role_node` tables, are upgraded in place, see the [upgrade guide](./website/docs/configuration/upgrading.md). The `p9s` CLI (`@p9s/cli`) does the same from a config file, proposes one from an existing database with `p9s init`, and checks a database with `p9s postgres status` and `p9s postgres doctor`, see [the CLI](./website/docs/packages/cli.md). `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
 
-Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle` and `userClient` of `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). Any other stack runs one statement at the start of each transaction, see the recipes for [SQLAlchemy, Django, Rails, GORM and others](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
+Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle`, `@p9s/kysely` and `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). Any other stack runs one statement at the start of each transaction, see the recipes for [SQLAlchemy, Django, Rails, GORM and others](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
 
 Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles only see their own part of the graph and cannot write edges and assignments, writes that touch the graph must use `READ COMMITTED`, and `TRUNCATE` is rejected on p9s-managed tables.
 
@@ -223,7 +223,7 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
   - [ ] TypeScript
     - [x] `@p9s/kysely`, and a recipe for node-postgres pools without an ORM: `createIdentity(config).run(pool, userId, fn)`.
     - [x] Example: [Kysely](./examples/kysely), with Hono.
-    - [ ] Example: Prisma, with `@p9s/prisma`.
+    - [x] Example: [Prisma](./examples/prisma), with `@p9s/prisma` and Hono. A refused write reaches the app wrapped by Prisma, which `isRefused(error)` of `@p9s/postgres` tells, for any client.
     - [ ] Example: Supabase, with supabase-js and the preset.
     - [ ] Example: Drizzle, and PostGraphile, in that shape too: a `before/` codebase and its end to end test, next to the existing full apps.
   - [ ] Each package reads the role and the setting from the p9s config, like `createIdentity`, rather than repeating them, and passes the same conformance suite: reads and writes go through the policies, `insert ... returning` works, a refused write is an error, a rolled back transaction leaves nothing on the pooled connection, and two users on one pool never see each other's rows.

@@ -1,8 +1,7 @@
-diff --git a/src/permissions.ts a/src/permissions.ts
-deleted file mode 100644
-index 514c74a..0000000
+diff --git a/src/permissions.ts b/src/permissions.ts
+index 514c74a..e69de29 100644
 --- a/src/permissions.ts
-+++ /dev/null
++++ b/src/permissions.ts
 @@ -1,57 +0,0 @@
 -import { db, type Access } from "./db.ts";
 -
@@ -62,13 +61,13 @@ index 514c74a..0000000
 -  .orderBy("id")
 -  .execute();
 diff --git a/src/server.ts b/src/server.ts
-index c85906c..e7bd357 100644
+index c85906c..7a02831 100644
 --- a/src/server.ts
 +++ b/src/server.ts
 @@ -1,6 +1,8 @@
  import { Hono } from "hono";
 +import { withUser } from "@p9s/kysely";
-+import { createIdentity } from "@p9s/postgres";
++import { createIdentity, isRefused } from "@p9s/postgres";
 +import config from "../p9s.config.json";
  import { db, type Access } from "./db.ts";
 -import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
@@ -90,9 +89,9 @@ index c85906c..e7bd357 100644
  });
  
 -app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
-+// Postgres refuses a write the policies do not let through with insufficient_privilege
++// A write the policies do not let through
 +app.onError((error, c) => {
-+  if ((error as { code?: string }).code === "42501") return c.json(forbidden, 403);
++  if (isRefused(error)) return c.json(forbidden, 403);
 +  throw error;
 +});
 +

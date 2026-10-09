@@ -25,7 +25,7 @@ export interface Descriptor {
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
-export const generated = new Set(["node_modules", ".adoption", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log", "bin"]);
+export const generated = new Set(["node_modules", ".adoption", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log", "bin"]);
 
 export const copyApp = async (from: string, to: string) => {
   await rm(to, { recursive: true, force: true });

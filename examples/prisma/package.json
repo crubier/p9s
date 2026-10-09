@@ -1,0 +1,21 @@
+{
+  "name": "@p9s/example-prisma",
+  "private": true,
+  "type": "module",
+  "description": "A Hono and Prisma app that checks permissions in its code, and the change that hands them to p9s",
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "@p9s/prisma": "workspace:*",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "hono": "^4.13.13",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "prisma": "7.10.0",
+    "typescript": "^5.9.3"
+  }
+}

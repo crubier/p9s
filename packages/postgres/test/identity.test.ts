@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, raw } from "pg-sql2";
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
 import { createMigration } from '../generation';
-import { createIdentity, type PoolLike, type Queryable } from '../identity';
+import { createIdentity, isRefused, type PoolLike, type Queryable } from '../identity';
 import { FIRST_GENERATED_ID, bits, blogMigrationConfig, setupBlogTables, type TestContext } from './helpers';
 
 const identityConfig = (context: TestContext) => {
@@ -104,5 +104,14 @@ describe('identity of the transactions of a user', () => {
 
   test('a config without a setting has no identity helpers', async () => {
     expect(() => createIdentity(blogMigrationConfig(context))).toThrow(/engine.authentication.setting/);
+  });
+
+  test('isRefused tells insufficient_privilege, as clients wrap it', () => {
+    const postgres = Object.assign(new Error("new row violates row-level security policy"), { code: "42501" });
+    expect(isRefused(postgres)).toBe(true);
+    expect(isRefused(Object.assign(new Error("Failed query"), { cause: postgres }))).toBe(true);
+    expect(isRefused({ code: "P2039", meta: { driverAdapterError: { cause: { code: "42501" } } } })).toBe(true);
+    expect(isRefused(Object.assign(new Error("duplicate key"), { code: "23505" }))).toBe(false);
+    expect(isRefused(undefined)).toBe(false);
   });
 });
