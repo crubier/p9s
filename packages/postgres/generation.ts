@@ -2310,7 +2310,7 @@ create or replace function ${lookupFunction} ("the_key" ${binding.table}.${colum
   returns ${idType}
   as $$
   select "the_parent".${lookup!.id} from ${lookup!.table} as "the_parent" where "the_parent".${lookup!.key} = $1
-$$ language sql stable ${definer(naming)};
+$$ language sql stable cost 1 ${definer(naming)};
 
 ${grantExecute(sql`${lookupFunction} (${binding.table}.${column}%type)`, users)}
 `;
@@ -2359,8 +2359,10 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   const setting = sql`coalesce(current_setting('p9s.check_rows', true), '')`;
   const checkRowsOr = (rows: number) => sql`(select case when ${setting} = 'on' then '-1' when ${setting} = 'off' then '0'
     when ${setting} ~ '^[0-9]{1,9}$' then (${setting}::bigint)::text else ${textLiteral(String(rows))} end)`;
-  const readCheck = (table: CompleteConfig<User>["tables"][number], operation: "select" | "update" | "delete", target: SQL, bit: number) => {
-    const tableName = table.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const settingName = (table: CompleteConfig<User>["tables"][number]) => table.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const inserting = (table: CompleteConfig<User>["tables"][number]) => textLiteral(`p9s.inserting_${settingName(table)}`);
+  const readCheck = (table: CompleteConfig<User>["tables"][number], operation: "select" | "update" | "delete", target: SQL, bit: number, parent?: SQL) => {
+    const tableName = settingName(table);
     const counter = textLiteral(`p9s.checked_${tableName}_${operation}`);
     const writing = textLiteral(`p9s.writing_${tableName}`);
     const list = sql`${target} in (select ${currentAccessListOf(naming, bit)}())`;
@@ -2374,10 +2376,14 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   else ${checkThenList} end`;
     }
     const written = sql`(select current_setting(${writing}, true) = statement_timestamp()::text)`;
+    // The rows an insert returns have no permissions of their own until the statement ends: they will have those of
+    // their parent, which the insert policy checked
+    const inserted = sql`(select current_setting(${inserting(table)}, true) = statement_timestamp()::text)`;
     const auto = sql`(select ${setting} !~ '^(on|off|[0-9]{1,9})$')`;
     const first = (count: number) => sql`case when ${auto} then ${target} in (select ${currentAccessFirstOf(naming, bit)}(${literal(count)})) end`;
     return sql`
-  case when not ${reset} then null
+  case when not ${reset} then null${parent ? sql`
+  when ${inserted} then ${currentAccessCheckOf(naming, bit)}(${parent}) or ${checkThenList}` : sql``}
   when ${written} then ${checkThenList}
   else coalesce(${first(FEW_RESOURCES)}, case current_setting(${counter}, true)
     when ${checkRowsOr(CHECKED_ROWS)} then ${list}
@@ -2393,7 +2399,7 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
     const softDelete = bindings.get(table.name)?.softDelete;
     const deletedCheck = softDelete && !table.resourceLeaf && sql`
   or (${name}.${softDelete} is not null and (${naming.deletedPermissionFunction}(${name}.${resourceId}) << ${literal(bit)})::bit = b'1')`;
-    return sql`${readCheck(table, "select", target, bit)}${deletedCheck || sql``}`;
+    return sql`${readCheck(table, "select", target, bit, table.resourceLeaf ? undefined : parentOf(table, name))}${deletedCheck || sql``}`;
   };
 
   // RLS never runs an operator that is not leakproof, like ilike or @@, before a policy, so the indexes that serve it
@@ -2515,7 +2521,7 @@ ${join(config.tables.flatMap(table => {
 ${dropPolicy}
 create policy ${policyName} on ${schema}.${name}
 as permissive for insert to ${identifier(user)}
-with check (${accessCheck(parent, bit)}
+with check ((select set_config(${inserting(table)}, statement_timestamp()::text, true)) is not null and ${accessCheck(parent, bit)}
 );
 `];
         }

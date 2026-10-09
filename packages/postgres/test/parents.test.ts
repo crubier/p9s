@@ -131,8 +131,10 @@ describe('several parent columns', () => {
     expect(await folders()).toEqual(["inside", "readable"]);
 
     // The insert bit on the folder, looked up from its id, or on the group
-    await as(context, user, sql`insert into "folder" ("name", "parent_folder_id") select 'new', "id" from "folder" where "name" = 'inside'`, raw("1"));
-    await as(context, user, sql`insert into "folder" ("name", "group_id") values ('at the top', 1)`, raw("1"));
+    expect(await as(context, user, sql`insert into "folder" ("name", "parent_folder_id") select 'new', "id" from "folder" where "name" = 'inside' returning "name"`, raw("1")))
+      .toEqual([{ name: "new" }]);
+    expect(await as(context, user, sql`insert into "folder" ("name", "group_id") values ('at the top', 1) returning "name"`, raw("1")))
+      .toEqual([{ name: "at the top" }]);
     expect(await folders()).toEqual(["at the top", "inside", "new", "readable"]);
     const hidden = (await context.runTestQuery(sql`select "id" from "folder" where "name" = 'hidden'`))[0][0].id;
     await expect(as(context, user, sql`insert into "folder" ("name", "parent_folder_id") values ('forged', ${raw(String(hidden))})`, raw("1")))

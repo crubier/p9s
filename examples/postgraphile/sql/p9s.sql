@@ -4134,7 +4134,7 @@ create or replace function "team_resource_parent" ("the_key" "public"."team"."or
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
+$$ language sql stable cost 1 security definer set search_path = "public", pg_temp;
 
 
 select pg_temp.p9s_revoke_execute('"team_resource_parent" ("public"."team"."org_id"%type)', 'team_resource_parent');
@@ -4145,7 +4145,7 @@ create or replace function "member_resource_parent" ("the_key" "public"."member"
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
+$$ language sql stable cost 1 security definer set search_path = "public", pg_temp;
 
 
 select pg_temp.p9s_revoke_execute('"member_resource_parent" ("public"."member"."org_id"%type)', 'member_resource_parent');
@@ -4156,7 +4156,7 @@ create or replace function "folder_resource_parent" ("the_key" "public"."folder"
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
+$$ language sql stable cost 1 security definer set search_path = "public", pg_temp;
 
 
 select pg_temp.p9s_revoke_execute('"folder_resource_parent" ("public"."folder"."parent_id"%type)', 'folder_resource_parent');
@@ -4167,7 +4167,7 @@ create or replace function "folder_resource_parent_org_id" ("the_key" "public"."
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."organization" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
+$$ language sql stable cost 1 security definer set search_path = "public", pg_temp;
 
 
 select pg_temp.p9s_revoke_execute('"folder_resource_parent_org_id" ("public"."folder"."org_id"%type)', 'folder_resource_parent_org_id');
@@ -4178,7 +4178,7 @@ create or replace function "document_resource_parent" ("the_key" "public"."docum
   returns uuid
   as $$
   select "the_parent"."resource_id" from "public"."folder" as "the_parent" where "the_parent"."id" = $1
-$$ language sql stable security definer set search_path = "public", pg_temp;
+$$ language sql stable cost 1 security definer set search_path = "public", pg_temp;
 
 
 select pg_temp.p9s_revoke_execute('"document_resource_parent" ("public"."document"."folder_id"%type)', 'document_resource_parent');
@@ -4256,6 +4256,9 @@ create policy "team_app_user_select_policy" on "public"."team"
 as permissive for select to "app_user" 
 using (
   case when not (select set_config('p9s.checked_team_select', '0', true)) is not null then null
+  when (select current_setting('p9s.inserting_team', true) = statement_timestamp()::text) then "current_resource_access_6_check"("team_resource_parent"("team"."org_id")) or case current_setting('p9s.checked_team_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_team_select', (coalesce(nullif(current_setting('p9s.checked_team_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("team"."resource_id") end
   when (select current_setting('p9s.writing_team', true) = statement_timestamp()::text) then case current_setting('p9s.checked_team_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
     when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "team"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_team_select', (coalesce(nullif(current_setting('p9s.checked_team_select', true), '')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_6_check"("team"."resource_id") end
@@ -4273,7 +4276,7 @@ using (
 drop policy if exists "team_app_user_insert_policy" on "public"."team";
 create policy "team_app_user_insert_policy" on "public"."team"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_team', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "team_resource_parent"("team"."org_id"))
 );
 
@@ -4310,6 +4313,9 @@ create policy "member_app_user_select_policy" on "public"."member"
 as permissive for select to "app_user" 
 using (
   case when not (select set_config('p9s.checked_member_select', '0', true)) is not null then null
+  when (select current_setting('p9s.inserting_member', true) = statement_timestamp()::text) then "current_resource_access_6_check"("member_resource_parent"("member"."org_id")) or case current_setting('p9s.checked_member_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_member_select', (coalesce(nullif(current_setting('p9s.checked_member_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_6_check"("member"."resource_id") end
   when (select current_setting('p9s.writing_member', true) = statement_timestamp()::text) then case current_setting('p9s.checked_member_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
     when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "member"."resource_id" in (select "current_resource_access_6_list"()) else set_config('p9s.checked_member_select', (coalesce(nullif(current_setting('p9s.checked_member_select', true), '')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_6_check"("member"."resource_id") end
@@ -4327,7 +4333,7 @@ using (
 drop policy if exists "member_app_user_insert_policy" on "public"."member";
 create policy "member_app_user_insert_policy" on "public"."member"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_member', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "member_resource_parent"("member"."org_id"))
 );
 
@@ -4364,6 +4370,9 @@ create policy "folder_app_user_select_policy" on "public"."folder"
 as permissive for select to "app_user" 
 using (
   case when not (select set_config('p9s.checked_folder_select', '0', true)) is not null then null
+  when (select current_setting('p9s.inserting_folder', true) = statement_timestamp()::text) then "current_resource_access_0_check"(coalesce("folder_resource_parent"("folder"."parent_id"), "folder_resource_parent_org_id"("folder"."org_id"))) or case current_setting('p9s.checked_folder_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_folder_select', (coalesce(nullif(current_setting('p9s.checked_folder_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id") end
   when (select current_setting('p9s.writing_folder', true) = statement_timestamp()::text) then case current_setting('p9s.checked_folder_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
     when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_folder_select', (coalesce(nullif(current_setting('p9s.checked_folder_select', true), '')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_0_check"("folder"."resource_id") end
@@ -4381,7 +4390,7 @@ using (
 drop policy if exists "folder_app_user_insert_policy" on "public"."folder";
 create policy "folder_app_user_insert_policy" on "public"."folder"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_folder', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = coalesce("folder_resource_parent"("folder"."parent_id"), "folder_resource_parent_org_id"("folder"."org_id")))
 );
 
@@ -4418,6 +4427,9 @@ create policy "document_app_user_select_policy" on "public"."document"
 as permissive for select to "app_user" 
 using (
   case when not (select set_config('p9s.checked_document_select', '0', true)) is not null then null
+  when (select current_setting('p9s.inserting_document', true) = statement_timestamp()::text) then "current_resource_access_0_check"("document_resource_parent"("document"."folder_id")) or case current_setting('p9s.checked_document_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+    when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_document_select', (coalesce(nullif(current_setting('p9s.checked_document_select', true), '')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id") end
   when (select current_setting('p9s.writing_document', true) = statement_timestamp()::text) then case current_setting('p9s.checked_document_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
     when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_document_select', (coalesce(nullif(current_setting('p9s.checked_document_select', true), '')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_0_check"("document"."resource_id") end
@@ -4435,7 +4447,7 @@ using (
 drop policy if exists "document_app_user_insert_policy" on "public"."document";
 create policy "document_app_user_insert_policy" on "public"."document"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_document', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "document_resource_parent"("document"."folder_id"))
 );
 
@@ -4489,7 +4501,7 @@ using (
 drop policy if exists "comment_app_user_insert_policy" on "public"."comment";
 create policy "comment_app_user_insert_policy" on "public"."comment"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_comment', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_4" as "var_access" where "var_access"."resource_id" = "comment"."resource_parent_id")
 );
 
@@ -4542,7 +4554,7 @@ using (
 drop policy if exists "audit_event_app_user_insert_policy" on "public"."audit_event";
 create policy "audit_event_app_user_insert_policy" on "public"."audit_event"
 as permissive for insert to "app_user"
-with check (
+with check ((select set_config('p9s.inserting_audit_event', statement_timestamp()::text, true)) is not null and 
   exists (select from "current_resource_access_7" as "var_access" where "var_access"."resource_id" = "audit_event"."resource_parent_id")
 );
 
@@ -4634,6 +4646,9 @@ begin
   where ("folder"."name" ilike $1)
   and (
   case when not (select set_config(''p9s.checked_folder_select'', ''0'', true)) is not null then null
+  when (select current_setting(''p9s.inserting_folder'', true) = statement_timestamp()::text) then "current_resource_access_0_check"(coalesce("folder_resource_parent"("folder"."parent_id"), "folder_resource_parent_org_id"("folder"."org_id"))) or case current_setting(''p9s.checked_folder_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_folder_select'', (coalesce(nullif(current_setting(''p9s.checked_folder_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("folder"."resource_id") end
   when (select current_setting(''p9s.writing_folder'', true) = statement_timestamp()::text) then case current_setting(''p9s.checked_folder_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
     when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "folder"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_folder_select'', (coalesce(nullif(current_setting(''p9s.checked_folder_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_0_check"("folder"."resource_id") end
@@ -4680,6 +4695,9 @@ begin
   where ("document"."title" ilike $1 or "document"."content" ilike $1)
   and (
   case when not (select set_config(''p9s.checked_document_select'', ''0'', true)) is not null then null
+  when (select current_setting(''p9s.inserting_document'', true) = statement_timestamp()::text) then "current_resource_access_0_check"("document_resource_parent"("document"."folder_id")) or case current_setting(''p9s.checked_document_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
+    when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_document_select'', (coalesce(nullif(current_setting(''p9s.checked_document_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
+    and "current_resource_access_0_check"("document"."resource_id") end
   when (select current_setting(''p9s.writing_document'', true) = statement_timestamp()::text) then case current_setting(''p9s.checked_document_select'', true) when (select case when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''on'' then ''-1'' when coalesce(current_setting(''p9s.check_rows'', true), '''') = ''off'' then ''0''
     when coalesce(current_setting(''p9s.check_rows'', true), '''') ~ ''^[0-9]{1,9}$'' then (coalesce(current_setting(''p9s.check_rows'', true), '''')::bigint)::text else ''50'' end) then "document"."resource_id" in (select "current_resource_access_0_list"()) else set_config(''p9s.checked_document_select'', (coalesce(nullif(current_setting(''p9s.checked_document_select'', true), '''')::bigint, 0) + 1)::text, true) is not null
     and "current_resource_access_0_check"("document"."resource_id") end
@@ -5361,7 +5379,7 @@ select "assignment_trigger_enable"();
 -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
 -----------------------------------------------------------------------------------------------------------------------
 create or replace function "p9s_migration" () returns jsonb
-  as $$ select '{"version":"0.1.0","hash":"a2f6259d66aa19a2"}'::jsonb $$
+  as $$ select '{"version":"0.1.0","hash":"72d8ee707b87b381"}'::jsonb $$
   language sql immutable;
 
 select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');
