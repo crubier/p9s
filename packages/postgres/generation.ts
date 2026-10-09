@@ -104,6 +104,7 @@ const createMigrationRecord = (config: CompleteConfig<any>, record: MigrationRec
 create or replace function ${identifier(migrationRecordFunction(config))} () returns jsonb
   as $$ select ${textLiteral(JSON.stringify(record))}::jsonb $$
   language sql immutable;
+${grantExecute(sql`${identifier(migrationRecordFunction(config))} ()`, getRoles(config).everyone)}
 `;
 };
 
@@ -144,10 +145,13 @@ const roleArray = (roles: string[]) => sql`array[${join(roles.map(textLiteral), 
 const setPrivileges = (target: SQL, readRoles: string[], writeRoles: string[], otherRoles: string[] = []) =>
   sql`select pg_temp.p9s_set_privileges(${textLiteral(compile(target).text)}::regclass, ${roleArray(readRoles)}, ${roleArray(writeRoles)}, ${roleArray(otherRoles)});`;
 
-const grantExecute = (fn: SQL, roles: string[], otherRoles: string[] = []) => sql`
-revoke execute on function ${fn} from public;
-${otherRoles.some(role => !roles.includes(role)) ? sql`select pg_temp.p9s_revoke_execute(${textLiteral(compile(fn).text)}, ${roleArray(otherRoles.filter(role => !roles.includes(role)))});` : sql``}
+const grantExecute = (fn: SQL, roles: string[]) => {
+  const signature = compile(fn).text;
+  const name = signature.match(/"((?:[^"]|"")+)"\s*\(/)![1]!.replaceAll('""', '"');
+  return sql`
+select pg_temp.p9s_revoke_execute(${textLiteral(signature)}, ${textLiteral(name)});
 ${join(roles.map(role => sql`grant execute on function ${fn} to ${identifier(role)};`), `\n`)}`;
+};
 
 const definer = (naming: Naming<any>) => sql`security definer set search_path = ${naming.schema}, pg_temp`;
 
@@ -452,7 +456,25 @@ end
 $$;
 ${config.engine.id.mode === "integer" ? ownIdDefaultsCheck(naming, config) : sql``}
 
--- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
+-- Session-local helpers. They never touch the owner's privileges, revoking those would lock the migration role out.
+-- Every other role loses what it has on p9s objects, like the privileges that default privileges give to every new
+-- table and function, as Supabase does for anon and authenticated, and then gets what the config says.
+create or replace function pg_temp.p9s_revoke_relation(target regclass)
+returns void as $$
+declare
+  the_kind text := case (select relkind from pg_class where oid = target) when 'S' then 'sequence' else 'table' end;
+  the_role text;
+begin
+  execute format('revoke all on %s %s from public', the_kind, target);
+  for the_role in
+    select distinct pg_get_userbyid("the_acl".grantee) from pg_class, aclexplode(relacl) as "the_acl"
+    where pg_class.oid = target and "the_acl".grantee not in (0, relowner)
+  loop
+    execute format('revoke all on %s %s from %I', the_kind, target, the_role);
+  end loop;
+end;
+$$ language plpgsql;
+
 create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[], other_roles text[])
 returns void as $$
 declare
@@ -460,10 +482,7 @@ declare
   the_role text;
   the_sequence text;
 begin
-  foreach the_role in array read_roles || write_roles || other_roles loop
-    continue when the_role = owner_role;
-    execute format('revoke all on table %s from %I', target, the_role);
-  end loop;
+  perform pg_temp.p9s_revoke_relation(target);
   foreach the_role in array read_roles loop
     continue when the_role = owner_role;
     execute format('grant select on table %s to %I', target, the_role);
@@ -481,14 +500,18 @@ begin
 end;
 $$ language plpgsql;
 
--- The migration role owns the functions it creates
-create or replace function pg_temp.p9s_revoke_execute(target text, roles text[])
+-- The signature of a function can name the type of a column, which regprocedure cannot read: the roles to revoke
+-- from are those of the functions of that name
+create or replace function pg_temp.p9s_revoke_execute(target text, function_name text)
 returns void as $$
 declare
   the_role text;
 begin
-  foreach the_role in array roles loop
-    continue when the_role = current_user;
+  execute format('revoke execute on function %s from public', target);
+  for the_role in
+    select distinct pg_get_userbyid("the_acl".grantee) from pg_proc, aclexplode(proacl) as "the_acl"
+    where proname = function_name and pronamespace = current_schema()::regnamespace and "the_acl".grantee not in (0, proowner)
+  loop
     execute format('revoke execute on function %s from %I', target, the_role);
   end loop;
 end;
@@ -539,7 +562,7 @@ create or replace aggregate ${orBitmap} (bit) (
   initcond = ${literal(`0`.repeat(size))}
 );
 
-${join(everyone.map(user => sql`grant execute on function ${orBitmap} (bit) to ${identifier(user)};`), `\n`)}
+${grantExecute(sql`${orBitmap} (bit)`, everyone)}
 
 -- Truncate skips row and statement triggers, it would leave the graph pointing at rows that no longer exist
 create or replace function ${truncateGuardFunction}()
@@ -572,6 +595,7 @@ export const createMigrationGraphTables = <User extends string>(kind: Kind, nami
 -----------------------------------------------------------------------------------------------------------------------
 ${config.engine.id.mode === "integer" ? sql`
 create sequence if not exists ${idSequence} as integer;
+select pg_temp.p9s_revoke_relation(${textLiteral(compile(idSequence).text)}::regclass);
 ${join(everyone.map(user => sql`grant usage, select on sequence ${idSequence} to ${identifier(user)};`), `\n`)}
 ` : sql``}
 
@@ -688,7 +712,7 @@ $$
 language sql
 stable;
 
-${grantExecute(sql`${edgeCacheParentCompute} (${varChildId} ${idType})`, writers, users)}
+${grantExecute(sql`${edgeCacheParentCompute} (${varChildId} ${idType})`, writers)}
 
 -----------------------------------------------------------------------------------------------------------------------
 -- ${literal(kind)} compute recursive permissions, towards child
@@ -724,7 +748,7 @@ $$
 language sql
 stable;
 
-${grantExecute(sql`${edgeCacheChildCompute} (${varParentId} ${idType})`, writers, users)}
+${grantExecute(sql`${edgeCacheChildCompute} (${varParentId} ${idType})`, writers)}
 `;
 }
 
@@ -2406,7 +2430,7 @@ begin
 end
 $$ language plpgsql stable ${definer(naming)};
 
-${grantExecute(sql`${of(user)} (${argument})`, [user], everyone)}
+${grantExecute(sql`${of(user)} (${argument})`, [user])}
 `), ``)}
 -- The rows of ${raw(table.name)} whose ${raw(search.columns.join(", "))} match the value with ${raw(search.operator)}, among those the current user can read
 create or replace function ${fn} ("the_value" ${argument})
@@ -2422,7 +2446,7 @@ begin${join(searchers.map(user => sql`
 end
 $$ language plpgsql stable security invoker set search_path = ${naming.schema}, pg_temp;
 
-${grantExecute(sql`${fn} (${argument})`, searchers, everyone)}
+${grantExecute(sql`${fn} (${argument})`, searchers)}
 `;
   }), `\n`);
   // Searches of the bound tables that the config has stopped declaring, and their functions for each user

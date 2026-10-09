@@ -71,7 +71,25 @@ test('Default Migration', () => {
     $$;
 
 
-    -- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
+    -- Session-local helpers. They never touch the owner's privileges, revoking those would lock the migration role out.
+    -- Every other role loses what it has on p9s objects, like the privileges that default privileges give to every new
+    -- table and function, as Supabase does for anon and authenticated, and then gets what the config says.
+    create or replace function pg_temp.p9s_revoke_relation(target regclass)
+    returns void as $$
+    declare
+      the_kind text := case (select relkind from pg_class where oid = target) when 'S' then 'sequence' else 'table' end;
+      the_role text;
+    begin
+      execute format('revoke all on %s %s from public', the_kind, target);
+      for the_role in
+        select distinct pg_get_userbyid("the_acl".grantee) from pg_class, aclexplode(relacl) as "the_acl"
+        where pg_class.oid = target and "the_acl".grantee not in (0, relowner)
+      loop
+        execute format('revoke all on %s %s from %I', the_kind, target, the_role);
+      end loop;
+    end;
+    $$ language plpgsql;
+
     create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[], other_roles text[])
     returns void as $$
     declare
@@ -79,10 +97,7 @@ test('Default Migration', () => {
       the_role text;
       the_sequence text;
     begin
-      foreach the_role in array read_roles || write_roles || other_roles loop
-        continue when the_role = owner_role;
-        execute format('revoke all on table %s from %I', target, the_role);
-      end loop;
+      perform pg_temp.p9s_revoke_relation(target);
       foreach the_role in array read_roles loop
         continue when the_role = owner_role;
         execute format('grant select on table %s to %I', target, the_role);
@@ -100,14 +115,18 @@ test('Default Migration', () => {
     end;
     $$ language plpgsql;
 
-    -- The migration role owns the functions it creates
-    create or replace function pg_temp.p9s_revoke_execute(target text, roles text[])
+    -- The signature of a function can name the type of a column, which regprocedure cannot read: the roles to revoke
+    -- from are those of the functions of that name
+    create or replace function pg_temp.p9s_revoke_execute(target text, function_name text)
     returns void as $$
     declare
       the_role text;
     begin
-      foreach the_role in array roles loop
-        continue when the_role = current_user;
+      execute format('revoke execute on function %s from public', target);
+      for the_role in
+        select distinct pg_get_userbyid("the_acl".grantee) from pg_proc, aclexplode(proacl) as "the_acl"
+        where proname = function_name and pronamespace = current_schema()::regnamespace and "the_acl".grantee not in (0, proowner)
+      loop
         execute format('revoke execute on function %s from %I', target, the_role);
       end loop;
     end;
@@ -153,6 +172,8 @@ test('Default Migration', () => {
       initcond = '0000'
     );
 
+
+    select pg_temp.p9s_revoke_execute('"or_bitmap_4" (bit)', 'or_bitmap_4');
     grant execute on function "or_bitmap_4" (bit) to "user1";
 
     -- Truncate skips row and statement triggers, it would leave the graph pointing at rows that no longer exist
@@ -164,8 +185,7 @@ test('Default Migration', () => {
     $$ language plpgsql;
 
 
-    revoke execute on function "truncate_guard_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"truncate_guard_trigger_function" ()', 'truncate_guard_trigger_function');
 
 
 
@@ -175,6 +195,7 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
 
     create sequence if not exists "resource_id_seq" as integer;
+    select pg_temp.p9s_revoke_relation('"resource_id_seq"'::regclass);
     grant usage, select on sequence "resource_id_seq" to "user1";
 
 
@@ -276,8 +297,7 @@ test('Default Migration', () => {
     stable;
 
 
-    revoke execute on function "resource_edge_cache_parent_compute" ("var_child_id" integer) from public;
-    select pg_temp.p9s_revoke_execute('"resource_edge_cache_parent_compute" ("var_child_id" integer)', array['user1']::text[]);
+    select pg_temp.p9s_revoke_execute('"resource_edge_cache_parent_compute" ("var_child_id" integer)', 'resource_edge_cache_parent_compute');
 
 
     -----------------------------------------------------------------------------------------------------------------------
@@ -315,8 +335,7 @@ test('Default Migration', () => {
     stable;
 
 
-    revoke execute on function "resource_edge_cache_child_compute" ("var_parent_id" integer) from public;
-    select pg_temp.p9s_revoke_execute('"resource_edge_cache_child_compute" ("var_parent_id" integer)', array['user1']::text[]);
+    select pg_temp.p9s_revoke_execute('"resource_edge_cache_child_compute" ("var_parent_id" integer)', 'resource_edge_cache_child_compute');
 
 
 
@@ -326,6 +345,7 @@ test('Default Migration', () => {
     -----------------------------------------------------------------------------------------------------------------------
 
     create sequence if not exists "role_id_seq" as integer;
+    select pg_temp.p9s_revoke_relation('"role_id_seq"'::regclass);
     grant usage, select on sequence "role_id_seq" to "user1";
 
 
@@ -408,8 +428,7 @@ test('Default Migration', () => {
     stable;
 
 
-    revoke execute on function "role_edge_cache_parent_compute" ("var_child_id" integer) from public;
-    select pg_temp.p9s_revoke_execute('"role_edge_cache_parent_compute" ("var_child_id" integer)', array['user1']::text[]);
+    select pg_temp.p9s_revoke_execute('"role_edge_cache_parent_compute" ("var_child_id" integer)', 'role_edge_cache_parent_compute');
 
 
     -----------------------------------------------------------------------------------------------------------------------
@@ -447,8 +466,7 @@ test('Default Migration', () => {
     stable;
 
 
-    revoke execute on function "role_edge_cache_child_compute" ("var_parent_id" integer) from public;
-    select pg_temp.p9s_revoke_execute('"role_edge_cache_child_compute" ("var_parent_id" integer)', array['user1']::text[]);
+    select pg_temp.p9s_revoke_execute('"role_edge_cache_child_compute" ("var_parent_id" integer)', 'role_edge_cache_child_compute');
 
 
 
@@ -705,8 +723,7 @@ test('Default Migration', () => {
     security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "resource_edge_cache_backfill" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_edge_cache_backfill" ()', 'resource_edge_cache_backfill');
 
 
     -----------------------------------------------------------------------------------------------------------------------
@@ -884,8 +901,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "resource_edge_insert_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_edge_insert_trigger_function" ()', 'resource_edge_insert_trigger_function');
 
 
 
@@ -1067,8 +1083,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "resource_edge_update_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_edge_update_trigger_function" ()', 'resource_edge_update_trigger_function');
 
 
 
@@ -1174,8 +1189,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "resource_edge_delete_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_edge_delete_trigger_function" ()', 'resource_edge_delete_trigger_function');
 
 
 
@@ -1223,8 +1237,7 @@ test('Default Migration', () => {
     $$ language plpgsql;
 
 
-    revoke execute on function "resource_edge_guard_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_edge_guard_trigger_function" ()', 'resource_edge_guard_trigger_function');
 
 
     drop trigger if exists "05_resource_edge_guard_insert_trigger" on "resource_edge";
@@ -1269,8 +1282,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "resource_node_insert" ("the_ids" integer[], "the_parents" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_node_insert" ("the_ids" integer[], "the_parents" integer[])', 'resource_node_insert');
 
 
     -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
@@ -1305,8 +1317,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "resource_node_update" ("the_ids" integer[], "the_parents" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_node_update" ("the_ids" integer[], "the_parents" integer[])', 'resource_node_update');
 
 
     -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
@@ -1331,8 +1342,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "resource_node_delete" ("the_ids" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_node_delete" ("the_ids" integer[])', 'resource_node_delete');
 
 
 
@@ -1354,8 +1364,7 @@ test('Default Migration', () => {
     end;
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    revoke execute on function "blog_post_resource_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"blog_post_resource_trigger_function" ()', 'blog_post_resource_trigger_function');
 
 
     drop trigger if exists "10_blog_post_resource_insert_trigger" on "public"."blog_post";
@@ -1404,8 +1413,7 @@ test('Default Migration', () => {
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "resource_trigger_disable" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_trigger_disable" ()', 'resource_trigger_disable');
 
 
     -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -1451,8 +1459,7 @@ test('Default Migration', () => {
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "resource_trigger_enable" () from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_trigger_enable" ()', 'resource_trigger_enable');
 
 
 
@@ -1521,8 +1528,7 @@ test('Default Migration', () => {
     security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "role_edge_cache_backfill" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_edge_cache_backfill" ()', 'role_edge_cache_backfill');
 
 
     -----------------------------------------------------------------------------------------------------------------------
@@ -1700,8 +1706,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "role_edge_insert_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_edge_insert_trigger_function" ()', 'role_edge_insert_trigger_function');
 
 
 
@@ -1883,8 +1888,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "role_edge_update_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_edge_update_trigger_function" ()', 'role_edge_update_trigger_function');
 
 
 
@@ -1990,8 +1994,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "role_edge_delete_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_edge_delete_trigger_function" ()', 'role_edge_delete_trigger_function');
 
 
 
@@ -2033,8 +2036,7 @@ test('Default Migration', () => {
     $$ language plpgsql;
 
 
-    revoke execute on function "role_edge_guard_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_edge_guard_trigger_function" ()', 'role_edge_guard_trigger_function');
 
 
     drop trigger if exists "05_role_edge_guard_insert_trigger" on "role_edge";
@@ -2079,8 +2081,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "role_node_insert" ("the_ids" integer[], "the_parents" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"role_node_insert" ("the_ids" integer[], "the_parents" integer[])', 'role_node_insert');
 
 
     -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
@@ -2115,8 +2116,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "role_node_update" ("the_ids" integer[], "the_parents" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"role_node_update" ("the_ids" integer[], "the_parents" integer[])', 'role_node_update');
 
 
     -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
@@ -2141,8 +2141,7 @@ test('Default Migration', () => {
     $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-    revoke execute on function "role_node_delete" ("the_ids" integer[]) from public;
-
+    select pg_temp.p9s_revoke_execute('"role_node_delete" ("the_ids" integer[])', 'role_node_delete');
 
 
 
@@ -2164,8 +2163,7 @@ test('Default Migration', () => {
     end;
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-    revoke execute on function "human_user_role_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"human_user_role_trigger_function" ()', 'human_user_role_trigger_function');
 
 
     drop trigger if exists "10_human_user_role_insert_trigger" on "public"."human_user";
@@ -2211,8 +2209,7 @@ test('Default Migration', () => {
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "role_trigger_disable" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_trigger_disable" ()', 'role_trigger_disable');
 
 
     -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -2252,8 +2249,7 @@ test('Default Migration', () => {
     $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-    revoke execute on function "role_trigger_enable" () from public;
-
+    select pg_temp.p9s_revoke_execute('"role_trigger_enable" ()', 'role_trigger_enable');
 
 
 
@@ -2296,8 +2292,7 @@ test('Default Migration', () => {
     set enable_mergejoin = off;
 
 
-    revoke execute on function "assignment_edge_validate_trigger_function" () from public;
-
+    select pg_temp.p9s_revoke_execute('"assignment_edge_validate_trigger_function" ()', 'assignment_edge_validate_trigger_function');
 
 
 
@@ -2382,8 +2377,7 @@ test('Default Migration', () => {
     $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-    revoke execute on function "current_resource_access_0_check" (integer) from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_0_check" (integer)', 'current_resource_access_0_check');
     grant execute on function "current_resource_access_0_check" (integer) to "user1";
 
     create or replace function "current_resource_access_0_list" ()
@@ -2396,8 +2390,7 @@ test('Default Migration', () => {
       set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-    revoke execute on function "current_resource_access_0_list" () from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_0_list" ()', 'current_resource_access_0_list');
     grant execute on function "current_resource_access_0_list" () to "user1";
 
     -- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
@@ -2417,8 +2410,7 @@ test('Default Migration', () => {
       set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-    revoke execute on function "current_resource_access_0_first" (bigint) from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_0_first" (bigint)', 'current_resource_access_0_first');
     grant execute on function "current_resource_access_0_first" (bigint) to "user1";
 
     create or replace view "current_resource_access_1" with (security_barrier) as
@@ -2447,8 +2439,7 @@ test('Default Migration', () => {
     $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-    revoke execute on function "current_resource_access_1_check" (integer) from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_1_check" (integer)', 'current_resource_access_1_check');
     grant execute on function "current_resource_access_1_check" (integer) to "user1";
 
     create or replace function "current_resource_access_1_list" ()
@@ -2461,8 +2452,7 @@ test('Default Migration', () => {
       set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-    revoke execute on function "current_resource_access_1_list" () from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_1_list" ()', 'current_resource_access_1_list');
     grant execute on function "current_resource_access_1_list" () to "user1";
 
     -- The first of them, and a null when there may be more: a resource that is not among them is then neither in nor out
@@ -2482,8 +2472,7 @@ test('Default Migration', () => {
       set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-    revoke execute on function "current_resource_access_1_first" (bigint) from public;
-
+    select pg_temp.p9s_revoke_execute('"current_resource_access_1_first" (bigint)', 'current_resource_access_1_first');
     grant execute on function "current_resource_access_1_first" (bigint) to "user1";
 
 
@@ -2564,8 +2553,7 @@ test('Default Migration', () => {
     $$ language plpgsql stable set search_path = "public", pg_temp;
 
 
-    revoke execute on function "resource_permission" (integer) from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_permission" (integer)', 'resource_permission');
     grant execute on function "resource_permission" (integer) to "user1";
 
     -- The permissions of any role, for users with the manageAccess bit on the resource and for graph writers
@@ -2581,8 +2569,7 @@ test('Default Migration', () => {
     $$ language plpgsql stable security invoker set search_path = "public", pg_temp;
 
 
-    revoke execute on function "resource_permission" (integer, integer) from public;
-
+    select pg_temp.p9s_revoke_execute('"resource_permission" (integer, integer)', 'resource_permission');
     grant execute on function "resource_permission" (integer, integer) to "user1";
 
 
@@ -2903,8 +2890,11 @@ test('Default Migration', () => {
     -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "p9s_migration" () returns jsonb
-      as $$ select '{"version":"0.1.0","hash":"a4d222c4aa61ff71"}'::jsonb $$
+      as $$ select '{"version":"0.1.0","hash":"2268f166bf155237"}'::jsonb $$
       language sql immutable;
+
+    select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');
+    grant execute on function "p9s_migration" () to "user1";
     "
   `);
 })

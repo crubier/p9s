@@ -38,8 +38,9 @@ describe('migration status', () => {
   test('the record is the last statement, and only changes with the migration', () => {
     const config = blogMigrationConfig(context);
     const text = compile(createMigration(config)).text.trimEnd();
-    expect(text.endsWith("language sql immutable;")).toBe(true);
-    expect(text.slice(text.lastIndexOf("create or replace function"))).toContain(`"${migrationRecordFunction(config)}"`);
+    const last = text.slice(text.lastIndexOf("create or replace function"));
+    expect(last).toStartWith(`create or replace function "${migrationRecordFunction(config)}"`);
+    expect(last.match(/^\s*(create|alter|insert|update|delete|drop) /gm)).toEqual(["create "]);
     expect(expectedMigrationRecord(config)).toEqual(expectedMigrationRecord(blogMigrationConfig(context)));
     expect(expectedMigrationRecord(config).hash).toMatch(/^[0-9a-f]{16}$/);
     expect(migrationRecordFunction({ ...config, engine: { ...config.engine, naming: { prefix: "blog_" } } })).toBe("blog_p9s_migration");

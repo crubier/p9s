@@ -44,11 +44,17 @@ export interface Identity {
   run<Client extends Queryable, T>(pool: PoolLike<Client>, userId: UserId, fn: (client: Client) => Promise<T>, options?: RunOptions): Promise<T>;
 }
 
-export const createIdentity = <User extends string>(config: Config<User>): Identity => {
+export interface IdentityOptions {
+  // The setting the current user function reads, when the migration does not create that function, like
+  // request.jwt.claim.sub, which auth.uid() of Supabase reads. engine.authentication.setting by default.
+  setting?: string;
+}
+
+export const createIdentity = <User extends string>(config: Config<User>, options: IdentityOptions = {}): Identity => {
   const { engine } = getCompleteConfig(config);
-  const { setting } = engine.authentication;
+  const setting = options.setting ?? engine.authentication.setting;
   if (!setting) {
-    throw new Error("p9s: set engine.authentication.setting, like \"app.user_id\", for the migration to read the current user from it");
+    throw new Error("p9s: set engine.authentication.setting, like \"app.user_id\", for the migration to read the current user from it, or pass the setting the current user function reads");
   }
   const [role] = engine.users;
   if (!role) throw new Error("p9s: engine.users is empty");

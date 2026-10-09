@@ -48,6 +48,8 @@
   "devDependencies": {
     "@p9s/core-testing": "workspace:*",
     "@types/bun": "latest",
-    "@p9s/postgres-testing": "workspace:*"
+    "@p9s/postgres-testing": "workspace:*",
+    "pg": "^8.23.1",
+    "@types/pg": "^8.23.1"
   }
 }

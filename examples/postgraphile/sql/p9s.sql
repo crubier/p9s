@@ -13,7 +13,25 @@ end
 $$;
 
 
--- Session-local helper. It never touches the owner's privileges, revoking those would lock the migration role out.
+-- Session-local helpers. They never touch the owner's privileges, revoking those would lock the migration role out.
+-- Every other role loses what it has on p9s objects, like the privileges that default privileges give to every new
+-- table and function, as Supabase does for anon and authenticated, and then gets what the config says.
+create or replace function pg_temp.p9s_revoke_relation(target regclass)
+returns void as $$
+declare
+  the_kind text := case (select relkind from pg_class where oid = target) when 'S' then 'sequence' else 'table' end;
+  the_role text;
+begin
+  execute format('revoke all on %s %s from public', the_kind, target);
+  for the_role in
+    select distinct pg_get_userbyid("the_acl".grantee) from pg_class, aclexplode(relacl) as "the_acl"
+    where pg_class.oid = target and "the_acl".grantee not in (0, relowner)
+  loop
+    execute format('revoke all on %s %s from %I', the_kind, target, the_role);
+  end loop;
+end;
+$$ language plpgsql;
+
 create or replace function pg_temp.p9s_set_privileges(target regclass, read_roles text[], write_roles text[], other_roles text[])
 returns void as $$
 declare
@@ -21,10 +39,7 @@ declare
   the_role text;
   the_sequence text;
 begin
-  foreach the_role in array read_roles || write_roles || other_roles loop
-    continue when the_role = owner_role;
-    execute format('revoke all on table %s from %I', target, the_role);
-  end loop;
+  perform pg_temp.p9s_revoke_relation(target);
   foreach the_role in array read_roles loop
     continue when the_role = owner_role;
     execute format('grant select on table %s to %I', target, the_role);
@@ -42,14 +57,18 @@ begin
 end;
 $$ language plpgsql;
 
--- The migration role owns the functions it creates
-create or replace function pg_temp.p9s_revoke_execute(target text, roles text[])
+-- The signature of a function can name the type of a column, which regprocedure cannot read: the roles to revoke
+-- from are those of the functions of that name
+create or replace function pg_temp.p9s_revoke_execute(target text, function_name text)
 returns void as $$
 declare
   the_role text;
 begin
-  foreach the_role in array roles loop
-    continue when the_role = current_user;
+  execute format('revoke execute on function %s from public', target);
+  for the_role in
+    select distinct pg_get_userbyid("the_acl".grantee) from pg_proc, aclexplode(proacl) as "the_acl"
+    where proname = function_name and pronamespace = current_schema()::regnamespace and "the_acl".grantee not in (0, proowner)
+  loop
     execute format('revoke execute on function %s from %I', target, the_role);
   end loop;
 end;
@@ -92,8 +111,7 @@ create or replace function "current_role_id" () returns uuid
   as $$ select nullif(current_setting('app.role_id', true), '')::uuid $$
   language sql stable;
 
-revoke execute on function "current_role_id" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_role_id" ()', 'current_role_id');
 grant execute on function "current_role_id" () to "app_user";
 grant execute on function "current_role_id" () to "app_backend";
 
@@ -108,6 +126,8 @@ create or replace aggregate "or_bitmap_8" (bit) (
   initcond = '00000000'
 );
 
+
+select pg_temp.p9s_revoke_execute('"or_bitmap_8" (bit)', 'or_bitmap_8');
 grant execute on function "or_bitmap_8" (bit) to "app_user";
 grant execute on function "or_bitmap_8" (bit) to "app_backend";
 
@@ -120,8 +140,7 @@ end;
 $$ language plpgsql;
 
 
-revoke execute on function "truncate_guard_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"truncate_guard_trigger_function" ()', 'truncate_guard_trigger_function');
 
 
 
@@ -229,8 +248,7 @@ language sql
 stable;
 
 
-revoke execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) from public;
-select pg_temp.p9s_revoke_execute('"resource_edge_cache_parent_compute" ("var_child_id" uuid)', array['app_user']::text[]);
+select pg_temp.p9s_revoke_execute('"resource_edge_cache_parent_compute" ("var_child_id" uuid)', 'resource_edge_cache_parent_compute');
 grant execute on function "resource_edge_cache_parent_compute" ("var_child_id" uuid) to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -268,8 +286,7 @@ language sql
 stable;
 
 
-revoke execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) from public;
-select pg_temp.p9s_revoke_execute('"resource_edge_cache_child_compute" ("var_parent_id" uuid)', array['app_user']::text[]);
+select pg_temp.p9s_revoke_execute('"resource_edge_cache_child_compute" ("var_parent_id" uuid)', 'resource_edge_cache_child_compute');
 grant execute on function "resource_edge_cache_child_compute" ("var_parent_id" uuid) to "app_backend";
 
 
@@ -358,8 +375,7 @@ language sql
 stable;
 
 
-revoke execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) from public;
-select pg_temp.p9s_revoke_execute('"role_edge_cache_parent_compute" ("var_child_id" uuid)', array['app_user']::text[]);
+select pg_temp.p9s_revoke_execute('"role_edge_cache_parent_compute" ("var_child_id" uuid)', 'role_edge_cache_parent_compute');
 grant execute on function "role_edge_cache_parent_compute" ("var_child_id" uuid) to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -397,8 +413,7 @@ language sql
 stable;
 
 
-revoke execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) from public;
-select pg_temp.p9s_revoke_execute('"role_edge_cache_child_compute" ("var_parent_id" uuid)', array['app_user']::text[]);
+select pg_temp.p9s_revoke_execute('"role_edge_cache_child_compute" ("var_parent_id" uuid)', 'role_edge_cache_child_compute');
 grant execute on function "role_edge_cache_child_compute" ("var_parent_id" uuid) to "app_backend";
 
 
@@ -794,8 +809,7 @@ volatile
 security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_edge_cache_backfill" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_edge_cache_backfill" ()', 'resource_edge_cache_backfill');
 grant execute on function "resource_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -979,8 +993,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "resource_edge_insert_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_edge_insert_trigger_function" ()', 'resource_edge_insert_trigger_function');
 
 
 
@@ -1168,8 +1181,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "resource_edge_update_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_edge_update_trigger_function" ()', 'resource_edge_update_trigger_function');
 
 
 
@@ -1281,8 +1293,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "resource_edge_delete_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_edge_delete_trigger_function" ()', 'resource_edge_delete_trigger_function');
 
 
 
@@ -1327,8 +1338,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "assignment_edge_resource_cache_insert_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_resource_cache_insert_trigger_function" ()', 'assignment_edge_resource_cache_insert_trigger_function');
 
 
 
@@ -1373,8 +1383,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "assignment_edge_resource_cache_update_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_resource_cache_update_trigger_function" ()', 'assignment_edge_resource_cache_update_trigger_function');
 
 
 
@@ -1411,8 +1420,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "assignment_edge_resource_cache_delete_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_resource_cache_delete_trigger_function" ()', 'assignment_edge_resource_cache_delete_trigger_function');
 
 
 
@@ -1453,8 +1461,7 @@ end;
 $$ language plpgsql;
 
 
-revoke execute on function "resource_edge_guard_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_edge_guard_trigger_function" ()', 'resource_edge_guard_trigger_function');
 
 
 drop trigger if exists "05_resource_edge_guard_insert_trigger" on "resource_edge";
@@ -1499,8 +1506,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "resource_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_node_insert" ("the_ids" uuid[], "the_parents" uuid[])', 'resource_node_insert');
 
 
 -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
@@ -1535,8 +1541,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "resource_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_node_update" ("the_ids" uuid[], "the_parents" uuid[])', 'resource_node_update');
 
 
 -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
@@ -1561,8 +1566,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "resource_node_delete" ("the_ids" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_node_delete" ("the_ids" uuid[])', 'resource_node_delete');
 
 
 
@@ -1584,8 +1588,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "organization_resource_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"organization_resource_trigger_function" ()', 'organization_resource_trigger_function');
 
 
 drop trigger if exists "10_organization_resource_insert_trigger" on "public"."organization";
@@ -1643,8 +1646,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "team_resource_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"team_resource_trigger_function" ()', 'team_resource_trigger_function');
 
 
 drop trigger if exists "10_team_resource_insert_trigger" on "public"."team";
@@ -1702,8 +1704,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "member_resource_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"member_resource_trigger_function" ()', 'member_resource_trigger_function');
 
 
 drop trigger if exists "10_member_resource_insert_trigger" on "public"."member";
@@ -1769,8 +1770,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "folder_resource_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"folder_resource_trigger_function" ()', 'folder_resource_trigger_function');
 
 
 drop trigger if exists "10_folder_resource_insert_trigger" on "public"."folder";
@@ -1828,8 +1828,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "document_resource_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"document_resource_trigger_function" ()', 'document_resource_trigger_function');
 
 
 drop trigger if exists "10_document_resource_insert_trigger" on "public"."document";
@@ -1897,8 +1896,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_trigger_disable" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_trigger_disable" ()', 'resource_trigger_disable');
 grant execute on function "resource_trigger_disable" () to "app_backend";
 
 -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -2046,8 +2044,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_trigger_enable" () from public;
-
+select pg_temp.p9s_revoke_execute('"resource_trigger_enable" ()', 'resource_trigger_enable');
 grant execute on function "resource_trigger_enable" () to "app_backend";
 
 
@@ -2116,8 +2113,7 @@ volatile
 security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "role_edge_cache_backfill" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_edge_cache_backfill" ()', 'role_edge_cache_backfill');
 grant execute on function "role_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -2295,8 +2291,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "role_edge_insert_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_edge_insert_trigger_function" ()', 'role_edge_insert_trigger_function');
 
 
 
@@ -2478,8 +2473,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "role_edge_update_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_edge_update_trigger_function" ()', 'role_edge_update_trigger_function');
 
 
 
@@ -2585,8 +2579,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "role_edge_delete_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_edge_delete_trigger_function" ()', 'role_edge_delete_trigger_function');
 
 
 
@@ -2628,8 +2621,7 @@ end;
 $$ language plpgsql;
 
 
-revoke execute on function "role_edge_guard_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_edge_guard_trigger_function" ()', 'role_edge_guard_trigger_function');
 
 
 drop trigger if exists "05_role_edge_guard_insert_trigger" on "role_edge";
@@ -2680,8 +2672,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "role_node_insert" ("the_ids" uuid[], "the_parents" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"role_node_insert" ("the_ids" uuid[], "the_parents" uuid[])', 'role_node_insert');
 
 
 -- The home edge follows the parent column. It moves when nothing else links the new parent to the row, otherwise it
@@ -2716,8 +2707,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "role_node_update" ("the_ids" uuid[], "the_parents" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"role_node_update" ("the_ids" uuid[], "the_parents" uuid[])', 'role_node_update');
 
 
 -- The lock comes first: an edge to these rows committed while they are deleted must be seen by the deletes below
@@ -2742,8 +2732,7 @@ end;
 $$ language plpgsql set plan_cache_mode = force_generic_plan;
 
 
-revoke execute on function "role_node_delete" ("the_ids" uuid[]) from public;
-
+select pg_temp.p9s_revoke_execute('"role_node_delete" ("the_ids" uuid[])', 'role_node_delete');
 
 
 
@@ -2765,8 +2754,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "organization_role_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"organization_role_trigger_function" ()', 'organization_role_trigger_function');
 
 
 drop trigger if exists "10_organization_role_insert_trigger" on "public"."organization";
@@ -2808,8 +2796,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "team_role_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"team_role_trigger_function" ()', 'team_role_trigger_function');
 
 
 drop trigger if exists "10_team_role_insert_trigger" on "public"."team";
@@ -2867,8 +2854,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "member_role_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"member_role_trigger_function" ()', 'member_role_trigger_function');
 
 
 drop trigger if exists "10_member_role_insert_trigger" on "public"."member";
@@ -2922,8 +2908,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "role_trigger_disable" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_trigger_disable" ()', 'role_trigger_disable');
 grant execute on function "role_trigger_disable" () to "app_backend";
 
 -- Also brings the graph up to date with rows written while the triggers were disabled
@@ -2999,8 +2984,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "role_trigger_enable" () from public;
-
+select pg_temp.p9s_revoke_execute('"role_trigger_enable" ()', 'role_trigger_enable');
 grant execute on function "role_trigger_enable" () to "app_backend";
 
 
@@ -3043,8 +3027,7 @@ set enable_hashjoin = off
 set enable_mergejoin = off;
 
 
-revoke execute on function "assignment_edge_validate_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_validate_trigger_function" ()', 'assignment_edge_validate_trigger_function');
 
 
 
@@ -3152,8 +3135,7 @@ volatile
 security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_cache_backfill" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_cache_backfill" ()', 'assignment_edge_cache_backfill');
 grant execute on function "assignment_edge_cache_backfill" () to "app_backend";
 
 -----------------------------------------------------------------------------------------------------------------------
@@ -3195,8 +3177,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_insert_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_insert_trigger_function" ()', 'assignment_edge_insert_trigger_function');
 
 
 
@@ -3242,8 +3223,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_update_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_update_trigger_function" ()', 'assignment_edge_update_trigger_function');
 
 
 
@@ -3289,8 +3269,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_delete_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_delete_trigger_function" ()', 'assignment_edge_delete_trigger_function');
 
 
 
@@ -3348,8 +3327,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_role_insert_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_role_insert_trigger_function" ()', 'assignment_edge_role_insert_trigger_function');
 
 
 
@@ -3395,8 +3373,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_role_update_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_role_update_trigger_function" ()', 'assignment_edge_role_update_trigger_function');
 
 
 
@@ -3442,8 +3419,7 @@ end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_edge_role_delete_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_edge_role_delete_trigger_function" ()', 'assignment_edge_role_delete_trigger_function');
 
 
 
@@ -3470,8 +3446,7 @@ returns void as $$
 $$ language sql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_trigger_enable" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_trigger_enable" ()', 'assignment_trigger_enable');
 grant execute on function "assignment_trigger_enable" () to "app_backend";
 
 create or replace function "assignment_trigger_disable"()
@@ -3485,8 +3460,7 @@ returns void as $$
 $$ language sql security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "assignment_trigger_disable" () from public;
-
+select pg_temp.p9s_revoke_execute('"assignment_trigger_disable" ()', 'assignment_trigger_disable');
 grant execute on function "assignment_trigger_disable" () to "app_backend";
 
   
@@ -3511,8 +3485,7 @@ end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_role_node" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_role_node" ()', 'current_role_node');
 grant execute on function "current_role_node" () to "app_user";
 grant execute on function "current_role_node" () to "app_backend";
 
@@ -3556,8 +3529,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_0_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_0_check" (uuid)', 'current_resource_access_0_check');
 grant execute on function "current_resource_access_0_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_0_check" (uuid) to "app_backend";
 
@@ -3571,8 +3543,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_0_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_0_list" ()', 'current_resource_access_0_list');
 grant execute on function "current_resource_access_0_list" () to "app_user";
 grant execute on function "current_resource_access_0_list" () to "app_backend";
 
@@ -3593,8 +3564,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_0_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_0_first" (bigint)', 'current_resource_access_0_first');
 grant execute on function "current_resource_access_0_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_0_first" (bigint) to "app_backend";
 
@@ -3623,8 +3593,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_1_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_1_check" (uuid)', 'current_resource_access_1_check');
 grant execute on function "current_resource_access_1_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_1_check" (uuid) to "app_backend";
 
@@ -3638,8 +3607,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_1_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_1_list" ()', 'current_resource_access_1_list');
 grant execute on function "current_resource_access_1_list" () to "app_user";
 grant execute on function "current_resource_access_1_list" () to "app_backend";
 
@@ -3660,8 +3628,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_1_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_1_first" (bigint)', 'current_resource_access_1_first');
 grant execute on function "current_resource_access_1_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_1_first" (bigint) to "app_backend";
 
@@ -3690,8 +3657,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_2_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_2_check" (uuid)', 'current_resource_access_2_check');
 grant execute on function "current_resource_access_2_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_2_check" (uuid) to "app_backend";
 
@@ -3705,8 +3671,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_2_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_2_list" ()', 'current_resource_access_2_list');
 grant execute on function "current_resource_access_2_list" () to "app_user";
 grant execute on function "current_resource_access_2_list" () to "app_backend";
 
@@ -3727,8 +3692,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_2_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_2_first" (bigint)', 'current_resource_access_2_first');
 grant execute on function "current_resource_access_2_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_2_first" (bigint) to "app_backend";
 
@@ -3757,8 +3721,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_3_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_3_check" (uuid)', 'current_resource_access_3_check');
 grant execute on function "current_resource_access_3_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_3_check" (uuid) to "app_backend";
 
@@ -3772,8 +3735,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_3_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_3_list" ()', 'current_resource_access_3_list');
 grant execute on function "current_resource_access_3_list" () to "app_user";
 grant execute on function "current_resource_access_3_list" () to "app_backend";
 
@@ -3794,8 +3756,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_3_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_3_first" (bigint)', 'current_resource_access_3_first');
 grant execute on function "current_resource_access_3_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_3_first" (bigint) to "app_backend";
 
@@ -3824,8 +3785,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_4_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_4_check" (uuid)', 'current_resource_access_4_check');
 grant execute on function "current_resource_access_4_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_4_check" (uuid) to "app_backend";
 
@@ -3839,8 +3799,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_4_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_4_list" ()', 'current_resource_access_4_list');
 grant execute on function "current_resource_access_4_list" () to "app_user";
 grant execute on function "current_resource_access_4_list" () to "app_backend";
 
@@ -3861,8 +3820,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_4_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_4_first" (bigint)', 'current_resource_access_4_first');
 grant execute on function "current_resource_access_4_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_4_first" (bigint) to "app_backend";
 
@@ -3891,8 +3849,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_5_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_5_check" (uuid)', 'current_resource_access_5_check');
 grant execute on function "current_resource_access_5_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_5_check" (uuid) to "app_backend";
 
@@ -3906,8 +3863,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_5_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_5_list" ()', 'current_resource_access_5_list');
 grant execute on function "current_resource_access_5_list" () to "app_user";
 grant execute on function "current_resource_access_5_list" () to "app_backend";
 
@@ -3928,8 +3884,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_5_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_5_first" (bigint)', 'current_resource_access_5_first');
 grant execute on function "current_resource_access_5_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_5_first" (bigint) to "app_backend";
 
@@ -3958,8 +3913,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_6_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_6_check" (uuid)', 'current_resource_access_6_check');
 grant execute on function "current_resource_access_6_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_6_check" (uuid) to "app_backend";
 
@@ -3973,8 +3927,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_6_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_6_list" ()', 'current_resource_access_6_list');
 grant execute on function "current_resource_access_6_list" () to "app_user";
 grant execute on function "current_resource_access_6_list" () to "app_backend";
 
@@ -3995,8 +3948,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_6_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_6_first" (bigint)', 'current_resource_access_6_first');
 grant execute on function "current_resource_access_6_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_6_first" (bigint) to "app_backend";
 
@@ -4025,8 +3977,7 @@ end
 $$ language plpgsql stable cost 1 set search_path = "public", pg_temp;
 
 
-revoke execute on function "current_resource_access_7_check" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_7_check" (uuid)', 'current_resource_access_7_check');
 grant execute on function "current_resource_access_7_check" (uuid) to "app_user";
 grant execute on function "current_resource_access_7_check" (uuid) to "app_backend";
 
@@ -4040,8 +3991,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_7_list" () from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_7_list" ()', 'current_resource_access_7_list');
 grant execute on function "current_resource_access_7_list" () to "app_user";
 grant execute on function "current_resource_access_7_list" () to "app_backend";
 
@@ -4062,8 +4012,7 @@ $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
   set enable_seqscan = off set enable_bitmapscan = off set enable_hashjoin = off set enable_mergejoin = off;
 
 
-revoke execute on function "current_resource_access_7_first" (bigint) from public;
-
+select pg_temp.p9s_revoke_execute('"current_resource_access_7_first" (bigint)', 'current_resource_access_7_first');
 grant execute on function "current_resource_access_7_first" (bigint) to "app_user";
 grant execute on function "current_resource_access_7_first" (bigint) to "app_backend";
 
@@ -4159,8 +4108,7 @@ end
 $$ language plpgsql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_permission" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_permission" (uuid)', 'resource_permission');
 grant execute on function "resource_permission" (uuid) to "app_user";
 grant execute on function "resource_permission" (uuid) to "app_backend";
 
@@ -4177,8 +4125,7 @@ end
 $$ language plpgsql stable security invoker set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_permission" (uuid, uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_permission" (uuid, uuid)', 'resource_permission');
 grant execute on function "resource_permission" (uuid, uuid) to "app_user";
 grant execute on function "resource_permission" (uuid, uuid) to "app_backend";
 
@@ -4190,8 +4137,7 @@ create or replace function "team_resource_parent" ("the_key" "public"."team"."or
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "team_resource_parent" ("public"."team"."org_id"%type) from public;
-
+select pg_temp.p9s_revoke_execute('"team_resource_parent" ("public"."team"."org_id"%type)', 'team_resource_parent');
 grant execute on function "team_resource_parent" ("public"."team"."org_id"%type) to "app_user";
 
 
@@ -4202,8 +4148,7 @@ create or replace function "member_resource_parent" ("the_key" "public"."member"
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "member_resource_parent" ("public"."member"."org_id"%type) from public;
-
+select pg_temp.p9s_revoke_execute('"member_resource_parent" ("public"."member"."org_id"%type)', 'member_resource_parent');
 grant execute on function "member_resource_parent" ("public"."member"."org_id"%type) to "app_user";
 
 
@@ -4214,8 +4159,7 @@ create or replace function "folder_resource_parent" ("the_key" "public"."folder"
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "folder_resource_parent" ("public"."folder"."parent_id"%type) from public;
-
+select pg_temp.p9s_revoke_execute('"folder_resource_parent" ("public"."folder"."parent_id"%type)', 'folder_resource_parent');
 grant execute on function "folder_resource_parent" ("public"."folder"."parent_id"%type) to "app_user";
 
 
@@ -4226,8 +4170,7 @@ create or replace function "folder_resource_parent_org_id" ("the_key" "public"."
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "folder_resource_parent_org_id" ("public"."folder"."org_id"%type) from public;
-
+select pg_temp.p9s_revoke_execute('"folder_resource_parent_org_id" ("public"."folder"."org_id"%type)', 'folder_resource_parent_org_id');
 grant execute on function "folder_resource_parent_org_id" ("public"."folder"."org_id"%type) to "app_user";
 
 
@@ -4238,8 +4181,7 @@ create or replace function "document_resource_parent" ("the_key" "public"."docum
 $$ language sql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "document_resource_parent" ("public"."document"."folder_id"%type) from public;
-
+select pg_temp.p9s_revoke_execute('"document_resource_parent" ("public"."document"."folder_id"%type)', 'document_resource_parent');
 grant execute on function "document_resource_parent" ("public"."document"."folder_id"%type) to "app_user";
 
 
@@ -4259,8 +4201,7 @@ end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_parent_validate" (uuid, uuid, integer) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_parent_validate" (uuid, uuid, integer)', 'resource_parent_validate');
 grant execute on function "resource_parent_validate" (uuid, uuid, integer) to "app_user";
 
 
@@ -4707,8 +4648,7 @@ end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "folder_search_app_user" (text) from public;
-select pg_temp.p9s_revoke_execute('"folder_search_app_user" (text)', array['app_backend']::text[]);
+select pg_temp.p9s_revoke_execute('"folder_search_app_user" (text)', 'folder_search_app_user');
 grant execute on function "folder_search_app_user" (text) to "app_user";
 
 -- The rows of folder whose name match the value with ilike, among those the current user can read
@@ -4726,8 +4666,7 @@ end
 $$ language plpgsql stable security invoker set search_path = "public", pg_temp;
 
 
-revoke execute on function "folder_search" (text) from public;
-select pg_temp.p9s_revoke_execute('"folder_search" (text)', array['app_backend']::text[]);
+select pg_temp.p9s_revoke_execute('"folder_search" (text)', 'folder_search');
 grant execute on function "folder_search" (text) to "app_user";
 
 
@@ -4755,8 +4694,7 @@ end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "document_search_app_user" (text) from public;
-select pg_temp.p9s_revoke_execute('"document_search_app_user" (text)', array['app_backend']::text[]);
+select pg_temp.p9s_revoke_execute('"document_search_app_user" (text)', 'document_search_app_user');
 grant execute on function "document_search_app_user" (text) to "app_user";
 
 -- The rows of document whose title, content match the value with ilike, among those the current user can read
@@ -4774,8 +4712,7 @@ end
 $$ language plpgsql stable security invoker set search_path = "public", pg_temp;
 
 
-revoke execute on function "document_search" (text) from public;
-select pg_temp.p9s_revoke_execute('"document_search" (text)', array['app_backend']::text[]);
+select pg_temp.p9s_revoke_execute('"document_search" (text)', 'document_search');
 grant execute on function "document_search" (text) to "app_user";
 
 
@@ -4834,8 +4771,7 @@ create or replace function "permission_flags" ("the_bitmap" bit(8))
 $$ language sql immutable strict parallel safe;
 
 
-revoke execute on function "permission_flags" (bit) from public;
-
+select pg_temp.p9s_revoke_execute('"permission_flags" (bit)', 'permission_flags');
 grant execute on function "permission_flags" (bit) to "app_user";
 grant execute on function "permission_flags" (bit) to "app_backend";
 
@@ -4877,8 +4813,7 @@ end
 $$ language plpgsql stable security definer set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_share_check_app_user" (uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_share_check_app_user" (uuid)', 'resource_share_check_app_user');
 grant execute on function "resource_share_check_app_user" (uuid) to "app_user";
 
 create policy "assignment_edge_policy_app_user_select" on "assignment_edge" as permissive for select to "app_user"
@@ -4912,8 +4847,7 @@ end
 $$ language plpgsql volatile security invoker set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_share" (uuid, uuid, bit(8)) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_share" (uuid, uuid, bit(8))', 'resource_share');
 grant execute on function "resource_share" (uuid, uuid, bit(8)) to "app_user";
 
 -- Removes the assignment of a role on a resource, as the policies allow. False when there was none to remove.
@@ -4927,8 +4861,7 @@ end
 $$ language plpgsql volatile security invoker set search_path = "public", pg_temp;
 
 
-revoke execute on function "resource_unshare" (uuid, uuid) from public;
-
+select pg_temp.p9s_revoke_execute('"resource_unshare" (uuid, uuid)', 'resource_unshare');
 grant execute on function "resource_unshare" (uuid, uuid) to "app_user";
 
 
@@ -5034,8 +4967,7 @@ create or replace function "organization_permission" ("the_row" "public"."organi
 $$ language sql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "organization_permission" ("public"."organization") from public;
-
+select pg_temp.p9s_revoke_execute('"organization_permission" ("public"."organization")', 'organization_permission');
 grant execute on function "organization_permission" ("public"."organization") to "app_user";
 grant execute on function "organization_permission" ("public"."organization") to "app_backend";
 
@@ -5053,8 +4985,7 @@ create or replace function "team_permission" ("the_row" "public"."team")
 $$ language sql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "team_permission" ("public"."team") from public;
-
+select pg_temp.p9s_revoke_execute('"team_permission" ("public"."team")', 'team_permission');
 grant execute on function "team_permission" ("public"."team") to "app_user";
 grant execute on function "team_permission" ("public"."team") to "app_backend";
 
@@ -5072,8 +5003,7 @@ create or replace function "member_permission" ("the_row" "public"."member")
 $$ language sql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "member_permission" ("public"."member") from public;
-
+select pg_temp.p9s_revoke_execute('"member_permission" ("public"."member")', 'member_permission');
 grant execute on function "member_permission" ("public"."member") to "app_user";
 grant execute on function "member_permission" ("public"."member") to "app_backend";
 
@@ -5091,8 +5021,7 @@ create or replace function "folder_permission" ("the_row" "public"."folder")
 $$ language sql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "folder_permission" ("public"."folder") from public;
-
+select pg_temp.p9s_revoke_execute('"folder_permission" ("public"."folder")', 'folder_permission');
 grant execute on function "folder_permission" ("public"."folder") to "app_user";
 grant execute on function "folder_permission" ("public"."folder") to "app_backend";
 
@@ -5110,8 +5039,7 @@ create or replace function "document_permission" ("the_row" "public"."document")
 $$ language sql stable set search_path = "public", pg_temp;
 
 
-revoke execute on function "document_permission" ("public"."document") from public;
-
+select pg_temp.p9s_revoke_execute('"document_permission" ("public"."document")', 'document_permission');
 grant execute on function "document_permission" ("public"."document") to "app_user";
 grant execute on function "document_permission" ("public"."document") to "app_backend";
 
@@ -5337,8 +5265,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "comment_resource_parent_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"comment_resource_parent_trigger_function" ()', 'comment_resource_parent_trigger_function');
 
 drop trigger if exists "10_comment_resource_parent_trigger" on "public"."comment";
 create trigger "10_comment_resource_parent_trigger" before insert or update of "document_id", "resource_parent_id" on "public"."comment" for each row execute function "comment_resource_parent_trigger_function"();
@@ -5358,8 +5285,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "audit_event_resource_parent_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"audit_event_resource_parent_trigger_function" ()', 'audit_event_resource_parent_trigger_function');
 
 drop trigger if exists "10_audit_event_resource_parent_trigger" on "public"."audit_event";
 create trigger "10_audit_event_resource_parent_trigger" before insert or update of "org_id", "resource_parent_id" on "public"."audit_event" for each row execute function "audit_event_resource_parent_trigger_function"();
@@ -5411,8 +5337,7 @@ begin
 end;
 $$ language plpgsql security definer set search_path = "public", pg_temp;
 
-revoke execute on function "api_key_role_parent_trigger_function" () from public;
-
+select pg_temp.p9s_revoke_execute('"api_key_role_parent_trigger_function" ()', 'api_key_role_parent_trigger_function');
 
 drop trigger if exists "10_api_key_role_parent_trigger" on "public"."api_key";
 create trigger "10_api_key_role_parent_trigger" before insert or update of "role_id", "member_id", "role_parent_id" on "public"."api_key" for each row execute function "api_key_role_parent_trigger_function"();
@@ -5436,5 +5361,9 @@ select "assignment_trigger_enable"();
 -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
 -----------------------------------------------------------------------------------------------------------------------
 create or replace function "p9s_migration" () returns jsonb
-  as $$ select '{"version":"0.1.0","hash":"dab79ae44c5a02cb"}'::jsonb $$
+  as $$ select '{"version":"0.1.0","hash":"a2f6259d66aa19a2"}'::jsonb $$
   language sql immutable;
+
+select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');
+grant execute on function "p9s_migration" () to "app_user";
+grant execute on function "p9s_migration" () to "app_backend";

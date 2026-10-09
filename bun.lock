@@ -179,6 +179,8 @@
         "@p9s/core-testing": "workspace:*",
         "@p9s/postgres-testing": "workspace:*",
         "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+        "pg": "^8.23.1",
       },
     },
     "packages/postgres-testing": {
