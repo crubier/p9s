@@ -35,6 +35,24 @@ commit;
 
 Without `setting`, `getCurrentUserId` must exist before the migration runs, like `auth.uid()` on [Supabase](../integrations/supabase).
 
+### The id of the user in the app
+
+An application that already has a users table knows its users by their id in that table, not by the role id p9s gives them. With `key`, the setting holds that id, and the current user function looks the role id up:
+
+```ts
+authentication: {
+  getCurrentUserId: "current_role_id",
+  setting: "app.user_id",
+  key: { table: "users", column: "id" },
+}
+```
+
+```sql
+select set_config('role', 'app_user', true), set_config('app.user_id', '7', true);
+```
+
+The key is any unique column of a role table, of any type, like an email or the subject of a token. The function runs as the owner, so the policies of the users table do not hide the row, and once per query. A key that matches no row reads as no one.
+
 ## node-postgres, Neon and PGlite
 
 `createIdentity` from `@p9s/postgres` builds these statements from the config:

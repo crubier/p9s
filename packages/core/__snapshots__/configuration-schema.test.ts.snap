@@ -3026,6 +3026,22 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "getCurrentUserId": {
           "type": "string",
         },
+        "key": {
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "type": "string",
+            },
+            "table": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "table",
+            "column",
+          ],
+          "type": "object",
+        },
         "setting": {
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
           "type": "string",
@@ -3043,6 +3059,9 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "resource",
       ],
       "type": "string",
+    },
+    "grantPrivileges": {
+      "type": "boolean",
     },
     "graphWriters": {
       "default": [],
@@ -4183,6 +4202,22 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "getCurrentUserId": {
               "type": "string",
             },
+            "key": {
+              "additionalProperties": false,
+              "properties": {
+                "column": {
+                  "type": "string",
+                },
+                "table": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "table",
+                "column",
+              ],
+              "type": "object",
+            },
             "setting": {
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
               "type": "string",
@@ -4200,6 +4235,9 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             "resource",
           ],
           "type": "string",
+        },
+        "grantPrivileges": {
+          "type": "boolean",
         },
         "graphWriters": {
           "default": [],
@@ -5384,6 +5422,24 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
               },
             ],
           },
+          "privileges": {
+            "additionalProperties": {
+              "items": {
+                "enum": [
+                  "select",
+                  "insert",
+                  "update",
+                  "delete",
+                ],
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
           "resource": {
             "additionalProperties": false,
             "properties": {
@@ -5700,6 +5756,22 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "getCurrentUserId": {
               "type": "string",
             },
+            "key": {
+              "additionalProperties": false,
+              "properties": {
+                "column": {
+                  "type": "string",
+                },
+                "table": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "table",
+                "column",
+              ],
+              "type": "object",
+            },
             "setting": {
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
               "type": "string",
@@ -5717,6 +5789,9 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             "resource",
           ],
           "type": "string",
+        },
+        "grantPrivileges": {
+          "type": "boolean",
         },
         "graphWriters": {
           "default": [],
@@ -6888,6 +6963,24 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "type": "object",
               },
             ],
+          },
+          "privileges": {
+            "additionalProperties": {
+              "items": {
+                "enum": [
+                  "select",
+                  "insert",
+                  "update",
+                  "delete",
+                ],
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
           },
           "resource": {
             "additionalProperties": false,

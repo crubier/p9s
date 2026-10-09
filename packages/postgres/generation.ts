@@ -67,8 +67,57 @@ const createMigrationBody = <User extends string>(completeConfig: CompleteConfig
 
   ${createMigrationBootstrap(naming, completeConfig)}
 
-  ${createMigrationLinks(naming, completeConfig)}
+  ${createMigrationLinks(naming, completeConfig)}${createMigrationPrivileges(naming, completeConfig)}
   `;
+};
+
+type Operation = "select" | "insert" | "update" | "delete";
+const operations: Operation[] = ["select", "insert", "update", "delete"];
+
+// What users may run on the tables of the app: what their permissions name with grantPrivileges, and the privileges of
+// links. Only grants, so that grants of the app stay.
+const createMigrationPrivileges = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const grants: Array<{ schema: SQL, table: SQL, user: string, operations: Operation[] }> = [];
+  if (config.engine.grantPrivileges) {
+    for (const table of config.tables) {
+      const tableNaming = naming.tables[table.name]!;
+      for (const [user, bits] of Object.entries(table.permission ?? {})) {
+        const granted = operations.filter(operation => (bits as Partial<Record<Operation, unknown>>)[operation] != null);
+        if (granted.length > 0) grants.push({ schema: tableNaming.schema, table: sql`${tableNaming.schema}.${tableNaming.name}`, user, operations: granted });
+      }
+    }
+  }
+  for (const link of config.links) {
+    const linkNaming = naming.links[link.name]!;
+    for (const [user, granted] of Object.entries(link.privileges ?? {})) {
+      if (granted.length > 0) grants.push({ schema: linkNaming.schema, table: sql`${linkNaming.schema}.${linkNaming.name}`, user, operations: operations.filter(operation => granted.includes(operation)) });
+    }
+  }
+  if (grants.length === 0) return sql``;
+  const schemas = new Map(grants.map(grant => [`${compile(grant.schema).text} ${grant.user}`, grant]));
+  return sql`
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Privileges of the users on the tables of the app
+-----------------------------------------------------------------------------------------------------------------------
+${join([...schemas.values()].map(({ schema, user }) => sql`
+grant usage on schema ${schema} to ${identifier(user)};`), ``)}
+${join(grants.map(({ table, user, operations: granted }) => sql`
+grant ${raw(granted.join(", "))} on table ${table} to ${identifier(user)};${granted.includes("insert") ? sql`
+do $$
+declare
+  "the_sequence" text;
+begin
+  for "the_sequence" in
+    select pg_get_serial_sequence(${textLiteral(compile(table).text)}, "attname") from pg_attribute
+    where "attrelid" = ${textLiteral(compile(table).text)}::regclass and "attnum" > 0 and not "attisdropped"
+    and pg_get_serial_sequence(${textLiteral(compile(table).text)}, "attname") is not null
+  loop
+    execute format('grant usage on sequence %s to %I', "the_sequence", ${textLiteral(user)});
+  end loop;
+end
+$$;` : sql``}`), ``)}
+`;
 };
 
 // What a database that ran the migration of a config returns from its record function
@@ -532,18 +581,34 @@ const currentUserIdFunction = (config: CompleteConfig<any>) => identifier(...con
 
 // With a setting, the current user is the role id the server sets it to for the transaction, none when it is empty
 export const createMigrationAuthentication = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
-  const { setting } = config.engine.authentication;
+  const { setting, key } = config.engine.authentication;
+  if (key && !setting) throw new Error("engine.authentication.key needs a setting, which holds the key of the current user");
+  if (key && !config.tables.some(table => table.name === key.table && table.isRole)) {
+    throw new Error(`Table "${key.table}" of engine.authentication.key is not a role table of the config`);
+  }
   if (!setting) return sql``;
   const fn = currentUserIdFunction(config);
   const { type: idType } = getIdType(config);
+  const keyTable = key && naming.tables[key.table];
+  // With a key, the role id of the row that has it. In plpgsql, whose %type reads the type of the key when it first
+  // runs, after the migration added the role id column, and as the owner, whom the policies of the table let through.
+  const create = keyTable ? sql`
+create or replace function ${fn} () returns ${idType}
+  as $$
+declare
+  "the_key" ${keyTable.schema}.${keyTable.name}.${identifier(key!.column)}%type := nullif(current_setting(${textLiteral(setting)}, true), '');
+begin
+  return (select ${keyTable.roleId} from ${keyTable.schema}.${keyTable.name} where ${identifier(key!.column)} = "the_key");
+end
+$$ language plpgsql stable ${definer(naming)};` : sql`
+create or replace function ${fn} () returns ${idType}
+  as $$ select nullif(current_setting(${textLiteral(setting)}, true), '')::${idType} $$
+  language sql stable;`;
   return sql`
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Current user
------------------------------------------------------------------------------------------------------------------------
-create or replace function ${fn} () returns ${idType}
-  as $$ select nullif(current_setting(${textLiteral(setting)}, true), '')::${idType} $$
-  language sql stable;
+-----------------------------------------------------------------------------------------------------------------------${create}
 ${grantExecute(sql`${fn} ()`, getRoles(config).everyone)}
 `;
 };
@@ -2223,9 +2288,10 @@ ${perLink}
 
 // The role node whose permissions the current user has. A user that is a role leaf row has the permissions of its
 // parent. As a sub-select, the lookup runs once per query.
-const currentRoleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>) => getLeaves("role", naming, config).length === 0
-  ? sql`${currentUserIdFunction(config)}()`
-  : sql`(select ${naming.currentRoleNodeFunction}())`;
+// A function that reads a table runs once per query, as an init plan, rather than once per row
+const currentRoleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>) => getLeaves("role", naming, config).length > 0
+  ? sql`(select ${naming.currentRoleNodeFunction}())`
+  : config.engine.authentication.key ? sql`(select ${currentUserIdFunction(config)}())` : sql`${currentUserIdFunction(config)}()`;
 
 // The role node of any role id: the parent of a role leaf row, the id itself otherwise
 const roleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>, roleId: SQL) => {

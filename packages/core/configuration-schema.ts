@@ -355,6 +355,8 @@ export const linkConfigSchema = z.object({
   role: linkEndSchema.optional(),
   // Every bit by default for edges, required for assignments
   permission: linkPermissionSchema.optional(),
+  // What each user role may do with the link table, granted by the migration: ["select", "insert", "delete"]
+  privileges: z.record(z.string(), z.array(z.enum(["select", "insert", "update", "delete"]))).optional(),
 });
 
 // Engine config base schema (without refinements, for partial/optional use)
@@ -383,7 +385,13 @@ export const engineConfigBaseSchema = z.object({
     // A setting the server sets to the role id of the user of each transaction, like "app.user_id": the migration then
     // creates the function above, which reads it, and the identity helpers of @p9s/postgres set it
     setting: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*$/, "a setting name with a prefix, like app.user_id").optional(),
+    // The setting then holds a key of the app, like the id of the user in its users table, rather than the role id:
+    // the current user function looks the role id up in that table
+    key: z.object({ table: z.string(), column: z.string() }).optional(),
   }),
+  // The migration grants each user role of a table the statements its permission names, and the sequences it needs
+  // to insert. Grants of the app stay, the migration only adds.
+  grantPrivileges: z.boolean().optional(),
   id: z.object({
     mode: z.enum(["integer", "uuid"]),
   }),
@@ -569,6 +577,15 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
       }
     }
   });
+  const { key, setting } = data.engine.authentication;
+  if (key !== undefined) {
+    if (setting === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A key needs a setting, which holds the key of the current user`, path: ["engine", "authentication", "key"] });
+    }
+    if (!data.tables.some(table => table.name === key.table && table.isRole)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Table "${key.table}" of the key is not a role table of the config`, path: ["engine", "authentication", "key", "table"] });
+    }
+  }
   const linkNames = new Set<string>();
   data.links.forEach((link, linkIndex) => {
     if (linkNames.has(link.name)) {
@@ -577,6 +594,11 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
     linkNames.add(link.name);
     for (const { path, message } of linkIssues(link, data)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["links", linkIndex, ...path] });
+    }
+    for (const user of Object.keys(link.privileges ?? {})) {
+      if (!validUsers.has(user)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Privilege user "${user}" is not in the users array`, path: ["links", linkIndex, "privileges", user] });
+      }
     }
   });
 });

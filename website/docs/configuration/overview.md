@@ -88,6 +88,8 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `naming.triggerPrefix`            | `string`                         | Put before the names of p9s triggers, to order them with yours (default: none) |
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
 | `authentication.setting`          | `string`                         | Setting holding that role id, like `app.role_id`: the migration then creates `getCurrentUserId`, see [acting as a user](./identity) (default: none) |
+| `authentication.key`              | `{ table, column }`              | Column of a role table the setting holds instead of the role id, like the id of the user in the users table of the app, see [the id of the user in the app](./identity#the-id-of-the-user-in-the-app) (default: none) |
+| `grantPrivileges`                 | `boolean`                        | Grant users the statements their permissions name, see [privileges](#privileges) (default: `false`) |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
 | `resourceCache`                   | `'full' \| 'assigned'`           | Cache every (ancestor, descendant) pair of resources, or only those below resources that have assignments (default: `'full'`), see [resource cache](#resource-cache) |
@@ -108,6 +110,10 @@ The caches follow paths of up to `maxDepth` edges. A write that would make a lon
 Postgres runs the triggers of a table that fire on the same event in the order of their names. p9s names its triggers `05_…`, `07_…`, `10_…` and `20_…`, so with `naming: { triggerPrefix: "p9s_" }` they become `p9s_05_…`, and run after triggers named `a_…` to `o_…` and before `q_…` to `z_…`. Changing the prefix renames the p9s triggers on the next migration.
 
 With `combineAssignmentsWith: "role"`, p9s maintains an `assignment_edge_cache` of every (user, resource) pair reachable through an assignment, and RLS policies read it instead of joining the role cache. Reads get cheaper and assignment or role changes get more expensive, see [Benchmarks](../benchmarks).
+
+#### Privileges
+
+The policies decide which rows a user role reaches, and Postgres first needs that role to have the privilege of the statement on the table. With `engine.grantPrivileges: true`, the migration grants each role of `engine.users` the statements its `permission` names on each table, with the usage of the schema, and of the sequences of the table when it can insert. A table whose permission is `{ app_user: { select: 0, insert: 1 } }` gets `grant select, insert ... to app_user`. The migration only grants: grants of the app stay, like the select of a few columns of the users table, and removing a statement from the config does not revoke it.
 
 #### Resource cache
 
@@ -293,7 +299,7 @@ An application that already keeps who belongs to which team, and who shares what
 
 The edges and assignments of links have `linked` set, and the migration only removes those. Running the migration again, after rows were written while the triggers were disabled, makes the graph match the link tables again, and a config without a link drops its triggers and the edges it gave.
 
-A user who inserts, updates or deletes a row of a link table of assignments can only give, or take, bits they have on the resource, like when sharing through `assignment_edge`. Who may write a link table at all is up to its grants and its own policies. A link table cannot be truncated while linked.
+A user who inserts, updates or deletes a row of a link table of assignments can only give, or take, bits they have on the resource, like when sharing through `assignment_edge`. Who may write a link table at all is up to its grants and its own policies: `privileges` grants users the statements it names, like `privileges: { app_user: ["select", "insert", "delete"] }` for users who share documents. A link table cannot be truncated while linked.
 
 Limits: the ends cannot be leaf or soft deleted tables, a pair that is also the parent column of the child keeps the edge of the parent column, and edges a graph writer changes by hand on a linked pair are overwritten at the next change of the link tables.
 
