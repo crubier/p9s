@@ -39,7 +39,7 @@ try {
   await Bun.write(path.join(project, "p9s.config.json"), JSON.stringify(config));
   await Bun.write(path.join(project, "check.mjs"), `
 import { readFileSync } from "node:fs";
-import { createIdentity, createMigrationSql } from "@p9s/postgres";
+import { createIdentity, createMigrationSql, expectedMigrationRecord, migrationStatus } from "@p9s/postgres";
 import { validateConfig } from "@p9s/core";
 import { withUser } from "@p9s/drizzle";
 const config = JSON.parse(readFileSync("p9s.config.json", "utf8"));
@@ -49,6 +49,7 @@ if (!sql.includes("create policy")) throw new Error("no policies in the migratio
 if (!sql.includes("current_setting('app.role_id', true)")) throw new Error("no current user function in the migration");
 const { text } = createIdentity(config).statement("r1");
 if (!text.startsWith("select set_config(") || typeof withUser !== "function") throw new Error("no identity helpers");
+if (typeof migrationStatus !== "function" || !sql.includes(expectedMigrationRecord(config).hash)) throw new Error("no migration record");
 console.log("node: migration of " + sql.length + " characters");
 `);
   await $`node check.mjs`.cwd(project);
@@ -79,6 +80,7 @@ generateConfigurationFromDrizzleSchema();
   if (version !== expected) throw new Error(`p9s --version printed ${version}, expected ${expected}`);
   await $`npx p9s postgres generate --config p9s.config.json --output migration.sql`.cwd(project).quiet();
   if (!(await Bun.file(path.join(project, "migration.sql")).text()).includes("create policy")) throw new Error("the CLI wrote no policies");
+  if (!(await $`npx p9s postgres status --help`.cwd(project).text()).includes("--database-url")) throw new Error("no status command");
   console.log(`cli: p9s ${version} generates the migration`);
 } finally {
   await rm(project, { recursive: true, force: true });

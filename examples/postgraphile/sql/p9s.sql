@@ -5431,3 +5431,10 @@ select "role_trigger_enable"();
 select "assignment_trigger_enable"();
 
   
+
+-----------------------------------------------------------------------------------------------------------------------
+-- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
+-----------------------------------------------------------------------------------------------------------------------
+create or replace function "p9s_migration" () returns jsonb
+  as $$ select '{"version":"0.1.0","hash":"dab79ae44c5a02cb"}'::jsonb $$
+  language sql immutable;

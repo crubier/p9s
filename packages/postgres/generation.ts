@@ -3,14 +3,21 @@
 import { type SQL, query as sql, join, literal, identifier, compile, raw } from "pg-sql2";
 import { getCompleteConfig, getCompleteNamingConfig, getNaming, parentsOf } from "@p9s/core";
 import type { CompleteConfig, Naming, Config } from "@p9s/core";
+import { version } from "./version.ts";
 
 type Kind = "resource" | "role";
 
 export const createMigration = <User extends string>(config: Config<User>) => {
   const completeConfig = getCompleteConfig(config);
+  const body = createMigrationBody(completeConfig);
+  return sql`${body}
+${createMigrationRecord(completeConfig, recordOf(body))}`;
+};
+
+const createMigrationBody = <User extends string>(completeConfig: CompleteConfig<User>) => {
   const naming = getNaming(completeConfig);
 
-  const result = sql`
+  return sql`
   ${createMigrationPreamble(naming, completeConfig)}
 
   ${createMigrationTriggerNames(completeConfig)}
@@ -59,9 +66,46 @@ export const createMigration = <User extends string>(config: Config<User>) => {
   ${createMigrationLeaves(naming, completeConfig)}
 
   ${createMigrationBootstrap(naming, completeConfig)}
-  `
-  return result;
-}
+  `;
+};
+
+// What a database that ran the migration of a config returns from its record function
+export interface MigrationRecord { version: string; hash: string }
+
+const recordOf = (body: SQL): MigrationRecord => ({ version, hash: migrationHash(compile(body).text) });
+
+// The record the migration of a config makes, to compare with what a database returns
+export const expectedMigrationRecord = <User extends string>(config: Config<User>) =>
+  recordOf(createMigrationBody(getCompleteConfig(config)));
+
+// A hash to tell whether a database ran this migration, not a cryptographic one, as migrations are also generated in
+// browsers. 64 bits, from two lanes of 32.
+const migrationHash = (text: string) => {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+};
+
+// The function the migration creates last, so that it only exists once everything before it ran
+export const migrationRecordFunction = <User extends string>(config: Config<User>) => `${getCompleteNamingConfig(getCompleteConfig(config)).prefix}p9s_migration`;
+
+const createMigrationRecord = (config: CompleteConfig<any>, record: MigrationRecord) => {
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
+-----------------------------------------------------------------------------------------------------------------------
+create or replace function ${identifier(migrationRecordFunction(config))} () returns jsonb
+  as $$ select ${textLiteral(JSON.stringify(record))}::jsonb $$
+  language sql immutable;
+`;
+};
 
 
 const getIdType = (config: CompleteConfig<any>) => {

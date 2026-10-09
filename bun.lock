@@ -115,12 +115,14 @@
         "@p9s/postgres": "workspace:*",
         "commander": "^14.0.0",
         "cosmiconfig": "^9.0.0",
+        "pg": "^8.23.1",
         "pg-sql2": "^4.14.1",
       },
       "devDependencies": {
         "@p9s/drizzle": "workspace:*",
         "@types/bun": "latest",
         "@types/node": "^20",
+        "@types/pg": "^8.23.1",
       },
       "peerDependencies": {
         "@p9s/drizzle": "workspace:*",
