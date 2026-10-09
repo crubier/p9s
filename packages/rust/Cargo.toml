@@ -1,0 +1,32 @@
+[package]
+name = "p9s"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Act as a user of p9s, permissions of trees in Postgres, from sqlx and axum"
+repository = "https://github.com/crubier/p9s"
+homepage = "https://github.com/crubier/p9s/tree/main/packages/rust"
+readme = "README.md"
+keywords = ["postgres", "permissions", "rls", "sqlx", "axum"]
+categories = ["database", "authentication"]
+include = ["src/**/*.rs", "README.md", "LICENSE"]
+
+[features]
+default = ["sqlx"]
+sqlx = ["dep:sqlx"]
+axum = ["sqlx", "dep:axum"]
+
+[dependencies]
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["postgres"], optional = true }
+axum = { version = "0.8", default-features = false, optional = true }
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["macros", "tokio"] }
+sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+
+[package.metadata.docs.rs]
+all-features = true

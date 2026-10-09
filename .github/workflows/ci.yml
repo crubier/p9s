@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm]
+        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm, axum]
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18
@@ -91,6 +91,8 @@ jobs:
         with:
           go-version-file: examples/gorm/before/go.mod
           cache-dependency-path: examples/gorm/before/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.example == 'axum'
       - name: Adoption of ${{ matrix.example }}
         run: bun test examples/${{ matrix.example }}
         env:
@@ -183,6 +185,40 @@ jobs:
       - run: go test -count=1 ./...
         env:
           P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+  # The Rust crate, on sqlx and axum, see packages/rust
+  rust:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/rust
+      - run: cargo fmt --check
+      - run: cargo clippy --all-features --all-targets -- -D warnings
+      - run: cargo test --all-features
+        env:
+          P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Packages the crate
+        run: cargo package --allow-dirty
 
   # Runs the base and this revision in turns on the same server and fails when a median got significantly slower, see
   # the Benchmarks page. In parallel with the tests, which take about as long.

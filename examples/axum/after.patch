@@ -1,0 +1,348 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index b65e44e..58699b6 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -223,6 +223,7 @@ name = "documents"
+ version = "0.1.0"
+ dependencies = [
+  "axum",
++ "p9s",
+  "serde",
+  "serde_json",
+  "sqlx",
+@@ -807,6 +808,15 @@ version = "1.21.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+ 
++[[package]]
++name = "p9s"
++version = "0.1.0"
++dependencies = [
++ "axum",
++ "serde_json",
++ "sqlx",
++]
++
+ [[package]]
+ name = "parking"
+ version = "2.2.1"
+diff --git a/Cargo.toml b/Cargo.toml
+index dc3fcf8..cf5c1df 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -6,6 +6,8 @@ publish = false
+ 
+ [dependencies]
+ axum = "0.8"
++# p9s from crates.io in an app, from this repository in the example
++p9s = { path = "../../../packages/rust", features = ["axum"] }
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+ sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "macros", "migrate"] }
+diff --git a/src/main.rs b/src/main.rs
+index 0d0ac8a..11bbe9f 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,17 +1,15 @@
+-mod permissions;
+-
+-use axum::extract::{Path, Request, State};
++use axum::extract::{Path, Request};
+ use axum::http::StatusCode;
+ use axum::middleware::{self, Next};
+ use axum::response::{IntoResponse, Response};
+ use axum::routing::{get, put};
+-use axum::{Extension, Json, Router};
++use axum::{Json, Router};
++use p9s::axum::{CurrentUser, P9s, UserTx};
++use p9s::Identity;
+ use serde::{Deserialize, Serialize};
+ use serde_json::json;
+ use sqlx::PgPool;
+ 
+-use permissions::{bits_of, document_bits, project_bits, readable_documents, readable_projects};
+-
+ #[derive(Serialize, sqlx::FromRow)]
+ struct Project {
+     id: i64,
+@@ -52,9 +50,6 @@ struct Share {
+     access: String,
+ }
+ 
+-#[derive(Clone, Copy)]
+-struct UserId(i64);
+-
+ struct Error(sqlx::Error);
+ 
+ impl From<sqlx::Error> for Error {
+@@ -63,8 +58,12 @@ impl From<sqlx::Error> for Error {
+     }
+ }
+ 
++// A write the policies do not let through is forbidden, and its transaction rolls back
+ impl IntoResponse for Error {
+     fn into_response(self) -> Response {
++        if p9s::is_refused(&self.0) {
++            return (StatusCode::FORBIDDEN, Json(json!({ "error": "forbidden" }))).into_response();
++        }
+         eprintln!("{}", self.0);
+         (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()
+     }
+@@ -87,127 +86,106 @@ async fn main() {
+         sqlx::migrate!().run(&db).await.unwrap();
+         return;
+     }
++    let state = P9s::new(db, Identity::from_file("p9s.config.json").unwrap());
+     let api = Router::new()
+         .route("/projects", get(projects))
+         .route("/documents", get(list_documents).post(create_document))
+         .route("/documents/{id}", get(get_document).patch(update_document).delete(delete_document))
+         .route("/documents/{id}/shares/{user_id}", put(share))
+         .layer(middleware::from_fn(authenticate));
+-    let app = Router::new().route("/health", get(|| async { "ok" })).merge(api).with_state(db);
++    let app = Router::new().route("/health", get(|| async { "ok" })).merge(api).with_state(state);
+     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", std::env::var("PORT").unwrap())).await.unwrap();
+     axum::serve(listener, app).await.unwrap();
+ }
+ 
+-// A real app signs users in, with a session or a token, this one reads the user from a header
++// A real app signs users in, with a session or a token, this one reads the user from a header. Then each handler takes
++// a transaction as the user, where the policies of p9s decide what it reads and writes.
+ async fn authenticate(mut request: Request, next: Next) -> Response {
+-    let user = request.headers().get("x-user-id").and_then(|value| value.to_str().ok()?.parse().ok());
++    let user: Option<i64> = request.headers().get("x-user-id").and_then(|value| value.to_str().ok()?.parse().ok());
+     let Some(user) = user else {
+         return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "unauthorized" }))).into_response();
+     };
+-    request.extensions_mut().insert(UserId(user));
++    request.extensions_mut().insert(CurrentUser::from(user));
+     next.run(request).await
+ }
+ 
+-async fn projects(State(db): State<PgPool>, Extension(UserId(user)): Extension<UserId>) -> Answer {
+-    let found: Vec<Project> = sqlx::query_as(&readable_projects()).bind(user).fetch_all(&db).await?;
++async fn projects(mut tx: UserTx) -> Answer {
++    let found: Vec<Project> = sqlx::query_as("select id, name from projects order by id").fetch_all(&mut **tx).await?;
++    tx.commit().await?;
+     Ok(Json(found).into_response())
+ }
+ 
+-async fn list_documents(State(db): State<PgPool>, Extension(UserId(user)): Extension<UserId>) -> Answer {
+-    let found: Vec<DocumentItem> = sqlx::query_as(&readable_documents()).bind(user).fetch_all(&db).await?;
++async fn list_documents(mut tx: UserTx) -> Answer {
++    let found: Vec<DocumentItem> =
++        sqlx::query_as("select id, project_id, title from documents order by id").fetch_all(&mut **tx).await?;
++    tx.commit().await?;
+     Ok(Json(found).into_response())
+ }
+ 
+-async fn create_document(
+-    State(db): State<PgPool>,
+-    Extension(UserId(user)): Extension<UserId>,
+-    Json(new): Json<NewDocument>,
+-) -> Answer {
+-    if !project_bits(&db, user, new.project_id).await?.contains("write") {
+-        return forbidden();
+-    }
++async fn create_document(mut tx: UserTx, Json(new): Json<NewDocument>) -> Answer {
+     let document: Document = sqlx::query_as(
+         "insert into documents (project_id, title, body) values ($1, $2, $3) returning id, project_id, title, body",
+     )
+     .bind(new.project_id)
+     .bind(new.title)
+     .bind(new.body.unwrap_or_default())
+-    .fetch_one(&db)
++    .fetch_one(&mut **tx)
+     .await?;
++    tx.commit().await?;
+     Ok((StatusCode::CREATED, Json(document)).into_response())
+ }
+ 
+-async fn find(db: &PgPool, id: i64) -> sqlx::Result<Document> {
+-    sqlx::query_as("select id, project_id, title, body from documents where id = $1").bind(id).fetch_one(db).await
++// A document the user does not read is not found, one they read but cannot change is forbidden
++async fn find(tx: &mut UserTx, id: i64) -> sqlx::Result<Option<Document>> {
++    sqlx::query_as("select id, project_id, title, body from documents where id = $1")
++        .bind(id)
++        .fetch_optional(&mut ***tx)
++        .await
++}
++
++async fn get_document(mut tx: UserTx, Path(id): Path<i64>) -> Answer {
++    let Some(document) = find(&mut tx, id).await? else { return not_found() };
++    tx.commit().await?;
++    Ok(Json(document).into_response())
+ }
+ 
+-async fn get_document(State(db): State<PgPool>, Extension(UserId(user)): Extension<UserId>, Path(id): Path<i64>) -> Answer {
+-    match document_bits(&db, user, id).await? {
+-        Some(bits) if bits.contains("read") => Ok(Json(find(&db, id).await?).into_response()),
+-        _ => not_found(),
++async fn update_document(mut tx: UserTx, Path(id): Path<i64>, Json(changes): Json<Changes>) -> Answer {
++    if find(&mut tx, id).await?.is_none() {
++        return not_found();
+     }
++    let updated: Option<Document> = sqlx::query_as(
++        "update documents set title = coalesce($2, title), body = coalesce($3, body) where id = $1
++         returning id, project_id, title, body",
++    )
++    .bind(id)
++    .bind(changes.title)
++    .bind(changes.body)
++    .fetch_optional(&mut **tx)
++    .await?;
++    let Some(document) = updated else { return forbidden() };
++    tx.commit().await?;
++    Ok(Json(document).into_response())
+ }
+ 
+-async fn update_document(
+-    State(db): State<PgPool>,
+-    Extension(UserId(user)): Extension<UserId>,
+-    Path(id): Path<i64>,
+-    Json(changes): Json<Changes>,
+-) -> Answer {
+-    let bits = match document_bits(&db, user, id).await? {
+-        Some(bits) if bits.contains("read") => bits,
+-        _ => return not_found(),
+-    };
+-    if !bits.contains("write") {
+-        return forbidden();
++async fn delete_document(mut tx: UserTx, Path(id): Path<i64>) -> Answer {
++    if find(&mut tx, id).await?.is_none() {
++        return not_found();
+     }
+-    sqlx::query("update documents set title = coalesce($2, title), body = coalesce($3, body) where id = $1")
+-        .bind(id)
+-        .bind(changes.title)
+-        .bind(changes.body)
+-        .execute(&db)
+-        .await?;
+-    Ok(Json(find(&db, id).await?).into_response())
+-}
+-
+-async fn delete_document(
+-    State(db): State<PgPool>,
+-    Extension(UserId(user)): Extension<UserId>,
+-    Path(id): Path<i64>,
+-) -> Answer {
+-    let bits = match document_bits(&db, user, id).await? {
+-        Some(bits) if bits.contains("read") => bits,
+-        _ => return not_found(),
+-    };
+-    if !bits.contains("delete") {
++    let deleted = sqlx::query("delete from documents where id = $1").bind(id).execute(&mut **tx).await?;
++    if deleted.rows_affected() == 0 {
+         return forbidden();
+     }
+-    sqlx::query("delete from documents where id = $1").bind(id).execute(&db).await?;
++    tx.commit().await?;
+     Ok(StatusCode::NO_CONTENT.into_response())
+ }
+ 
+-async fn share(
+-    State(db): State<PgPool>,
+-    Extension(UserId(user)): Extension<UserId>,
+-    Path((id, target)): Path<(i64, i64)>,
+-    Json(share): Json<Share>,
+-) -> Answer {
++// p9s refuses a share that gives, or takes away, bits the user does not have
++async fn share(mut tx: UserTx, Path((id, target)): Path<(i64, i64)>, Json(share): Json<Share>) -> Answer {
+     if share.access != "viewer" && share.access != "editor" {
+         return Ok((StatusCode::BAD_REQUEST, Json(json!({ "error": "bad request" }))).into_response());
+     }
+-    let bits = match document_bits(&db, user, id).await? {
+-        Some(bits) if bits.contains("read") => bits,
+-        _ => return not_found(),
+-    };
+-    let previous: Option<String> =
+-        sqlx::query_scalar("select access from document_shares where document_id = $1 and user_id = $2")
+-            .bind(id)
+-            .bind(target)
+-            .fetch_optional(&db)
+-            .await?;
+-    let needed = bits_of(&share.access).iter().chain(previous.as_deref().map(bits_of).unwrap_or_default());
+-    if !needed.into_iter().all(|bit| bits.contains(bit)) {
+-        return forbidden();
++    if find(&mut tx, id).await?.is_none() {
++        return not_found();
+     }
+     sqlx::query(
+         "insert into document_shares (document_id, user_id, access) values ($1, $2, $3)
+@@ -216,7 +194,8 @@ async fn share(
+     .bind(id)
+     .bind(target)
+     .bind(share.access)
+-    .execute(&db)
++    .execute(&mut **tx)
+     .await?;
++    tx.commit().await?;
+     Ok(StatusCode::NO_CONTENT.into_response())
+ }
+diff --git a/src/permissions.rs a/src/permissions.rs
+deleted file mode 100644
+index 1b8bb14..0000000
+--- a/src/permissions.rs
++++ /dev/null
+@@ -1,61 +0,0 @@
+-//! Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-//! shares of documents with the user
+-
+-use std::collections::HashSet;
+-
+-use sqlx::PgPool;
+-
+-pub type Bits = HashSet<&'static str>;
+-
+-pub fn bits_of(access: &str) -> &'static [&'static str] {
+-    match access {
+-        "viewer" => &["read"],
+-        "editor" => &["read", "write"],
+-        "owner" => &["read", "write", "delete"],
+-        _ => &[],
+-    }
+-}
+-
+-fn bits(accesses: Vec<String>) -> Bits {
+-    accesses.iter().flat_map(|access| bits_of(access)).copied().collect()
+-}
+-
+-const TEAMS_OF: &str = "select team_id from team_members where user_id = $1";
+-
+-pub async fn project_bits(db: &PgPool, user_id: i64, project_id: i64) -> sqlx::Result<Bits> {
+-    let query = format!("select access from project_shares where team_id in ({TEAMS_OF}) and project_id = $2");
+-    Ok(bits(sqlx::query_scalar(&query).bind(user_id).bind(project_id).fetch_all(db).await?))
+-}
+-
+-/// The bits of the user on the document, or None when there is no such document
+-pub async fn document_bits(db: &PgPool, user_id: i64, document_id: i64) -> sqlx::Result<Option<Bits>> {
+-    let project_id: Option<i64> =
+-        sqlx::query_scalar("select project_id from documents where id = $1").bind(document_id).fetch_optional(db).await?;
+-    let Some(project_id) = project_id else { return Ok(None) };
+-    let mut result = project_bits(db, user_id, project_id).await?;
+-    let shares = sqlx::query_scalar("select access from document_shares where document_id = $1 and user_id = $2")
+-        .bind(document_id)
+-        .bind(user_id)
+-        .fetch_all(db)
+-        .await?;
+-    result.extend(bits(shares));
+-    Ok(Some(result))
+-}
+-
+-// Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects or
+-// shared with them
+-fn readable_project_ids() -> String {
+-    format!("select project_id from project_shares where team_id in ({TEAMS_OF})")
+-}
+-
+-pub fn readable_projects() -> String {
+-    format!("select id, name from projects where id in ({}) order by id", readable_project_ids())
+-}
+-
+-pub fn readable_documents() -> String {
+-    format!(
+-        "select id, project_id, title from documents
+-         where project_id in ({}) or id in (select document_id from document_shares where user_id = $1) order by id",
+-        readable_project_ids()
+-    )
+-}

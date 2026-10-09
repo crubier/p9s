@@ -162,3 +162,6 @@ __pycache__/
 .bundle/
 **/vendor/bundle/
 *.gem
+
+# Rust
+packages/rust/target/

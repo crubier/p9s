@@ -25,3 +25,7 @@ const gemVersion = path.resolve(import.meta.dir, "..", "packages", "ruby", "lib"
 const gem = await Bun.file(gemVersion).text();
 await Bun.write(gemVersion, gem.replace(/VERSION = ".*"/, `VERSION = ${JSON.stringify(version)}`));
 console.log(`p9s (RubyGems) ${version}`);
+const crate = path.resolve(import.meta.dir, "..", "packages", "rust", "Cargo.toml");
+const manifest = await Bun.file(crate).text();
+await Bun.write(crate, manifest.replace(/^version = ".*"$/m, `version = ${JSON.stringify(version)}`));
+console.log(`p9s (crates.io) ${version}`);

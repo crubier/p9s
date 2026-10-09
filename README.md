@@ -63,7 +63,7 @@ The migration adds a `resource_id` column to `folder` and `document` and fills i
 
 The migration can be re-run safely, it never drops your data. Databases created by earlier versions, with `resource_node` and `role_node` tables, are upgraded in place, see the [upgrade guide](./website/docs/configuration/upgrading.md). The `p9s` CLI (`@p9s/cli`) does the same from a config file, proposes one from an existing database with `p9s init`, and checks a database with `p9s postgres status` and `p9s postgres doctor`, see [the CLI](./website/docs/packages/cli.md). `@p9s/drizzle` derives the table list from a Drizzle schema, see [`examples/nextjs-drizzle/src/p9s.ts`](./examples/nextjs-drizzle/src/p9s.ts).
 
-Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle`, `@p9s/kysely` and `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). [`p9s` for Python](./packages/python) does it for SQLAlchemy and Django, [the `p9s` gem](./packages/ruby) for Active Record and Rails, and [the Go module](./packages/go) for `database/sql`, pgx and GORM. Any other stack runs one statement at the start of each transaction, see the recipes for [sqlx, Ecto and Laravel](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
+Each transaction of a user takes the role of `engine.users` and sets the id of the user, which `createIdentity` of `@p9s/postgres`, `withUser` of `@p9s/drizzle`, `@p9s/kysely` and `@p9s/prisma` do, see [acting as a user](./website/docs/configuration/identity.md). [`p9s` for Python](./packages/python) does it for SQLAlchemy and Django, [the `p9s` gem](./packages/ruby) for Active Record and Rails, [the Go module](./packages/go) for `database/sql`, pgx and GORM, and [the Rust crate](./packages/rust) for sqlx and axum. Any other stack runs one statement at the start of each transaction, see the recipes for [Ecto and Laravel](./website/docs/integrations/other-stacks.md), and [Supabase](./website/docs/integrations/supabase.md) has a preset.
 
 Before using it, read the [security model](./website/docs/configuration/security-model.md): application roles only see their own part of the graph and cannot write edges and assignments, writes that touch the graph must use `READ COMMITTED`, and `TRUNCATE` is rejected on p9s-managed tables.
 
@@ -211,9 +211,9 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
   - [x] Go
     - [x] A [`p9s`](./packages/go) module, which a release tags: `users.AsUser(ctx, db, userID, func(tx) error)` for `database/sql`, with `p9spgx` and `p9sgorm` for pgx and GORM, and an HTTP middleware that puts the user in the context.
     - [x] Example: [`net/http` and GORM, with goose](./examples/gorm).
-  - [ ] Rust
-    - [ ] The `p9s` crate: `p9s::as_user(&pool, user_id)` for sqlx, returning the transaction, and an extractor for axum.
-    - [ ] Example: axum and sqlx.
+  - [x] Rust
+    - [x] The [`p9s`](./packages/rust) crate, which the release workflow publishes: `users.as_user(&pool, user_id)` for sqlx, returning the transaction, and an extractor for axum.
+    - [x] Example: [axum and sqlx](./examples/axum).
   - [ ] Elixir
     - [ ] `p9s` on Hex: `P9s.as_user(Repo, user_id, fn -> ... end)` for Ecto, and a Phoenix plug.
     - [ ] Example: Phoenix.

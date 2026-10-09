@@ -75,19 +75,20 @@ if p9s.IsRefused(err) {
 }
 ```
 
-## sqlx
+## sqlx and axum
+
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/rust) crate reads the role and the setting from `p9s.config.json`, and begins a sqlx transaction as the user. With its `axum` feature, `UserTx` extracts a transaction as the user of the request. [`examples/axum`](https://github.com/crubier/p9s/tree/main/examples/axum) adopts p9s in an existing axum and sqlx app with it:
 
 ```rust
-let mut tx = pool.begin().await?;
-sqlx::query("select set_config('role', 'app_user', true), set_config('app.role_id', $1, true)")
-    .bind(user_id.to_string())
-    .execute(&mut *tx)
-    .await?;
-let documents = sqlx::query_as::<_, Document>("select id, title from document order by updated_at desc limit 50")
+let users = p9s::Identity::from_file("p9s.config.json")?;
+let mut tx = users.as_user(&pool, user_id).await?;
+let documents: Vec<Document> = sqlx::query_as("select id, title from documents order by updated_at desc limit 50")
     .fetch_all(&mut *tx)
     .await?;
 tx.commit().await?;
 ```
+
+`p9s::is_refused(&error)` tells a write the policies refused.
 
 ## Ecto
 

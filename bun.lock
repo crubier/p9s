@@ -34,6 +34,13 @@
         "@types/pg": "^8.23.1",
       },
     },
+    "examples/axum": {
+      "name": "@p9s/example-axum",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/django": {
       "name": "@p9s/example-django",
       "devDependencies": {
@@ -1270,6 +1277,8 @@
     "@p9s/core-testing": ["@p9s/core-testing@workspace:packages/core-testing"],
 
     "@p9s/drizzle": ["@p9s/drizzle@workspace:packages/drizzle"],
+
+    "@p9s/example-axum": ["@p9s/example-axum@workspace:examples/axum"],
 
     "@p9s/example-django": ["@p9s/example-django@workspace:examples/django"],
 
