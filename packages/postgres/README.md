@@ -26,5 +26,17 @@ const sql = createMigrationSql({
 });
 ```
 
-Run the SQL with any migration tool; it can be run again safely. See the [documentation](https://p9s.vercel.app/docs/intro),
-and the [CLI](https://www.npmjs.com/package/@p9s/cli) to do the same without code.
+Run the SQL with any migration tool; it can be run again safely. With `authentication: { getCurrentUserId:
+"current_role_id", setting: "app.role_id" }`, the migration creates the current user function, and `createIdentity` runs
+the transactions of each user through the policies:
+
+```ts
+import { createIdentity } from "@p9s/postgres";
+
+const users = createIdentity(config);
+const folders = await users.run(pool, session.roleId, client => client.query("select * from folder"));
+```
+
+`migrationStatus` tells whether a database ran the migration of a config, `diagnose` checks it, and `readTables` and
+`proposeConfig` propose a config from its tables. See the [documentation](https://p9s.vercel.app/docs/intro), and the
+[CLI](https://www.npmjs.com/package/@p9s/cli) to do the same without code.

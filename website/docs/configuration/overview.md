@@ -87,12 +87,13 @@ The migration is idempotent: running it again updates functions, triggers, polic
 | `permission.maxDepth.role`        | `number`                         | Most edges on a path of the role tree (1-128), longer paths are rejected |
 | `naming.triggerPrefix`            | `string`                         | Put before the names of p9s triggers, to order them with yours (default: none) |
 | `authentication.getCurrentUserId` | `string`                         | SQL function returning the role id of the current user's row, a node or a role leaf row |
+| `authentication.setting`          | `string`                         | Setting holding that role id, like `app.role_id`: the migration then creates `getCurrentUserId`, see [acting as a user](./identity) (default: none) |
 | `id.mode`                         | `'integer' \| 'uuid'`            | Type of resource and role ids                                            |
 | `combineAssignmentsWith`          | `'none' \| 'role' \| 'resource'` | Also cache assignments combined with the role or resource tree           |
 | `resourceCache`                   | `'full' \| 'assigned'`           | Cache every (ancestor, descendant) pair of resources, or only those below resources that have assignments (default: `'full'`), see [resource cache](#resource-cache) |
 | `postgraphile`                    | `boolean`                        | Smart comments and `permission` fields for PostGraphile, see [PostGraphile](./postgraphile) |
 
-`getCurrentUserId` must exist before the migration runs, for example:
+With `authentication.setting`, the migration creates `getCurrentUserId`, and `createIdentity` and the Drizzle and Prisma helpers set that setting in each transaction of a user, see [acting as a user](./identity). Otherwise `getCurrentUserId` must exist before the migration runs, for example:
 
 ```sql
 create function current_role_id() returns uuid language sql stable as $$

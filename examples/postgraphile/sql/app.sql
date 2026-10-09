@@ -329,10 +329,9 @@ language sql stable as $$
   select p.* from folder f, folder_path(f) p where f.id = d.folder_id
 $$;
 
--- Postgres checks an insert with `returning` against the select policy before the triggers of p9s give the new row its
--- place in the graph, so the create mutations of PostGraphile would fail on node tables. These insert without
--- `returning`, as the member, then read the row back. With no parent, the folder is a space: RLS checks the create
--- bit on the organization, only admins have it
+-- These fill the organization of the row from its parent, and give errors a member understands. RLS checks the create
+-- bit on the parent. With no parent, the folder is a space: RLS checks the create bit on the organization, only admins
+-- have it
 create or replace function create_folder(org_id uuid, parent_id uuid, name text) returns folder
 language plpgsql volatile as $$
 declare

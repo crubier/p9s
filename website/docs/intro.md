@@ -58,14 +58,20 @@ The system generates PostgreSQL Row Level Security (RLS) policies to enforce per
 ## Quick Start
 
 ```bash
-bun install
-bun run test
+npm install @p9s/core @p9s/postgres
+npm install --save-dev @p9s/cli
+npx p9s init --database-url postgresql://...   # propose a config from your tables
+npx p9s postgres generate --output p9s.sql     # the migration, to run with yours
+npx p9s postgres doctor                        # check the database
 ```
 
 ## Next Steps
 
 - [Installation](./getting-started/installation) - Set up p9s in your project
 - [Configuration](./configuration/overview) - Learn about configuration options
+- [Acting as a user](./configuration/identity) - Run the queries of each user through the policies, with node-postgres, Drizzle or Prisma
+- [Supabase](./integrations/supabase) and [other stacks](./integrations/other-stacks) - SQLAlchemy, Django, Rails, GORM and more
+- [CLI](./packages/cli) - `init`, `generate`, `status` and `doctor`
 - [Security Model](./configuration/security-model) - Who can change permissions, and the rules the application must follow
 - [Querying through RLS](./configuration/querying) - Searches, counts, pages and shares that stay fast through the policies
 - [Benchmarks](./benchmarks) - What p9s costs at read and write time
