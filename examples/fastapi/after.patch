@@ -1,0 +1,320 @@
+diff --git a/app/main.py b/app/main.py
+index 95ac830..02fb638 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -1,19 +1,26 @@
+-from typing import Annotated, Literal
++from pathlib import Path
++from typing import Annotated, AsyncIterator, Literal
+ 
+ from fastapi import Depends, FastAPI, Header, Request, Response
+ from fastapi.responses import JSONResponse, PlainTextResponse
++from p9s import Identity, is_refused
++from p9s.sqlalchemy import as_user_async
+ from pydantic import BaseModel
++from sqlalchemy import delete, select, update
+ from sqlalchemy.dialects.postgresql import insert
++from sqlalchemy.exc import DBAPIError
+ 
+-from .db import AsyncSession, session
+-from .models import Document, DocumentShare
+-from .permissions import bits_of, document_bits, project_bits, readable_documents, readable_projects
++from .db import AsyncSession, Session
++from .models import Document, DocumentShare, Project
+ 
+ app = FastAPI()
+ 
+ not_found = {"error": "not found"}
+ forbidden = {"error": "forbidden"}
+ 
++# Every query of a request runs in a transaction as its user, and the policies of p9s decide what it reads and writes
++users = Identity.from_file(Path(__file__).parent.parent / "p9s.config.json")
++
+ 
+ class Unauthorized(Exception):
+     pass
+@@ -24,6 +31,14 @@ async def unauthorized(request: Request, error: Unauthorized):
+     return JSONResponse({"error": "unauthorized"}, status_code=401)
+ 
+ 
++# A write the policies do not let through
++@app.exception_handler(DBAPIError)
++async def refused(request: Request, error: DBAPIError):
++    if is_refused(error):
++        return JSONResponse(forbidden, status_code=403)
++    raise error
++
++
+ # A real app reads the user from its session, this one from a header
+ def user_id(x_user_id: Annotated[str | None, Header()] = None) -> int:
+     if x_user_id is None or not x_user_id.lstrip("-").isdigit():
+@@ -32,7 +47,21 @@ def user_id(x_user_id: Annotated[str | None, Header()] = None) -> int:
+ 
+ 
+ UserId = Annotated[int, Depends(user_id)]
+-Session = Annotated[AsyncSession, Depends(session)]
++
++
++async def reading(user: UserId) -> AsyncIterator[AsyncSession]:
++    async with Session() as session, as_user_async(session, users, user, read_only=True):
++        yield session
++
++
++async def writing(user: UserId) -> AsyncIterator[AsyncSession]:
++    async with Session() as session, as_user_async(session, users, user):
++        yield session
++
++
++# The transaction ends with the function of the route, before the response: a commit that fails is the answer
++Reading = Annotated[AsyncSession, Depends(reading, scope="function")]
++Writing = Annotated[AsyncSession, Depends(writing, scope="function")]
+ 
+ 
+ class NewDocument(BaseModel):
+@@ -56,71 +85,56 @@ async def health():
+ 
+ 
+ @app.get("/projects")
+-async def projects(user: UserId, session: Session):
+-    return [{"id": id, "name": name} for id, name in await readable_projects(session, user)]
++async def projects(session: Reading):
++    return [{"id": id, "name": name} for id, name in await session.execute(select(Project.id, Project.name).order_by(Project.id))]
+ 
+ 
+ @app.get("/documents")
+-async def documents(user: UserId, session: Session):
+-    return [{"id": id, "project_id": project_id, "title": title} for id, project_id, title in await readable_documents(session, user)]
++async def documents(session: Reading):
++    rows = await session.execute(select(Document.id, Document.project_id, Document.title).order_by(Document.id))
++    return [{"id": id, "project_id": project_id, "title": title} for id, project_id, title in rows]
+ 
+ 
+ @app.get("/documents/{id}")
+-async def document(id: int, user: UserId, session: Session):
+-    bits = await document_bits(session, user, id)
+-    if not bits or "read" not in bits:
+-        return JSONResponse(not_found, status_code=404)
+-    return (await session.get_one(Document, id)).json()
++async def document(id: int, session: Reading):
++    document = await session.get(Document, id)
++    return document.json() if document else JSONResponse(not_found, status_code=404)
+ 
+ 
+ @app.post("/documents", status_code=201)
+-async def create_document(new: NewDocument, user: UserId, session: Session):
+-    if "write" not in await project_bits(session, user, new.project_id):
+-        return JSONResponse(forbidden, status_code=403)
++async def create_document(new: NewDocument, session: Writing):
+     document = Document(project_id=new.project_id, title=new.title, body=new.body)
+     session.add(document)
+-    await session.commit()
++    await session.flush()
+     return document.json()
+ 
+ 
++# A document the user does not read is not found, one they read but cannot change is forbidden
+ @app.patch("/documents/{id}")
+-async def update_document(id: int, change: DocumentChange, user: UserId, session: Session):
+-    bits = await document_bits(session, user, id)
+-    if not bits or "read" not in bits:
++async def update_document(id: int, change: DocumentChange, session: Writing):
++    if await session.get(Document, id) is None:
+         return JSONResponse(not_found, status_code=404)
+-    if "write" not in bits:
+-        return JSONResponse(forbidden, status_code=403)
+-    document = await session.get_one(Document, id)
+-    for name, value in change.model_dump(exclude_unset=True).items():
+-        setattr(document, name, value)
+-    await session.commit()
+-    return document.json()
++    columns = (Document.id, Document.project_id, Document.title, Document.body)
++    row = (await session.execute(update(Document).where(Document.id == id).values(change.model_dump(exclude_unset=True)).returning(*columns))).first()
++    return dict(zip(("id", "project_id", "title", "body"), row)) if row else JSONResponse(forbidden, status_code=403)
+ 
+ 
+ @app.delete("/documents/{id}")
+-async def delete_document(id: int, user: UserId, session: Session):
+-    bits = await document_bits(session, user, id)
+-    if not bits or "read" not in bits:
++async def delete_document(id: int, session: Writing):
++    if await session.get(Document, id) is None:
+         return JSONResponse(not_found, status_code=404)
+-    if "delete" not in bits:
+-        return JSONResponse(forbidden, status_code=403)
+-    await session.delete(await session.get_one(Document, id))
+-    await session.commit()
+-    return Response(status_code=204)
++    deleted = (await session.execute(delete(Document).where(Document.id == id).returning(Document.id))).first()
++    return Response(status_code=204) if deleted else JSONResponse(forbidden, status_code=403)
+ 
+ 
++# p9s refuses a share that gives, or takes away, bits the user does not have
+ @app.put("/documents/{id}/shares/{user_id}")
+-async def share_document(id: int, user_id: int, share: Share, user: UserId, session: Session):
+-    bits = await document_bits(session, user, id)
+-    if not bits or "read" not in bits:
++async def share_document(id: int, user_id: int, share: Share, session: Writing):
++    if await session.get(Document, id) is None:
+         return JSONResponse(not_found, status_code=404)
+-    previous = await session.get(DocumentShare, (id, user_id))
+-    if not bits_of[share.access] <= bits or (previous and not bits_of[previous.access] <= bits):
+-        return JSONResponse(forbidden, status_code=403)
+     await session.execute(
+         insert(DocumentShare)
+         .values(document_id=id, user_id=user_id, access=share.access)
+         .on_conflict_do_update(index_elements=["document_id", "user_id"], set_={"access": share.access})
+     )
+-    await session.commit()
+     return Response(status_code=204)
+diff --git a/app/permissions.py a/app/permissions.py
+deleted file mode 100644
+index ae6e9f8..0000000
+--- a/app/permissions.py
++++ /dev/null
+@@ -1,56 +0,0 @@
+-"""Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-shares of documents with the user"""
+-
+-from sqlalchemy import exists, or_, select
+-from sqlalchemy.ext.asyncio import AsyncSession
+-
+-from .models import Document, DocumentShare, Project, ProjectShare, TeamMember
+-
+-bits_of = {"viewer": {"read"}, "editor": {"read", "write"}, "owner": {"read", "write", "delete"}}
+-
+-
+-async def project_bits(session: AsyncSession, user_id: int, project_id: int) -> set[str]:
+-    shares = await session.scalars(
+-        select(ProjectShare.access)
+-        .join(TeamMember, TeamMember.team_id == ProjectShare.team_id)
+-        .where(TeamMember.user_id == user_id, ProjectShare.project_id == project_id)
+-    )
+-    return {bit for access in shares for bit in bits_of[access]}
+-
+-
+-async def document_bits(session: AsyncSession, user_id: int, document_id: int) -> set[str] | None:
+-    """The bits of the user on the document, or None when there is no such document"""
+-    project_id = await session.scalar(select(Document.project_id).where(Document.id == document_id))
+-    if project_id is None:
+-        return None
+-    share = await session.scalar(
+-        select(DocumentShare.access).where(DocumentShare.document_id == document_id, DocumentShare.user_id == user_id)
+-    )
+-    return await project_bits(session, user_id, project_id) | (bits_of[share] if share else set())
+-
+-
+-def shared_with_teams(user_id: int, project_id):
+-    return exists(
+-        select(ProjectShare.project_id)
+-        .join(TeamMember, TeamMember.team_id == ProjectShare.team_id)
+-        .where(ProjectShare.project_id == project_id, TeamMember.user_id == user_id)
+-    )
+-
+-
+-# Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects or
+-# shared with them
+-async def readable_projects(session: AsyncSession, user_id: int):
+-    return await session.execute(select(Project.id, Project.name).where(shared_with_teams(user_id, Project.id)).order_by(Project.id))
+-
+-
+-async def readable_documents(session: AsyncSession, user_id: int):
+-    return await session.execute(
+-        select(Document.id, Document.project_id, Document.title)
+-        .where(
+-            or_(
+-                shared_with_teams(user_id, Document.project_id),
+-                exists(select(DocumentShare.document_id).where(DocumentShare.document_id == Document.id, DocumentShare.user_id == user_id)),
+-            )
+-        )
+-        .order_by(Document.id)
+-    )
+diff --git a/migrations/env.py b/migrations/env.py
+index c1c805c..b1a4397 100644
+--- a/migrations/env.py
++++ b/migrations/env.py
+@@ -7,9 +7,14 @@ from app.models import Base
+ target_metadata = Base.metadata
+ 
+ 
++# p9s adds tables, columns and constraints the models do not know: autogenerate leaves what only the database has
++def include_object(object, name, type_, reflected, compare_to) -> bool:
++    return not (reflected and compare_to is None)
++
++
+ def run_migrations_online() -> None:
+     with create_engine(database_url()).connect() as connection:
+-        context.configure(connection=connection, target_metadata=target_metadata)
++        context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object)
+         with context.begin_transaction():
+             context.run_migrations()
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 5a6f75c..3dd41ce 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -6,7 +6,12 @@ requires-python = ">=3.12"
+ dependencies = [
+   "alembic>=1.16",
+   "fastapi>=0.118",
++  "p9s[sqlalchemy]",
+   "psycopg[binary]>=3.2",
+   "sqlalchemy[asyncio]>=2.0",
+   "uvicorn>=0.37",
+ ]
++
++# p9s from PyPI in an app, from this repository in the example
++[tool.uv.sources]
++p9s = { path = "../../../packages/python", editable = true }
+diff --git a/uv.lock b/uv.lock
+index 56a968b..77cf210 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -63,6 +63,7 @@ source = { virtual = "." }
+ dependencies = [
+     { name = "alembic" },
+     { name = "fastapi" },
++    { name = "p9s", extra = ["sqlalchemy"] },
+     { name = "psycopg", extra = ["binary"] },
+     { name = "sqlalchemy", extra = ["asyncio"] },
+     { name = "uvicorn" },
+@@ -72,6 +73,7 @@ dependencies = [
+ requires-dist = [
+     { name = "alembic", specifier = ">=1.16" },
+     { name = "fastapi", specifier = ">=0.118" },
++    { name = "p9s", extras = ["sqlalchemy"], editable = "../../../packages/python" },
+     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+     { name = "uvicorn", specifier = ">=0.37" },
+@@ -316,6 +318,32 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl", hash = "sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb", size = 60256, upload-time = "2026-10-06T17:32:33.506Z" },
+ ]
+ 
++[[package]]
++name = "p9s"
++version = "0.1.0"
++source = { editable = "../../../packages/python" }
++
++[package.optional-dependencies]
++sqlalchemy = [
++    { name = "sqlalchemy" },
++]
++
++[package.metadata]
++requires-dist = [
++    { name = "django", marker = "extra == 'django'", specifier = ">=4.2" },
++    { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=2.0" },
++]
++provides-extras = ["sqlalchemy", "django"]
++
++[package.metadata.requires-dev]
++dev = [
++    { name = "django", specifier = ">=4.2" },
++    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
++    { name = "pytest", specifier = ">=8" },
++    { name = "pytest-asyncio", specifier = ">=0.24" },
++    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
++]
++
+ [[package]]
+ name = "psycopg"
+ version = "3.3.6"

@@ -1,0 +1,233 @@
+diff --git a/documents/permissions.py a/documents/permissions.py
+deleted file mode 100644
+index 80c42a0..0000000
+--- a/documents/permissions.py
++++ /dev/null
+@@ -1,41 +0,0 @@
+-"""Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-shares of documents with the user"""
+-
+-from django.db.models import Q
+-
+-from .models import Document, DocumentShare, Project, ProjectShare, TeamMember
+-
+-bits_of = {"viewer": {"read"}, "editor": {"read", "write"}, "owner": {"read", "write", "delete"}}
+-
+-
+-def teams_of(user_id):
+-    return TeamMember.objects.filter(user_id=user_id).values("team_id")
+-
+-
+-def project_bits(user_id, project_id):
+-    shares = ProjectShare.objects.filter(project_id=project_id, team_id__in=teams_of(user_id)).values_list("access", flat=True)
+-    return {bit for access in shares for bit in bits_of[access]}
+-
+-
+-def document_bits(user_id, document_id):
+-    """The bits of the user on the document, or None when there is no such document"""
+-    project_id = Document.objects.filter(id=document_id).values_list("project_id", flat=True).first()
+-    if project_id is None:
+-        return None
+-    share = DocumentShare.objects.filter(document_id=document_id, user_id=user_id).values_list("access", flat=True).first()
+-    return project_bits(user_id, project_id) | (bits_of[share] if share else set())
+-
+-
+-# Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects or
+-# shared with them
+-def readable_project_ids(user_id):
+-    return ProjectShare.objects.filter(team_id__in=teams_of(user_id)).values("project_id")
+-
+-
+-def readable_projects(user_id):
+-    return Project.objects.filter(id__in=readable_project_ids(user_id)).order_by("id")
+-
+-
+-def readable_documents(user_id):
+-    shared = DocumentShare.objects.filter(user_id=user_id).values("document_id")
+-    return Document.objects.filter(Q(project_id__in=readable_project_ids(user_id)) | Q(id__in=shared)).order_by("id")
+diff --git a/documents/views.py b/documents/views.py
+index 803197b..0de2a16 100644
+--- a/documents/views.py
++++ b/documents/views.py
+@@ -1,60 +1,74 @@
++import functools
+ import json
+ 
++from django.db import DatabaseError, transaction
+ from django.http import HttpResponse, JsonResponse
+ from django.views.decorators.http import require_http_methods
++from p9s import is_refused
+ 
+-from .models import Document, DocumentShare
+-from .permissions import bits_of, document_bits, project_bits, readable_documents, readable_projects
++from .models import Document, DocumentShare, Project
+ 
+ not_found = {"error": "not found"}
+ forbidden = {"error": "forbidden"}
+ 
+ 
++# A write the policies do not let through, rolled back to a savepoint of the transaction of the request
++def refusals_forbidden(view):
++    @functools.wraps(view)
++    def wrapped(request, *args, **kwargs):
++        try:
++            with transaction.atomic():
++                return view(request, *args, **kwargs)
++        except DatabaseError as error:
++            if is_refused(error):
++                return JsonResponse(forbidden, status=403)
++            raise
++
++    return wrapped
++
++
+ def health(request):
+     return HttpResponse("ok", content_type="text/plain")
+ 
+ 
+ def projects(request):
+-    return JsonResponse(list(readable_projects(request.user_id).values("id", "name")), safe=False)
++    return JsonResponse(list(Project.objects.order_by("id").values("id", "name")), safe=False)
+ 
+ 
+ @require_http_methods(["GET", "POST"])
++@refusals_forbidden
+ def documents(request):
+     if request.method == "POST":
+         data = json.loads(request.body)
+-        if "write" not in project_bits(request.user_id, data["project_id"]):
+-            return JsonResponse(forbidden, status=403)
+         document = Document.objects.create(project_id=data["project_id"], title=data["title"], body=data.get("body", ""))
+         return JsonResponse(document.json(), status=201)
+-    return JsonResponse(list(readable_documents(request.user_id).values("id", "project_id", "title")), safe=False)
++    return JsonResponse(list(Document.objects.order_by("id").values("id", "project_id", "title")), safe=False)
+ 
+ 
++# A document the user does not read is not found, one they read but cannot change is forbidden
+ @require_http_methods(["GET", "PATCH", "DELETE"])
++@refusals_forbidden
+ def document(request, id):
+-    bits = document_bits(request.user_id, id)
+-    if not bits or "read" not in bits:
++    found = Document.objects.filter(id=id).first()
++    if found is None:
+         return JsonResponse(not_found, status=404)
+     if request.method == "PATCH":
+-        if "write" not in bits:
+-            return JsonResponse(forbidden, status=403)
+         changes = {name: value for name, value in json.loads(request.body).items() if name in ("title", "body")}
+-        Document.objects.filter(id=id).update(**changes)
+-    elif request.method == "DELETE":
+-        if "delete" not in bits:
++        if Document.objects.filter(id=id).update(**changes) == 0:
+             return JsonResponse(forbidden, status=403)
+-        Document.objects.filter(id=id).delete()
+-        return HttpResponse(status=204)
+-    return JsonResponse(Document.objects.get(id=id).json())
++        found.refresh_from_db()
++    elif request.method == "DELETE":
++        deleted, _ = Document.objects.filter(id=id).delete()
++        return HttpResponse(status=204) if deleted else JsonResponse(forbidden, status=403)
++    return JsonResponse(found.json())
+ 
+ 
++# p9s refuses a share that gives, or takes away, bits the user does not have
+ @require_http_methods(["PUT"])
++@refusals_forbidden
+ def share(request, id, user_id):
+     access = json.loads(request.body)["access"]
+-    bits = document_bits(request.user_id, id)
+-    if not bits or "read" not in bits:
++    if not Document.objects.filter(id=id).exists():
+         return JsonResponse(not_found, status=404)
+-    previous = DocumentShare.objects.filter(document_id=id, user_id=user_id).values_list("access", flat=True).first()
+-    if not bits_of[access] <= bits or (previous and not bits_of[previous] <= bits):
+-        return JsonResponse(forbidden, status=403)
+     DocumentShare.objects.update_or_create(document_id=id, user_id=user_id, defaults={"access": access})
+     return HttpResponse(status=204)
+diff --git a/pyproject.toml b/pyproject.toml
+index b03a302..b93f275 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -6,5 +6,10 @@ requires-python = ">=3.12"
+ dependencies = [
+   "django>=6.0",
+   "gunicorn>=23",
++  "p9s[django]",
+   "psycopg[binary]>=3.2",
+ ]
++
++# p9s from PyPI in an app, from this repository in the example
++[tool.uv.sources]
++p9s = { path = "../../../packages/python", editable = true }
+diff --git a/site_config/settings.py b/site_config/settings.py
+index e22343a..84021d2 100644
+--- a/site_config/settings.py
++++ b/site_config/settings.py
+@@ -10,8 +10,11 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ 
+ INSTALLED_APPS = ["documents"]
+ 
+-# A real app signs users in with django.contrib.auth, this one reads the user from a header
+-MIDDLEWARE = ["documents.middleware.UserFromHeader"]
++# A real app signs users in with django.contrib.auth, this one reads the user from a header. Then every request runs
++# in a transaction as its user, and the policies of p9s decide what it reads and writes.
++MIDDLEWARE = ["documents.middleware.UserFromHeader", "p9s.django.P9sMiddleware"]
++P9S_CONFIG = BASE_DIR / "p9s.config.json"
++P9S_USER_ID = "documents.middleware.user_id_of"
+ 
+ ROOT_URLCONF = "site_config.urls"
+ WSGI_APPLICATION = "site_config.wsgi.application"
+diff --git a/uv.lock b/uv.lock
+index 011b3d0..8003642 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -32,6 +32,7 @@ source = { virtual = "." }
+ dependencies = [
+     { name = "django" },
+     { name = "gunicorn" },
++    { name = "p9s", extra = ["django"] },
+     { name = "psycopg", extra = ["binary"] },
+ ]
+ 
+@@ -39,6 +40,7 @@ dependencies = [
+ requires-dist = [
+     { name = "django", specifier = ">=6.0" },
+     { name = "gunicorn", specifier = ">=23" },
++    { name = "p9s", extras = ["django"], editable = "../../../packages/python" },
+     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+ ]
+ 
+@@ -51,6 +53,32 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/fe/85/7522a52e5e2f42faf1a129113ab63e548c42e103e9af395b7bfe65e403e2/gunicorn-26.2.0-py3-none-any.whl", hash = "sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3", size = 228389, upload-time = "2026-08-24T15:05:57.67Z" },
+ ]
+ 
++[[package]]
++name = "p9s"
++version = "0.1.0"
++source = { editable = "../../../packages/python" }
++
++[package.optional-dependencies]
++django = [
++    { name = "django" },
++]
++
++[package.metadata]
++requires-dist = [
++    { name = "django", marker = "extra == 'django'", specifier = ">=4.2" },
++    { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=2.0" },
++]
++provides-extras = ["sqlalchemy", "django"]
++
++[package.metadata.requires-dev]
++dev = [
++    { name = "django", specifier = ">=4.2" },
++    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
++    { name = "pytest", specifier = ">=8" },
++    { name = "pytest-asyncio", specifier = ">=0.24" },
++    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
++]
++
+ [[package]]
+ name = "psycopg"
+ version = "3.3.6"

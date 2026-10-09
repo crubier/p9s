@@ -1,0 +1,5 @@
+{
+  "setup": ["uv sync --locked"],
+  "migrate": "uv run --locked alembic upgrade head",
+  "start": "uv run --locked uvicorn app.main:app --host 127.0.0.1 --port $PORT"
+}

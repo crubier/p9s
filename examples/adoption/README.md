@@ -38,7 +38,7 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 downloads a release of PostgREST once, or takes the binary of `P9S_POSTGREST`, or `postgrest` on the `PATH`.
 
 To change the code after p9s, `bun examples/adoption/patch.ts edit kysely` writes the patched copy to
-`examples/kysely/.adoption/edit`, and `bun examples/adoption/patch.ts save kysely` writes the patch again from it.
+`examples/kysely/.adoption-edit`, and `bun examples/adoption/patch.ts save kysely` writes the patch again from it.
 
 ## The app
 

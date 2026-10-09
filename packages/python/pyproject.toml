@@ -1,0 +1,41 @@
+[project]
+name = "p9s"
+version = "0.1.0"
+description = "Act as a user of p9s, permissions of trees in Postgres with RLS, from SQLAlchemy and Django"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Vincent Lecrubier" }]
+keywords = ["postgres", "postgresql", "rls", "row level security", "permissions", "sqlalchemy", "django"]
+classifiers = [
+  "Framework :: Django",
+  "Programming Language :: Python :: 3",
+  "Topic :: Database",
+]
+dependencies = []
+
+[project.optional-dependencies]
+sqlalchemy = ["sqlalchemy>=2.0"]
+django = ["django>=4.2"]
+
+[project.urls]
+Homepage = "https://github.com/crubier/p9s"
+Documentation = "https://github.com/crubier/p9s/tree/main/packages/python"
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "sqlalchemy[asyncio]>=2.0",
+  "django>=4.2",
+  "psycopg[binary]>=3.2",
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

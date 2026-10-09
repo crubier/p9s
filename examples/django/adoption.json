@@ -1,0 +1,5 @@
+{
+  "setup": ["uv sync --locked"],
+  "migrate": "uv run --locked python manage.py migrate",
+  "start": "uv run --locked gunicorn site_config.wsgi --bind 127.0.0.1:$PORT --workers 2"
+}

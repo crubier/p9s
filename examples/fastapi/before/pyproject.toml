@@ -1,0 +1,12 @@
+[project]
+name = "documents"
+version = "0.1.0"
+description = "Projects and documents, shared with teams and users"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.16",
+  "fastapi>=0.118",
+  "psycopg[binary]>=3.2",
+  "sqlalchemy[asyncio]>=2.0",
+  "uvicorn>=0.37",
+]

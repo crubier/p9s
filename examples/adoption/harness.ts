@@ -29,7 +29,7 @@ export interface Descriptor {
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
-export const generated = new Set(["node_modules", ".adoption", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log", "bin"]);
+export const generated = new Set(["node_modules", ".adoption", ".adoption-before", ".adoption-after", ".adoption-edit", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log", "bin"]);
 
 export const copyApp = async (from: string, to: string) => {
   await rm(to, { recursive: true, force: true });
@@ -40,10 +40,11 @@ export const applyPatch = async (patch: string, directory: string) => {
   if (await Bun.file(patch).exists()) await run(`patch -p1 --forward --quiet < "${patch}"`, directory);
 };
 
+// A command that hangs fails on its own, rather than the test that runs it
 export const run = async (command: string, cwd: string, env: Record<string, string> = {}) => {
-  const child = Bun.spawn(["sh", "-c", command], { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn(["sh", "-c", command], { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe", timeout: 10 * 60_000 });
   const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
-  if (code !== 0) throw new Error(`${command} exited with ${code} in ${cwd}\n${stdout}\n${stderr}`);
+  if (code !== 0) throw new Error(`${command} ${child.signalCode ? `was killed with ${child.signalCode}` : `exited with ${code}`} in ${cwd}\n${stdout}\n${stderr}`);
   return stdout;
 };
 
@@ -77,7 +78,7 @@ const startApp = async (directory: string, descriptor: Descriptor, url: string, 
   while (true) {
     const state = await Promise.race([child.exited.then(code => ({ code })), Bun.sleep(250).then(() => undefined)]);
     if (state) throw new Error(`${descriptor.start} exited with ${state.code}:\n${await readFile(log, "utf8")}`);
-    const healthy = await fetch(`${base}/health`).then(response => response.ok, () => false);
+    const healthy = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) }).then(response => response.ok, () => false);
     if (healthy) break;
     if (Date.now() > deadline) throw new Error(`${descriptor.start} did not answer on ${base}/health:\n${await readFile(log, "utf8")}`);
   }
@@ -248,8 +249,10 @@ export const describeAdoption = (example: string) => {
   const base = process.env.P9S_ADOPTION_DATABASE_URL;
   const name = path.basename(example);
   const keep = process.env.P9S_ADOPTION_KEEP === "1";
-  const work = path.join(example, ".adoption", "test");
-  const apps = { before: path.join(work, "before"), after: path.join(work, "after") };
+  // Logs in .adoption, and the copies next to before/, so that the paths of before/ to the packages of this repository
+  // hold in them
+  const work = path.join(example, ".adoption");
+  const apps = { before: path.join(example, ".adoption-before"), after: path.join(example, ".adoption-after") };
   const databases = { before: `p9s_adoption_${name.replace(/\W/g, "_")}_before`, after: `p9s_adoption_${name.replace(/\W/g, "_")}_after` };
   const urls = base ? { before: databaseUrl(base, databases.before), after: databaseUrl(base, databases.after) } : { before: "", after: "" };
   const stops: Array<() => Promise<unknown>> = [];
@@ -286,7 +289,7 @@ export const describeAdoption = (example: string) => {
       for (const stop of stops) await stop();
       if (!keep && base) {
         for (const database of Object.values(databases)) await admin(`drop database if exists ${database} with (force)`);
-        await rm(work, { recursive: true, force: true });
+        for (const directory of [work, apps.before, apps.after]) await rm(directory, { recursive: true, force: true });
       }
     });
 

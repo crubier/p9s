@@ -14,42 +14,31 @@ Each opens a transaction, sets the settings for that transaction only with `set_
 
 ## SQLAlchemy
 
+[`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI reads the role and the setting from the config, and runs a transaction of a session as the user, sync or async. [`examples/fastapi`](https://github.com/crubier/p9s/tree/main/examples/fastapi) adopts p9s in an existing FastAPI app with it:
+
 ```python
-from contextlib import contextmanager
-from sqlalchemy import text
+from p9s import Identity, is_refused
+from p9s.sqlalchemy import as_user
 
-AS_USER = text("select set_config('role', 'app_user', true), set_config('app.role_id', :user_id, true)")
+users = Identity.from_file("p9s.config.json")
 
-@contextmanager
-def as_user(Session, user_id):
-    with Session.begin() as session:
-        session.execute(AS_USER, {"user_id": str(user_id)})
-        yield session
-
-with as_user(Session, current_user.role_id) as session:
+with Session(engine) as session, as_user(session, users, current_user.id):
     documents = session.scalars(select(Document).order_by(Document.updated_at.desc()).limit(50)).all()
 ```
 
+`as_user_async` does the same for an `AsyncSession`, and `read_only=True` makes the transaction read only. `is_refused(error)` tells a write the policies refused, through the wrappers of SQLAlchemy. Alembic's autogenerate would drop the tables and columns of p9s, which the models do not know: an `include_object` that leaves what only the database has keeps them, see the example.
+
 ## Django
 
+The same package has a middleware, which runs every request in a transaction as its user, `request.user.pk` by default. [`examples/django`](https://github.com/crubier/p9s/tree/main/examples/django) adopts p9s in an existing Django app with it:
+
 ```python
-from contextlib import contextmanager
-from django.db import connection, transaction
-
-@contextmanager
-def as_user(user_id):
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            cursor.execute("select set_config('role', 'app_user', true), set_config('app.role_id', %s, true)", [str(user_id)])
-        yield
-
-def documents(request):
-    with as_user(request.user.profile.role_id):
-        rows = list(Document.objects.order_by("-updated_at")[:50])
-    return render(request, "documents.html", {"documents": rows})
+# settings.py
+P9S_CONFIG = BASE_DIR / "p9s.config.json"
+MIDDLEWARE = [..., "django.contrib.auth.middleware.AuthenticationMiddleware", "p9s.django.P9sMiddleware"]
 ```
 
-A middleware can wrap every view the same way, but the tables Django reads for itself in the request, like sessions, then need grants to `app_user` too.
+`@as_request_user` does it for one view, and `with as_user(user_id):` for a block, in a task or a command. Then the tables Django reads for itself in the request, like sessions, need grants to `app_user` too. Foreign keys should cascade in the database, with `on_delete=models.DB_CASCADE`: with `models.CASCADE`, Django deletes the dependent rows itself, as the user.
 
 ## Rails
 

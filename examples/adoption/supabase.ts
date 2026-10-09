@@ -54,6 +54,21 @@ const platforms: Record<string, string> = {
   "linux-x64": "linux-static-x86-64",
 };
 
+// A download from GitHub can stall rather than fail
+const download = async (url: string, file: string) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+      if (!response.ok) throw new Error(`Downloading ${url}: ${response.status}`);
+      await Bun.write(file, await response.arrayBuffer());
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await Bun.sleep(2000 * attempt);
+    }
+  }
+};
+
 // P9S_POSTGREST, postgrest on the PATH, or a release of PostgREST downloaded once
 const postgrestBinary = async () => {
   const found = process.env.P9S_POSTGREST ?? Bun.which("postgrest");
@@ -65,10 +80,8 @@ const postgrestBinary = async () => {
   if (await Bun.file(binary).exists()) return binary;
   await mkdir(directory, { recursive: true });
   const name = `postgrest-${postgrestVersion}-${platform}.tar.xz`;
-  const response = await fetch(`https://github.com/PostgREST/postgrest/releases/download/${postgrestVersion}/${name}`);
-  if (!response.ok) throw new Error(`Downloading ${name}: ${response.status}`);
   const archive = path.join(directory, name);
-  await Bun.write(archive, response);
+  await download(`https://github.com/PostgREST/postgrest/releases/download/${postgrestVersion}/${name}`, archive);
   const tar = Bun.spawn(["tar", "-xJf", archive, "-C", directory], { stderr: "pipe" });
   if (await tar.exited !== 0) throw new Error(`Extracting ${name}: ${await new Response(tar.stderr).text()}`);
   await rm(archive);
@@ -103,7 +116,8 @@ export const startSupabase = async (url: string, log: string) => {
     stderr: output,
   });
   const deadline = Date.now() + 60_000;
-  while (!await fetch(`http://127.0.0.1:${adminPort}/ready`).then(response => response.ok, () => false)) {
+  const ready = () => fetch(`http://127.0.0.1:${adminPort}/ready`, { signal: AbortSignal.timeout(2000) }).then(response => response.ok, () => false);
+  while (!await ready()) {
     if (postgrest.exitCode !== null) throw new Error(`PostgREST exited with ${postgrest.exitCode}:\n${await output.text()}`);
     if (Date.now() > deadline) throw new Error(`PostgREST is not ready:\n${await output.text()}`);
     await Bun.sleep(100);

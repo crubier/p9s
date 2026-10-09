@@ -34,6 +34,13 @@
         "@types/pg": "^8.23.1",
       },
     },
+    "examples/django": {
+      "name": "@p9s/example-django",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/drizzle": {
       "name": "@p9s/example-drizzle",
       "dependencies": {
@@ -49,6 +56,13 @@
         "@types/pg": "^8.23.1",
         "drizzle-kit": "^0.31.11",
         "typescript": "^5.9.3",
+      },
+    },
+    "examples/fastapi": {
+      "name": "@p9s/example-fastapi",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
       },
     },
     "examples/kysely": {
@@ -1243,7 +1257,11 @@
 
     "@p9s/drizzle": ["@p9s/drizzle@workspace:packages/drizzle"],
 
+    "@p9s/example-django": ["@p9s/example-django@workspace:examples/django"],
+
     "@p9s/example-drizzle": ["@p9s/example-drizzle@workspace:examples/drizzle"],
+
+    "@p9s/example-fastapi": ["@p9s/example-fastapi@workspace:examples/fastapi"],
 
     "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/kysely"],
 

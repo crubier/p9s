@@ -1,5 +1,5 @@
-// bun examples/adoption/patch.ts edit <example>: writes before/ with after.patch applied to <example>/.adoption/edit
-// bun examples/adoption/patch.ts save <example>: writes after.patch again, from the changes of <example>/.adoption/edit
+// bun examples/adoption/patch.ts edit <example>: writes before/ with after.patch applied to <example>/.adoption-edit
+// bun examples/adoption/patch.ts save <example>: writes after.patch again, from the changes of <example>/.adoption-edit
 import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +11,7 @@ if (!name || (action !== "edit" && action !== "save")) {
   process.exit(1);
 }
 const example = path.resolve(import.meta.dir, "..", name);
-const edit = path.join(example, ".adoption", "edit");
+const edit = path.join(example, ".adoption-edit");
 const patch = path.join(example, "after.patch");
 
 if (action === "edit") {

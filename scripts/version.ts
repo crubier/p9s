@@ -17,3 +17,7 @@ for (const name of published) {
 const versionModule = path.resolve(import.meta.dir, "..", "packages", "postgres", "version.ts");
 const source = await Bun.file(versionModule).text();
 await Bun.write(versionModule, source.replace(/export const version = ".*";/, `export const version = ${JSON.stringify(version)};`));
+const pyproject = path.resolve(import.meta.dir, "..", "packages", "python", "pyproject.toml");
+const project = await Bun.file(pyproject).text();
+await Bun.write(pyproject, project.replace(/^version = ".*"$/m, `version = ${JSON.stringify(version)}`));
+console.log(`p9s (PyPI) ${version}`);
