@@ -70,7 +70,7 @@ npx p9s postgres doctor                        # check the database
 - [Installation](./getting-started/installation) - Set up p9s in your project
 - [Configuration](./configuration/overview) - Learn about configuration options
 - [Acting as a user](./configuration/identity) - Run the queries of each user through the policies, with node-postgres, Drizzle or Prisma
-- [Supabase](./integrations/supabase) and [other stacks](./integrations/other-stacks) - SQLAlchemy, Django, Rails, GORM and more
+- [Adopting p9s in an existing app](./integrations/adopting) - One page per stack: Drizzle, Prisma, Kysely, Supabase, SQLAlchemy, Django, Rails, Go, Rust, Elixir and Laravel
 - [CLI](./packages/cli) - `init`, `generate`, `status` and `doctor`
 - [Security Model](./configuration/security-model) - Who can change permissions, and the rules the application must follow
 - [Querying through RLS](./configuration/querying) - Searches, counts, pages and shares that stay fast through the policies

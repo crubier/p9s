@@ -16,7 +16,8 @@ class ConformanceTest < Minitest::Test
 
   def setup
     skip "P9S_CONFORMANCE_DATABASE_URL is not set" unless URL
-    Record.establish_connection("#{URL}#{URL.include?('?') ? '&' : '?'}pool=1") unless Record.connected?
+    # connected? would be true through the connection of ActiveRecord::Base, which the other tests open
+    Record.establish_connection("#{URL}#{URL.include?('?') ? '&' : '?'}pool=1") unless Record.connection_class?
     @users = P9s::Identity.from_file(File.join(SUITE, CASES["config"]))
   end
 

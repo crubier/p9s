@@ -122,7 +122,7 @@ await withUser(prisma, users, session.roleId, async tx => {
 
 ## Other languages
 
-Any client that runs a transaction can do the same, see [other stacks](../integrations/other-stacks).
+SQLAlchemy, Django, Rails, Go, Rust, Elixir and Laravel have packages that read the config too, see [adopting p9s](../integrations/adopting), and any client that runs a transaction can do the same, see [other stacks](../integrations/other-stacks).
 
 ## Refused writes
 

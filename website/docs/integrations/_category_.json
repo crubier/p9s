@@ -1,8 +1,5 @@
 {
   "label": "Integrations",
   "position": 3.5,
-  "link": {
-    "type": "generated-index",
-    "description": "p9s with Supabase, and with the ORMs and languages of other stacks"
-  }
+  "link": { "type": "doc", "id": "integrations/adopting" }
 }
