@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { cp, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
@@ -26,6 +27,8 @@ export interface Descriptor {
   // What the platform of the app gives it. With "supabase": its roles, auth schema and grants in each database, and
   // PostgREST under /rest/v1 of SUPABASE_URL, with SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_JWT_SECRET
   stack?: "supabase";
+  // The migration tool of the app, for p9s postgres generate --format, with the options it needs, like --previous
+  format?: { name: string; options?: string };
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
@@ -255,8 +258,9 @@ export const describeAdoption = (example: string) => {
   // hold in them
   const work = path.join(example, ".adoption");
   const apps = { before: path.join(example, ".adoption-before"), after: path.join(example, ".adoption-after") };
-  const databases = { before: `p9s_adoption_${name.replace(/\W/g, "_")}_before`, after: `p9s_adoption_${name.replace(/\W/g, "_")}_after` };
-  const urls = base ? { before: databaseUrl(base, databases.before), after: databaseUrl(base, databases.after) } : { before: "", after: "" };
+  const databases = Object.fromEntries((["before", "after", "format"] as const).map(app => [app, `p9s_adoption_${name.replace(/\W/g, "_")}_${app}`])) as Record<"before" | "after" | "format", string>;
+  const urls = Object.fromEntries(Object.entries(databases).map(([app, database]) => [app, base ? databaseUrl(base, database) : ""])) as typeof databases;
+  const format = (JSON.parse(readFileSync(path.join(example, "adoption.json"), "utf8")) as Descriptor).format;
   const stops: Array<() => Promise<unknown>> = [];
   let descriptor: Descriptor;
   let config: unknown;
@@ -269,14 +273,17 @@ export const describeAdoption = (example: string) => {
     try { await client.query(statement); } finally { await client.end(); }
   };
   const p9s = (args: string, app: string, url: string) => run(`"${process.execPath}" "${cli}" ${args}`, app, { DATABASE_URL: url });
+  const seedDatabase = async (url: string) => {
+    const client = new pg.Client({ connectionString: url });
+    await client.connect();
+    try { await client.query(await readFile(seed, "utf8")); } finally { await client.end(); }
+  };
   const prepare = async (app: "before" | "after") => {
     await admin(`drop database if exists ${databases[app]} with (force)`);
     await admin(`create database ${databases[app]}`);
     if (descriptor.stack === "supabase") await prepareSupabase(urls[app]);
     await run(descriptor.migrate, apps[app], { ...descriptor.env, DATABASE_URL: urls[app] });
-    const client = new pg.Client({ connectionString: urls[app] });
-    await client.connect();
-    try { await client.query(await readFile(seed, "utf8")); } finally { await client.end(); }
+    await seedDatabase(urls[app]);
   };
   const serve = async (app: "before" | "after") => {
     const stack = descriptor.stack === "supabase" ? await startSupabase(urls[app], path.join(work, `${app}.supabase.log`)) : undefined;
@@ -350,6 +357,22 @@ export const describeAdoption = (example: string) => {
         await p9s("postgres migrate --config p9s.config.json --force", apps[app], urls[app]);
         expect(await fingerprint(urls[app])).toEqual(rows);
       }
+    }, timeout);
+
+    // The app after p9s, with the migration of p9s in its own migrations: its migrate command makes a database where
+    // each user reads and writes as the rules say, with the rows of the seed inserted after p9s
+    test.skipIf(!format)(`p9s postgres generate --format ${format?.name} writes a migration that the app runs with its own`, async () => {
+      expect(await p9s(`postgres generate --config p9s.config.json --format ${format!.name} ${format!.options ?? ""}`, apps.after, "")).toMatch(/Migration written/);
+      for (const command of descriptor.setup ?? []) await run(command, apps.after, descriptor.env);
+      await admin(`drop database if exists ${databases.format} with (force)`);
+      await admin(`create database ${databases.format}`);
+      await run(descriptor.migrate, apps.after, { ...descriptor.env, DATABASE_URL: urls.format });
+      await seedDatabase(urls.format);
+      expect(await p9s("postgres status --config p9s.config.json", apps.after, urls.format)).toMatch(/Up to date/);
+      const { actual, wanted } = await checkDatabase(urls.format, config);
+      expect(actual).toEqual(wanted);
+      const report = await p9s("postgres doctor --config p9s.config.json", apps.after, urls.format);
+      expect(report.split("\n").filter(line => /^(warn|error)\s/.test(line) && !/^warn\s+jit:/.test(line))).toEqual([]);
     }, timeout);
   });
 };

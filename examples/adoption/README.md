@@ -7,7 +7,8 @@ change that hands those checks to p9s:
 - `p9s.config.json`: the config that describes its tables, and the tables where it keeps memberships and shares
 - `after.patch`: the change to the code once p9s runs, which removes the permission checks and runs the queries of
   each request as the user
-- `adoption.json`: how to set the app up, run its migrations, and start it, see [`harness.ts`](./harness.ts). With
+- `adoption.json`: how to set the app up, run its migrations, and start it, and the `format` of its migration tool for
+  `p9s postgres generate --format`, see [`harness.ts`](./harness.ts). With
   `"stack": "supabase"`, each database gets what a Supabase project has, its roles, `auth` schema and grants, and the
   app gets PostgREST under `/rest/v1` of `SUPABASE_URL`, with the keys of the project, see [`supabase.ts`](./supabase.ts)
 - `adoption.test.ts`: the test, which calls the harness of this folder
@@ -31,6 +32,10 @@ npx @p9s/cli postgres migrate --config p9s.config.json
    the patch, and runs the scenario again: every answer must be the same as before. On Supabase, the API itself must
    not let `anon` read any table, nor a signed in user read or write memberships and shares
 7. Runs the p9s migration again on both databases: it is up to date, and forcing it changes no row
+8. With a `format` in `adoption.json`, writes the migration of p9s in the format of the migration tool of the app, with
+   `p9s postgres generate --format`, into the migrations of the app after the patch. Its migrate command makes a third
+   database, which `p9s postgres status` finds up to date, and where each user reads and writes as the rules say, with
+   the rows of the seed inserted after p9s
 
 `P9S_ADOPTION_DATABASE_URL` is a Postgres server where the role of the URL can create databases and roles, like
 `postgresql://postgres@localhost:5432/postgres`. Without it, the tests are skipped. Run the tests of one example with

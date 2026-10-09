@@ -29,6 +29,14 @@ then on keeps the graph in step with them. `db/schema.rb` cannot hold the functi
 app that loads its schema, for tests, sets `config.active_record.schema_format = :sql`, or runs the migration of p9s
 after `db:schema:load`.
 
+To run p9s with the other migrations of the app instead, as a migration of Rails:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format rails
+```
+
+Then `bin/rails db:migrate` runs it, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds the [`p9s`](../../packages/ruby) gem, deletes `app/models/permissions.rb`, and

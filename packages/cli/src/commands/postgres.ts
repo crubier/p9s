@@ -2,10 +2,19 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Command } from "commander";
 import { compile } from "pg-sql2";
-import { createMigration, diagnose, migrate, migrationStatus, type MigrationRecord } from "@p9s/postgres";
+import { createMigration, createMigrationFile, diagnose, migrate, migrationDirectories, migrationFormats, migrationStatus, type MigrationFormat, type MigrationRecord } from "@p9s/postgres";
 import { getCompleteConfig } from "@p9s/core";
 import { loadConfig } from "../config.js";
 import { connect } from "../database.js";
+
+// The module of the migrations of the Mix project of the current folder, from its app, like :my_app
+const ectoModule = async () => {
+  const mix = await fs.readFile("mix.exs", "utf-8").catch(() => "");
+  const app = /\bapp:\s*:(\w+)/.exec(mix)?.[1];
+  if (!app) return undefined;
+  const name = app.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+  return `${name}.Repo.Migrations`;
+};
 
 export const postgres = new Command()
   .name("postgres")
@@ -20,13 +29,31 @@ postgres
   )
   .option(
     "-o, --output <path>",
-    "output file path (default: from config or p9s-migration.sql)"
+    "output file path (default: from config or p9s-migration.sql), or with --format the folder of the migrations of the tool"
   )
+  .option("-f, --format <format>", `a migration of the tool of a stack, which runs with the other migrations of the app: ${migrationFormats.join(", ")}`)
+  .option("--previous <migration>", "the migration this one comes after: the revision for alembic, app_label.migration_name for django")
+  .option("--module <module>", "the module of the migrations for ecto (default: <App>.Repo.Migrations, from mix.exs)")
   .action(async (opts) => {
     console.log("Loading configuration...");
 
     const config = await loadConfig({ configPath: opts.config });
     const completeConfig = getCompleteConfig(config);
+
+    if (opts.format !== undefined) {
+      if (!(migrationFormats as readonly string[]).includes(opts.format)) {
+        throw new Error(`Unknown format ${opts.format}, one of ${migrationFormats.join(", ")}`);
+      }
+      const format = opts.format as MigrationFormat;
+      const module = opts.module ?? (format === "ecto" ? await ectoModule() : undefined);
+      const { fileName, content } = createMigrationFile(config, format, { previous: opts.previous, module });
+      const directory = format === "django" && opts.previous ? path.join(opts.previous.split(".")[0], "migrations") : migrationDirectories[format];
+      const file = path.join(opts.output ?? directory, fileName);
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, content, "utf-8");
+      console.log(`Migration written to: ${file}`);
+      return;
+    }
 
     const outputPath: string = opts.output ?? completeConfig.migration?.output?.sql ?? "p9s-migration.sql";
 

@@ -71,6 +71,42 @@ describe("p9s CLI", () => {
     expect(sql).toContain("bit(64)");
   });
 
+  test("generates a migration in the format of the tool of each stack", async () => {
+    const directory = fs.mkdtempSync(path.join(testDir, "formats-"));
+    try {
+      const formats = {
+        alembic: [/^\d{14}_p9s_[0-9a-f]{8}\.py$/, /down_revision = "0001"/, /cursor\.execute\(SQL\)/],
+        django: [/^0002_p9s_[0-9a-f]{8}\.py$/, /dependencies = \[\("documents", "0001_initial"\)\]/, /RunSQL\(\[SQL\]/],
+        rails: [/^\d{14}_p9s_[0-9a-f]{8}\.rb$/, /class P9s[0-9A-F][0-9a-f]{7} < ActiveRecord::Migration\[7\.0\]/, /execute <<-'P9S_SQL'/],
+        goose: [/^\d{14}_p9s_[0-9a-f]{8}\.sql$/, /-- \+goose Up\n-- \+goose StatementBegin\n/, /-- \+goose StatementEnd\n/],
+        sqlx: [/^\d{14}_p9s_[0-9a-f]{8}\.sql$/, /^-- The migration of p9s/],
+        ecto: [/^\d{14}_p9s_[0-9a-f]{8}\.exs$/, /defmodule MyApp\.Repo\.Migrations\.P9s[0-9A-F][0-9a-f]{7} do/, /query_type: :text/],
+        laravel: [/^\d{4}_\d{2}_\d{2}_\d{6}_p9s_[0-9a-f]{8}\.php$/, /DB::unprepared\(<<<'P9S_SQL'/, /^P9S_SQL\);$/m],
+      } as const;
+      const options = { alembic: "--previous 0001", django: "--previous documents.0001_initial", ecto: "--module MyApp.Repo.Migrations" } as Record<string, string>;
+      for (const [format, [fileName, ...contents]] of Object.entries(formats)) {
+        const output = path.join(directory, format);
+        const args = [...(options[format]?.split(" ") ?? [])];
+        await $`bun run ${cliPath} postgres generate --config ${configPath} --format ${format} --output ${output} ${args}`.quiet();
+        const [file] = fs.readdirSync(output);
+        expect(file).toMatch(fileName);
+        const content = fs.readFileSync(path.join(output, file!), "utf-8");
+        for (const pattern of contents) expect(content).toMatch(pattern);
+        expect(content).toContain(`create role "app_user" nologin`);
+        expect(content).toContain("p9s_migration");
+      }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("a format that needs the previous migration says so", async () => {
+    const result = await $`bun run ${cliPath} postgres generate --config ${configPath} --format alembic --output ${testDir}/unused`.nothrow().quiet();
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.toString()).toContain("--previous");
+    expect(fs.existsSync(path.join(testDir, "unused"))).toBe(false);
+  });
+
   test("configures graph writers from a Drizzle schema", async () => {
     const drizzleSchemaPath = path.resolve(testDir, "../../drizzle/test/sample/schema1.ts");
     const drizzleOutputPath = path.resolve(testDir, "drizzle-output.json");

@@ -28,6 +28,15 @@ It runs in one transaction, creates the role `app_user`, brings the rows of the 
 then on keeps the graph in step with them. The queries name their columns, so the `role_id` and `resource_id` columns
 p9s adds change nothing.
 
+To run p9s with the other migrations of the app instead, as a migration of sqlx:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format sqlx
+```
+
+Then `cargo run -- migrate` runs it, as [`build.rs`](./before/build.rs) builds the app again when a migration is
+added, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds the [`p9s`](../../packages/rust) crate with its `axum` feature, deletes

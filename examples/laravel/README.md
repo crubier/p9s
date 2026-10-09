@@ -27,6 +27,14 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 It runs in one transaction, creates the role `app_user`, brings the rows of the link tables into the graph, and from
 then on keeps the graph in step with them.
 
+To run p9s with the other migrations of the app instead, as a migration of Laravel:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format laravel
+```
+
+Then `php artisan migrate` runs it, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds the [`p9s/laravel`](../../packages/php) package, deletes `app/Permissions.php`,

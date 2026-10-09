@@ -2,5 +2,6 @@
   "setup": ["cargo build --quiet"],
   "migrate": "cargo run --quiet -- migrate",
   "start": "cargo run --quiet",
-  "env": { "CARGO_TARGET_DIR": "../../adoption/.adoption/cargo-target" }
+  "env": {"CARGO_TARGET_DIR": "../../adoption/.adoption/cargo-target"},
+  "format": {"name": "sqlx"}
 }

@@ -30,6 +30,14 @@ drop the tables of p9s, and the `role_id` and `resource_id` columns it adds, whi
 gives `migrations/env.py` an `include_object` that leaves what only the database has, and autogenerate then finds
 nothing to change.
 
+To run p9s with the other migrations of the app instead, as a migration of Alembic:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format alembic --previous 0001
+```
+
+Then `alembic upgrade head` runs it, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds [`p9s`](../../packages/python), deletes `app/permissions.py`, and gives each

@@ -32,6 +32,14 @@ compares the models with its migrations, not with the database.
 Foreign keys should cascade in the database. With `on_delete=models.CASCADE`, Django deletes the dependent rows itself,
 as the user, who may delete a document but not its shares.
 
+To run p9s with the other migrations of the app instead, as a migration of Django:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format django --previous documents.0001_initial
+```
+
+Then `manage.py migrate` runs it, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds [`p9s`](../../packages/python), deletes `documents/permissions.py`, and adds the

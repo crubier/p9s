@@ -28,6 +28,14 @@ It runs in one transaction, creates the role `app_user`, brings the rows of the 
 then on keeps the graph in step with them. The schemas do not change: Ecto reads the fields its schemas name, and leaves
 the `role_id` and `resource_id` columns p9s adds to their defaults.
 
+To run p9s with the other migrations of the app instead, as a migration of Ecto:
+
+```bash
+npx @p9s/cli postgres generate --config p9s.config.json --format ecto
+```
+
+Then `mix ecto.migrate` runs it, and the adoption test checks that too.
+
 ## After
 
 [`after.patch`](./after.patch) adds [`p9s`](../../packages/elixir), deletes `lib/documents/permissions.ex`, and uses

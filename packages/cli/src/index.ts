@@ -23,7 +23,7 @@ async function main() {
   program.addCommand(validate);
   program.addCommand(drizzle);
 
-  program.parse();
+  await program.parseAsync();
 }
 
 main().catch((error) => {

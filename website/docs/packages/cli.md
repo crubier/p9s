@@ -33,6 +33,26 @@ npx p9s postgres generate --output migrations/p9s.sql
 
 Writes the migration of the config, to `migration.output.sql` of the config or `p9s-migration.sql` by default. Run it with your migrations, as the owner of the tables. Running it again on a database that ran an earlier one updates it, see [upgrading](../configuration/upgrading).
 
+### In the format of a migration tool
+
+```bash
+npx p9s postgres generate --format rails
+```
+
+With `--format`, the migration is a migration of the tool of the stack, which runs with the other migrations of the app, in their order and in a transaction. It also creates the roles of the config that do not exist, as `postgres migrate` does. `--output` is then the folder of the migrations, the one of the tool by default, and the file is named with a timestamp and the hash of the migration, so that a new config makes a new migration.
+
+| Format | Folder | Runs with |
+| --- | --- | --- |
+| `alembic` | `migrations/versions` | `alembic upgrade head`, after the revision of `--previous` |
+| `django` | `<app>/migrations` | `manage.py migrate`, after the migration of `--previous`, like `documents.0001_initial` |
+| `rails` | `db/migrate` | `rails db:migrate` |
+| `goose` | `migrations` | `goose up`, or `goose.Up` with embedded migrations |
+| `sqlx` | `migrations` | `sqlx migrate run`, or `sqlx::migrate!`, which needs a build script to see a new file |
+| `ecto` | `priv/repo/migrations` | `mix ecto.migrate`, in the module of `--module`, `<App>.Repo.Migrations` of `mix.exs` by default |
+| `laravel` | `database/migrations` | `php artisan migrate` |
+
+The examples of [Alembic](https://github.com/crubier/p9s/tree/main/examples/fastapi), [Django](https://github.com/crubier/p9s/tree/main/examples/django), [Rails](https://github.com/crubier/p9s/tree/main/examples/rails), [goose](https://github.com/crubier/p9s/tree/main/examples/gorm), [sqlx](https://github.com/crubier/p9s/tree/main/examples/axum), [Ecto](https://github.com/crubier/p9s/tree/main/examples/phoenix) and [Laravel](https://github.com/crubier/p9s/tree/main/examples/laravel) test it: the migrate command of the app makes a database where each user reads and writes as the rules say.
+
 ## postgres migrate
 
 ```bash

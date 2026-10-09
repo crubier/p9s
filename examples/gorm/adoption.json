@@ -1,5 +1,6 @@
 {
   "setup": ["go build -o documents ."],
   "migrate": "./documents migrate",
-  "start": "./documents"
+  "start": "./documents",
+  "format": {"name": "goose"}
 }
