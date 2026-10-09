@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Command } from "commander";
 import { compile } from "pg-sql2";
-import { createMigration, migrationStatus, type MigrationRecord } from "@p9s/postgres";
+import { createMigration, diagnose, migrationStatus, type MigrationRecord } from "@p9s/postgres";
 import { getCompleteConfig } from "@p9s/core";
 import { loadConfig } from "../config.js";
 import { connect } from "../database.js";
@@ -40,6 +40,25 @@ postgres
     await fs.writeFile(outputPath, sql, "utf-8");
 
     console.log(`Migration written to: ${outputPath}`);
+  });
+
+postgres
+  .command("doctor")
+  .description("Check a database against the config: migration, RLS, grants, indexes, JIT and caches, exiting with 1 on an error")
+  .option("-c, --config <path>", "path to config file")
+  .option("-d, --database-url <url>", "database to check (default: DATABASE_URL)")
+  .option("--sample <rows>", "rows of each tree whose cache is compared with a recompute", "200")
+  .action(async (opts) => {
+    const config = await loadConfig({ configPath: opts.config });
+    const client = await connect(opts.databaseUrl);
+    try {
+      const findings = await diagnose(client, config, { sample: Number(opts.sample) });
+      const marks = { ok: "ok   ", warn: "warn ", error: "error" };
+      for (const { level, check, message } of findings) console.log(`${marks[level]} ${check}: ${message}`);
+      process.exitCode = findings.some(finding => finding.level === "error") ? 1 : 0;
+    } finally {
+      await client.end();
+    }
   });
 
 postgres

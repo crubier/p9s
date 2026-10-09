@@ -119,6 +119,10 @@ describe("p9s CLI", () => {
       const current = await status();
       expect(current.exitCode).toBe(0);
       expect(current.stdout.toString()).toContain("Up to date");
+      const doctor = await $`bun run ${cliPath} postgres doctor --config ${statusConfigPath} --database-url ${url.toString()}`.nothrow().quiet();
+      expect(doctor.exitCode).toBe(0);
+      expect(doctor.stdout.toString()).toContain("ok    rls: Row level security is on for the 1 resource tables");
+      expect(doctor.stdout.toString()).toContain("warn  grants: app_user may not read");
 
       fs.writeFileSync(statusConfigPath, JSON.stringify(config(32)));
       const outdated = await status();
