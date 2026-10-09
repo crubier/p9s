@@ -57,6 +57,8 @@ export const baseNamingConfigSchema = z.object({
   guard: z.string(),
   validate: z.string(),
   truncate: z.string(),
+  link: z.string(),
+  linked: z.string(),
   triggerPrefix: z.string(),
 });
 
@@ -116,6 +118,9 @@ export const derivedResourceOrRoleNamingConfigSchema = z.object({
   nodeDeleteTrigger: z.string(),
   enableTriggerFunction: z.string(),
   disableTriggerFunction: z.string(),
+  // With links of this tree: the column of the edges that links keep, and the function that recomputes them
+  linked: z.string(),
+  linkRefreshFunction: z.string(),
 });
 
 // Assignment naming config schema
@@ -166,6 +171,9 @@ export const assignmentNamingConfigSchema = z.object({
   disableTriggerFunction: z.string(),
   // Prefix of the policies of the assignment table, followed by the user and the operation, or by "writer"
   edgePolicy: z.string(),
+  // With assignment links: the column of the assignments that links keep, and the function that recomputes them
+  linked: z.string(),
+  linkRefreshFunction: z.string(),
 });
 
 // Derived naming config schema (combines resource, role, assignment)
@@ -238,10 +246,27 @@ export const tableNamingConfigSchema = z.object({
   tables: z.record(z.string(), tableNamingConfigEntrySchema),
 });
 
-// Full naming config schema (base + derived + tables)
+// The function that brings the edges or assignments of a link table up to date with some of its rows, and the trigger
+// function and triggers that call it
+export const linkNamingConfigEntrySchema = z.object({
+  schema: z.string(),
+  name: z.string(),
+  syncFunction: z.string(),
+  triggerFunction: z.string(),
+  insertTrigger: z.string(),
+  updateTrigger: z.string(),
+  deleteTrigger: z.string(),
+});
+
+export const linkNamingConfigSchema = z.object({
+  links: z.record(z.string(), linkNamingConfigEntrySchema),
+});
+
+// Full naming config schema (base + derived + tables + links)
 export const namingConfigSchema = baseNamingConfigSchema
   .merge(derivedNamingConfigSchema)
-  .merge(tableNamingConfigSchema);
+  .merge(tableNamingConfigSchema)
+  .merge(linkNamingConfigSchema);
 
 // The column of a bound table that holds its parent in the resource (or role) tree. p9s keeps one edge, the home edge,
 // from that parent to the row. Without a table the column holds resource (or role) ids. With a table it holds values
@@ -294,6 +319,42 @@ export const tableConfigSchema = z.object({
   // Each search is a function named after the table and its key, like document_search for `search`, that matches
   // through the indexes as the owner, and returns the matching rows the user can read
   search: z.record(z.string(), searchConfigSchema).optional(),
+});
+
+// A column of a link table that holds a row of a bound table: a value of its key column, which defaults to the
+// resource (or role) id column of that table
+export const linkEndSchema = z.object({
+  column: z.string(),
+  table: z.string(),
+  key: z.string().optional(),
+});
+
+// Bits, by their name in engine.permission.bitmap.names or by their position
+export const bitsSchema = z.array(z.union([z.string(), z.number()]));
+
+// The bits of the edge or assignment of each row of a link table: the same for every row, or by the value of one of
+// its columns, as text: `{ column: "access", values: { viewer: ["read"], editor: ["read", "edit"] } }`. A row whose value
+// is not listed gives nothing.
+export const linkPermissionSchema = z.union([
+  bitsSchema,
+  z.object({ column: z.string(), values: z.record(z.string(), bitsSchema) }),
+]);
+
+// A table of the application whose rows are edges or assignments, like the members of teams or the shares of
+// documents. p9s keeps an edge (or assignment) for each pair of rows it links, with the bits of its rows, and follows
+// every change of the table.
+export const linkConfigSchema = z.object({
+  schema: z.string().optional(),
+  name: z.string(),
+  // "role": a child role is in a parent role, like a user in a team. "resource": a child resource is in a parent
+  // resource, besides its parent column. "assignment": a role has access to a resource.
+  kind: z.enum(["resource", "role", "assignment"]),
+  parent: linkEndSchema.optional(),
+  child: linkEndSchema.optional(),
+  resource: linkEndSchema.optional(),
+  role: linkEndSchema.optional(),
+  // Every bit by default for edges, required for assignments
+  permission: linkPermissionSchema.optional(),
 });
 
 // Engine config base schema (without refinements, for partial/optional use)
@@ -389,7 +450,46 @@ export const completeConfigBaseSchema = z.object({
   engine: engineConfigSchema,
   migration: migrationConfigSchema,
   tables: z.array(tableConfigSchema),
+  links: z.array(linkConfigSchema).default([]),
 });
+
+// What is wrong with a link of a config, for the schema and for the migration, which refuses it
+export const linkIssues = (link: LinkConfig, data: { engine: { permission: { bitmap: { size: number, names?: Record<string, number> } } }, tables: TableConfig[] }) => {
+  const issues: Array<{ path: Array<string | number>, message: string }> = [];
+  const ends = link.kind === "assignment"
+    ? [["resource", link.resource, "resource"], ["role", link.role, "role"]] as const
+    : [["parent", link.parent, link.kind], ["child", link.child, link.kind]] as const;
+  for (const [key, end, kind] of ends) {
+    if (!end) {
+      issues.push({ path: [key], message: `A ${link.kind} link needs a ${key}` });
+      continue;
+    }
+    const table = data.tables.find(other => other.name === end.table);
+    const [flag, leafKey] = kind === "resource" ? ["isResource", "resourceLeaf"] as const : ["isRole", "roleLeaf"] as const;
+    if (!table || !table[flag]) {
+      issues.push({ path: [key, "table"], message: `Table "${end.table}" of ${link.name}.${end.column} is not a ${kind} table of the config` });
+    } else if (table[leafKey]) {
+      issues.push({ path: [key, "table"], message: `Table "${end.table}" is a ${kind} leaf table, its rows are not nodes that ${link.name} can link` });
+    } else if (table.softDelete !== undefined) {
+      issues.push({ path: [key, "table"], message: `Table "${end.table}" soft deletes its rows, which links do not support yet` });
+    }
+  }
+  const unused = link.kind === "assignment" ? (["parent", "child"] as const) : (["resource", "role"] as const);
+  for (const key of unused) {
+    if (link[key] !== undefined) issues.push({ path: [key], message: `A ${link.kind} link has no ${key}` });
+  }
+  if (link.kind === "assignment" && link.permission === undefined) {
+    issues.push({ path: ["permission"], message: `An assignment link needs the bits its rows give` });
+  }
+  const { size, names = {} } = data.engine.permission.bitmap;
+  const lists = link.permission === undefined ? [] : Array.isArray(link.permission) ? [link.permission] : Object.values(link.permission.values);
+  for (const bit of lists.flat()) {
+    if (typeof bit === "string" ? !(bit in names) : !Number.isInteger(bit) || bit < 0 || bit >= size) {
+      issues.push({ path: ["permission"], message: typeof bit === "string" ? `Bit "${bit}" is not in engine.permission.bitmap.names` : `Bit ${bit} is not a position from 0 to ${size - 1}` });
+    }
+  }
+  return issues;
+};
 
 // Complete config schema with superRefine for cross-field validation
 export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, ctx) => {
@@ -469,6 +569,16 @@ export const completeConfigSchema = completeConfigBaseSchema.superRefine((data, 
       }
     }
   });
+  const linkNames = new Set<string>();
+  data.links.forEach((link, linkIndex) => {
+    if (linkNames.has(link.name)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Table "${link.name}" is linked twice`, path: ["links", linkIndex, "name"] });
+    }
+    linkNames.add(link.name);
+    for (const { path, message } of linkIssues(link, data)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["links", linkIndex, ...path] });
+    }
+  });
 });
 
 // User-facing config schema (partial version for user input)
@@ -476,6 +586,7 @@ export const configSchema = z.object({
   engine: engineConfigBaseSchema.partial().optional(),
   migration: migrationConfigSchema.partial().optional(),
   tables: z.array(tableConfigSchema.partial()).optional(),
+  links: z.array(linkConfigSchema).optional(),
 });
 
 // Type exports inferred from schemas
@@ -487,6 +598,12 @@ export type AssignmentNamingConfig = z.infer<typeof assignmentNamingConfigSchema
 export type DerivedNamingConfig = z.infer<typeof derivedNamingConfigSchema>;
 export type TableNamingConfigEntry = z.infer<typeof tableNamingConfigEntrySchema>;
 export type TableNamingConfig = z.infer<typeof tableNamingConfigSchema>;
+export type LinkNamingConfigEntry = z.infer<typeof linkNamingConfigEntrySchema>;
+export type LinkNamingConfig = z.infer<typeof linkNamingConfigSchema>;
+export type LinkEnd = z.infer<typeof linkEndSchema>;
+export type Bits = z.infer<typeof bitsSchema>;
+export type LinkPermission = z.infer<typeof linkPermissionSchema>;
+export type LinkConfig = z.infer<typeof linkConfigSchema>;
 export type NamingConfig = z.infer<typeof namingConfigSchema>;
 export type ParentConfig = z.infer<typeof parentConfigSchema>;
 export type ParentsConfig = z.infer<typeof parentsConfigSchema>;

@@ -148,7 +148,7 @@ test('Default Migration', () => {
         where not "t"."tgisinternal"
         and "t"."tgname" <> all (array['05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', '10_resource_edge_insert_trigger', '10_resource_edge_update_trigger', '10_resource_edge_delete_trigger', '10_resource_node_insert_trigger', '10_resource_node_update_trigger', '10_resource_node_delete_trigger', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', '10_role_edge_insert_trigger', '10_role_edge_update_trigger', '10_role_edge_delete_trigger', '10_role_node_insert_trigger', '10_role_node_update_trigger', '10_role_node_delete_trigger', '10_assignment_edge_insert_trigger', '10_assignment_edge_update_trigger', '10_assignment_edge_delete_trigger', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', '20_assignment_edge_none_insert_trigger', '20_assignment_edge_none_update_trigger', '20_assignment_edge_none_delete_trigger', '07_assignment_edge_resource_cache_insert_trigger', '07_assignment_edge_resource_cache_update_trigger', '07_assignment_edge_resource_cache_delete_trigger', '05_truncate_guard_trigger', '10_human_user_resource_insert_trigger', '10_human_user_resource_update_trigger', '10_human_user_resource_delete_trigger', '10_human_user_role_insert_trigger', '10_human_user_role_update_trigger', '10_human_user_role_delete_trigger', '10_human_user_resource_parent_trigger', '10_human_user_role_parent_trigger', '10_blog_post_resource_insert_trigger', '10_blog_post_resource_update_trigger', '10_blog_post_resource_delete_trigger', '10_blog_post_role_insert_trigger', '10_blog_post_role_update_trigger', '10_blog_post_role_delete_trigger', '10_blog_post_resource_parent_trigger', '10_blog_post_role_parent_trigger']::text[])
         and "p"."pronamespace" = 'public'::regnamespace
-        and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_deleted', 'resource_edge_deleted_pkey', 'resource_node_soft_delete', 'resource_node_restore', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_deleted', 'role_edge_deleted_pkey', 'role_node_soft_delete', 'role_node_restore', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_deleted', 'assignment_edge_deleted_pkey', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_none_insert_trigger_function', '20_assignment_edge_none_insert_trigger', 'assignment_edge_none_update_trigger_function', '20_assignment_edge_none_update_trigger', 'assignment_edge_none_delete_trigger_function', '20_assignment_edge_none_delete_trigger', 'assignment_edge_resource_cache_insert_trigger_function', '07_assignment_edge_resource_cache_insert_trigger', 'assignment_edge_resource_cache_update_trigger_function', '07_assignment_edge_resource_cache_update_trigger', 'assignment_edge_resource_cache_delete_trigger_function', '07_assignment_edge_resource_cache_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'public', 'or_bitmap_4', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'permission_flags', 'current_resource_access', 'current_assignment', 'current_resource_edge', 'current_role', 'resource_access', 'resource_role_access', 'resource_share', 'resource_unshare', 'current_deleted_resource', 'resource_deleted_permission', 'resource_restore', 'human_user', 'resource_human_user_fkey', 'role_human_user_fkey', 'human_user_resource_trigger_function', '10_human_user_resource_insert_trigger', '10_human_user_resource_update_trigger', '10_human_user_resource_delete_trigger', 'human_user_role_trigger_function', '10_human_user_role_insert_trigger', '10_human_user_role_update_trigger', '10_human_user_role_delete_trigger', 'human_user_resource_parent', 'human_user_role_parent', 'resource_parent_id', 'human_user_resource_parent_trigger_function', '10_human_user_resource_parent_trigger', 'role_parent_id', 'human_user_role_parent_trigger_function', '10_human_user_role_parent_trigger', 'blog_post', 'resource_blog_post_fkey', 'role_blog_post_fkey', 'blog_post_resource_trigger_function', '10_blog_post_resource_insert_trigger', '10_blog_post_resource_update_trigger', '10_blog_post_resource_delete_trigger', 'blog_post_role_trigger_function', '10_blog_post_role_insert_trigger', '10_blog_post_role_update_trigger', '10_blog_post_role_delete_trigger', 'blog_post_resource_parent', 'blog_post_role_parent', 'blog_post_resource_parent_trigger_function', '10_blog_post_resource_parent_trigger', 'blog_post_role_parent_trigger_function', '10_blog_post_role_parent_trigger', 'blog_post_user1_select_policy', 'blog_post_user1_insert_policy', 'blog_post_user1_update_policy', 'blog_post_user1_delete_policy']::text[])
+        and "p"."proname" = any (array['', 'id', 'resource', 'resource_node', 'resource_id_seq', 'resource_pkey', 'resource_edge', 'parent_id', 'child_id', 'permission', 'home', 'resource_edge_pkey', 'resource_edge_guard_trigger_function', '05_resource_edge_guard_insert_trigger', '05_resource_edge_guard_update_trigger', '05_resource_edge_guard_delete_trigger', 'resource_parent_validate', 'resource_node_insert', 'resource_node_update', 'resource_node_delete', 'resource_edge_deleted', 'resource_edge_deleted_pkey', 'resource_node_soft_delete', 'resource_node_restore', 'resource_edge_parent_fkey', 'resource_edge_child_fkey', 'resource_edge_parent_id_index', 'resource_edge_child_id_index', 'resource_edge_cache', 'resource_edge_cache_pkey', 'resource_edge_cache_parent_pkey', 'resource_edge_cache_child_pkey', 'resource_edge_cache_parent_id_index', 'resource_edge_cache_child_id_index', 'resource_edge_cache_parent_compute', 'resource_edge_cache_child_compute', 'var_parent_id', 'var_child_id', 'resource_edge_cache_view', 'resource_edge_cache_backfill', 'resource_edge_insert_trigger_function', '10_resource_edge_insert_trigger', 'resource_edge_update_trigger_function', '10_resource_edge_update_trigger', 'resource_edge_delete_trigger_function', '10_resource_edge_delete_trigger', 'resource_node_insert_trigger_function', '10_resource_node_insert_trigger', 'resource_node_update_trigger_function', '10_resource_node_update_trigger', 'resource_node_delete_trigger_function', '10_resource_node_delete_trigger', 'resource_trigger_enable', 'resource_trigger_disable', 'linked', 'resource_link_refresh', 'role', 'role_node', 'role_id_seq', 'role_pkey', 'role_edge', 'role_edge_pkey', 'role_edge_guard_trigger_function', '05_role_edge_guard_insert_trigger', '05_role_edge_guard_update_trigger', '05_role_edge_guard_delete_trigger', 'role_parent_validate', 'role_node_insert', 'role_node_update', 'role_node_delete', 'role_edge_deleted', 'role_edge_deleted_pkey', 'role_node_soft_delete', 'role_node_restore', 'role_edge_parent_fkey', 'role_edge_child_fkey', 'role_edge_parent_id_index', 'role_edge_child_id_index', 'role_edge_cache', 'role_edge_cache_pkey', 'role_edge_cache_parent_pkey', 'role_edge_cache_child_pkey', 'role_edge_cache_parent_id_index', 'role_edge_cache_child_id_index', 'role_edge_cache_parent_compute', 'role_edge_cache_child_compute', 'role_edge_cache_view', 'role_edge_cache_backfill', 'role_edge_insert_trigger_function', '10_role_edge_insert_trigger', 'role_edge_update_trigger_function', '10_role_edge_update_trigger', 'role_edge_delete_trigger_function', '10_role_edge_delete_trigger', 'role_node_insert_trigger_function', '10_role_node_insert_trigger', 'role_node_update_trigger_function', '10_role_node_update_trigger', 'role_node_delete_trigger_function', '10_role_node_delete_trigger', 'role_trigger_enable', 'role_trigger_disable', 'role_link_refresh', 'assignment', 'assignment_edge', 'resource_id', 'role_id', 'assignment_edge_pkey', 'assignment_edge_resource_fkey', 'assignment_edge_role_fkey', 'assignment_edge_resource_id_index', 'assignment_edge_role_id_index', 'assignment_edge_deleted', 'assignment_edge_deleted_pkey', 'assignment_edge_cache', 'assignment_edge_cache_pkey', 'assignment_edge_cache_resource_fkey', 'assignment_edge_cache_role_fkey', 'assignment_edge_cache_resource_id_index', 'assignment_edge_cache_role_id_index', 'assignment_edge_cache_view', 'assignment_edge_cache_backfill', 'assignment_edge_insert_trigger_function', '10_assignment_edge_insert_trigger', 'assignment_edge_update_trigger_function', '10_assignment_edge_update_trigger', 'assignment_edge_delete_trigger_function', '10_assignment_edge_delete_trigger', 'assignment_edge_validate_trigger_function', '05_assignment_edge_validate_insert_trigger', '05_assignment_edge_validate_update_trigger', 'assignment_edge_none_insert_trigger_function', '20_assignment_edge_none_insert_trigger', 'assignment_edge_none_update_trigger_function', '20_assignment_edge_none_update_trigger', 'assignment_edge_none_delete_trigger_function', '20_assignment_edge_none_delete_trigger', 'assignment_edge_resource_cache_insert_trigger_function', '07_assignment_edge_resource_cache_insert_trigger', 'assignment_edge_resource_cache_update_trigger_function', '07_assignment_edge_resource_cache_update_trigger', 'assignment_edge_resource_cache_delete_trigger_function', '07_assignment_edge_resource_cache_delete_trigger', 'assignment_trigger_enable', 'assignment_trigger_disable', 'assignment_edge_policy', 'assignment_link_refresh', 'node', 'edge', 'parent', 'child', 'pkey', 'fkey', 'function', 'index', 'cache', 'compute', 'var', 'view', 'reverse', 'backfill', 'refresh', 'trigger', 'policy', 'select', 'insert', 'update', 'delete', 'recursive', 'enable', 'disable', 'seq', 'guard', 'validate', 'truncate', 'link', 'public', 'or_bitmap_4', 'truncate_guard_trigger_function', '05_truncate_guard_trigger', 'current_role_node', 'resource_permission', 'permission_flags', 'current_resource_access', 'current_assignment', 'current_resource_edge', 'current_role', 'resource_access', 'resource_role_access', 'resource_share', 'resource_unshare', 'current_deleted_resource', 'resource_deleted_permission', 'resource_restore', 'human_user', 'resource_human_user_fkey', 'role_human_user_fkey', 'human_user_resource_trigger_function', '10_human_user_resource_insert_trigger', '10_human_user_resource_update_trigger', '10_human_user_resource_delete_trigger', 'human_user_role_trigger_function', '10_human_user_role_insert_trigger', '10_human_user_role_update_trigger', '10_human_user_role_delete_trigger', 'human_user_resource_parent', 'human_user_role_parent', 'resource_parent_id', 'human_user_resource_parent_trigger_function', '10_human_user_resource_parent_trigger', 'role_parent_id', 'human_user_role_parent_trigger_function', '10_human_user_role_parent_trigger', 'blog_post', 'resource_blog_post_fkey', 'role_blog_post_fkey', 'blog_post_resource_trigger_function', '10_blog_post_resource_insert_trigger', '10_blog_post_resource_update_trigger', '10_blog_post_resource_delete_trigger', 'blog_post_role_trigger_function', '10_blog_post_role_insert_trigger', '10_blog_post_role_update_trigger', '10_blog_post_role_delete_trigger', 'blog_post_resource_parent', 'blog_post_role_parent', 'blog_post_resource_parent_trigger_function', '10_blog_post_resource_parent_trigger', 'blog_post_role_parent_trigger_function', '10_blog_post_role_parent_trigger', 'blog_post_user1_select_policy', 'blog_post_user1_insert_policy', 'blog_post_user1_update_policy', 'blog_post_user1_delete_policy']::text[])
       loop
         if "the_trigger"."replaced" then
           execute format('drop trigger %I on %s', "the_trigger"."name", "the_trigger"."table");
@@ -2884,13 +2884,89 @@ test('Default Migration', () => {
     select "role_trigger_enable"();
 
 
+
+      
+    -----------------------------------------------------------------------------------------------------------------------
+    -- Links
+    -----------------------------------------------------------------------------------------------------------------------
+
+    do $$
+    declare
+      "the_stale" record;
+    begin
+      for "the_stale" in
+        select "t"."tgname"::text as "name", "t"."tgrelid"::regclass::text as "table",
+          ("t"."tgrelid" <> all (array[to_regclass('"public"."human_user"'), to_regclass('"public"."blog_post"')]::regclass[])) as "unbound"
+        from pg_trigger as "t"
+        join pg_proc as "p" on "p"."oid" = "t"."tgfoid"
+        where not "t"."tgisinternal"
+        and "p"."pronamespace" = 'public'::regnamespace
+        and coalesce(obj_description("p"."oid", 'pg_proc'), '') = '@behavior -*
+    p9s link function'
+        and "p"."proname" <> all (array[]::text[])
+      loop
+        execute format('drop trigger %I on %s', "the_stale"."name", "the_stale"."table");
+        if "the_stale"."unbound" then
+          execute format('drop trigger if exists %I on %s', '05_truncate_guard_trigger', "the_stale"."table");
+        end if;
+      end loop;
+      for "the_stale" in
+        select "p"."oid"::regprocedure::text as "signature"
+        from pg_proc as "p"
+        where "p"."pronamespace" = 'public'::regnamespace
+        and coalesce(obj_description("p"."oid", 'pg_proc'), '') = '@behavior -*
+    p9s link function'
+        and "p"."proname" <> all (array[]::text[])
+      loop
+        execute format('drop function %s', "the_stale"."signature");
+      end loop;
+    end
+    $$;
+
+    -- No link keeps 'resource' edges: those they kept go with their column
+    do $$
+    begin
+      if exists (select from pg_attribute where "attrelid" = '"resource_edge"'::regclass and "attname" = 'linked' and not "attisdropped") then
+        delete from "resource_edge" where "linked";
+        alter table "resource_edge" drop column "linked";
+      end if;
+    end
+    $$;
+    drop function if exists "resource_link_refresh" (integer[], integer[]);
+
+
+    -- No link keeps 'role' edges: those they kept go with their column
+    do $$
+    begin
+      if exists (select from pg_attribute where "attrelid" = '"role_edge"'::regclass and "attname" = 'linked' and not "attisdropped") then
+        delete from "role_edge" where "linked";
+        alter table "role_edge" drop column "linked";
+      end if;
+    end
+    $$;
+    drop function if exists "role_link_refresh" (integer[], integer[]);
+
+
+    -- No link keeps 'assignment' edges: those they kept go with their column
+    do $$
+    begin
+      if exists (select from pg_attribute where "attrelid" = '"assignment_edge"'::regclass and "attname" = 'linked' and not "attisdropped") then
+        delete from "assignment_edge" where "linked";
+        alter table "assignment_edge" drop column "linked";
+      end if;
+    end
+    $$;
+    drop function if exists "assignment_link_refresh" (integer[], integer[]);
+
+
+
       
 
     -----------------------------------------------------------------------------------------------------------------------
     -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "p9s_migration" () returns jsonb
-      as $$ select '{"version":"0.1.0","hash":"2268f166bf155237"}'::jsonb $$
+      as $$ select '{"version":"0.1.0","hash":"139a7f5b49d61a9b"}'::jsonb $$
       language sql immutable;
 
     select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');

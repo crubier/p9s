@@ -142,6 +142,12 @@ exports[`Configuration JSON Schemas baseNamingConfigSchema 1`] = `
     "insert": {
       "type": "string",
     },
+    "link": {
+      "type": "string",
+    },
+    "linked": {
+      "type": "string",
+    },
     "node": {
       "type": "string",
     },
@@ -257,6 +263,8 @@ exports[`Configuration JSON Schemas baseNamingConfigSchema 1`] = `
     "guard",
     "validate",
     "truncate",
+    "link",
+    "linked",
     "triggerPrefix",
   ],
   "type": "object",
@@ -376,6 +384,12 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "idSequence": {
       "type": "string",
     },
+    "linkRefreshFunction": {
+      "type": "string",
+    },
+    "linked": {
+      "type": "string",
+    },
     "node": {
       "type": "string",
     },
@@ -487,6 +501,8 @@ exports[`Configuration JSON Schemas derivedResourceOrRoleNamingConfigSchema 1`] 
     "nodeDeleteTrigger",
     "enableTriggerFunction",
     "disableTriggerFunction",
+    "linked",
+    "linkRefreshFunction",
   ],
   "type": "object",
   "~standard": {
@@ -602,6 +618,12 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "enableTriggerFunction": {
       "type": "string",
     },
+    "linkRefreshFunction": {
+      "type": "string",
+    },
+    "linked": {
+      "type": "string",
+    },
     "permission": {
       "type": "string",
     },
@@ -680,6 +702,8 @@ exports[`Configuration JSON Schemas assignmentNamingConfigSchema 1`] = `
     "enableTriggerFunction",
     "disableTriggerFunction",
     "edgePolicy",
+    "linked",
+    "linkRefreshFunction",
   ],
   "type": "object",
   "~standard": {
@@ -801,6 +825,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "enableTriggerFunction": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "permission": {
           "type": "string",
         },
@@ -879,6 +909,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "enableTriggerFunction",
         "disableTriggerFunction",
         "edgePolicy",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -1014,6 +1046,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "idSequence": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "node": {
           "type": "string",
         },
@@ -1125,6 +1163,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -1233,6 +1273,12 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "idSequence": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "node": {
           "type": "string",
         },
@@ -1344,6 +1390,8 @@ exports[`Configuration JSON Schemas derivedNamingConfigSchema 1`] = `
         "nodeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -1804,6 +1852,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "enableTriggerFunction": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "permission": {
           "type": "string",
         },
@@ -1882,6 +1936,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "enableTriggerFunction",
         "disableTriggerFunction",
         "edgePolicy",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -1950,6 +2006,54 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     },
     "insert": {
       "type": "string",
+    },
+    "link": {
+      "type": "string",
+    },
+    "linked": {
+      "type": "string",
+    },
+    "links": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "deleteTrigger": {
+            "type": "string",
+          },
+          "insertTrigger": {
+            "type": "string",
+          },
+          "name": {
+            "type": "string",
+          },
+          "schema": {
+            "type": "string",
+          },
+          "syncFunction": {
+            "type": "string",
+          },
+          "triggerFunction": {
+            "type": "string",
+          },
+          "updateTrigger": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "schema",
+          "name",
+          "syncFunction",
+          "triggerFunction",
+          "insertTrigger",
+          "updateTrigger",
+          "deleteTrigger",
+        ],
+        "type": "object",
+      },
+      "propertyNames": {
+        "type": "string",
+      },
+      "type": "object",
     },
     "node": {
       "type": "string",
@@ -2086,6 +2190,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "idSequence": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "node": {
           "type": "string",
         },
@@ -2197,6 +2307,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -2308,6 +2420,12 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "idSequence": {
           "type": "string",
         },
+        "linkRefreshFunction": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
         "node": {
           "type": "string",
         },
@@ -2419,6 +2537,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
         "nodeDeleteTrigger",
         "enableTriggerFunction",
         "disableTriggerFunction",
+        "linked",
+        "linkRefreshFunction",
       ],
       "type": "object",
     },
@@ -2637,6 +2757,8 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "guard",
     "validate",
     "truncate",
+    "link",
+    "linked",
     "triggerPrefix",
     "schema",
     "orBitmap",
@@ -2657,6 +2779,7 @@ exports[`Configuration JSON Schemas namingConfigSchema 1`] = `
     "deletedPermissionFunction",
     "restoreFunction",
     "tables",
+    "links",
   ],
   "type": "object",
   "~standard": {
@@ -3049,6 +3172,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "enableTriggerFunction": {
               "type": "string",
             },
+            "linkRefreshFunction": {
+              "type": "string",
+            },
+            "linked": {
+              "type": "string",
+            },
             "permission": {
               "type": "string",
             },
@@ -3127,6 +3256,8 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "enableTriggerFunction",
             "disableTriggerFunction",
             "edgePolicy",
+            "linked",
+            "linkRefreshFunction",
           ],
           "type": "object",
         },
@@ -3195,6 +3326,54 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         },
         "insert": {
           "type": "string",
+        },
+        "link": {
+          "type": "string",
+        },
+        "linked": {
+          "type": "string",
+        },
+        "links": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "deleteTrigger": {
+                "type": "string",
+              },
+              "insertTrigger": {
+                "type": "string",
+              },
+              "name": {
+                "type": "string",
+              },
+              "schema": {
+                "type": "string",
+              },
+              "syncFunction": {
+                "type": "string",
+              },
+              "triggerFunction": {
+                "type": "string",
+              },
+              "updateTrigger": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "schema",
+              "name",
+              "syncFunction",
+              "triggerFunction",
+              "insertTrigger",
+              "updateTrigger",
+              "deleteTrigger",
+            ],
+            "type": "object",
+          },
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
         },
         "node": {
           "type": "string",
@@ -3331,6 +3510,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "idSequence": {
               "type": "string",
             },
+            "linkRefreshFunction": {
+              "type": "string",
+            },
+            "linked": {
+              "type": "string",
+            },
             "node": {
               "type": "string",
             },
@@ -3442,6 +3627,8 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeDeleteTrigger",
             "enableTriggerFunction",
             "disableTriggerFunction",
+            "linked",
+            "linkRefreshFunction",
           ],
           "type": "object",
         },
@@ -3553,6 +3740,12 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "idSequence": {
               "type": "string",
             },
+            "linkRefreshFunction": {
+              "type": "string",
+            },
+            "linked": {
+              "type": "string",
+            },
             "node": {
               "type": "string",
             },
@@ -3664,6 +3857,8 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
             "nodeDeleteTrigger",
             "enableTriggerFunction",
             "disableTriggerFunction",
+            "linked",
+            "linkRefreshFunction",
           ],
           "type": "object",
         },
@@ -4134,6 +4329,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "enableTriggerFunction": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "permission": {
                   "type": "string",
                 },
@@ -4212,6 +4413,8 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "enableTriggerFunction",
                 "disableTriggerFunction",
                 "edgePolicy",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -4280,6 +4483,54 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
             },
             "insert": {
               "type": "string",
+            },
+            "link": {
+              "type": "string",
+            },
+            "linked": {
+              "type": "string",
+            },
+            "links": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                  "deleteTrigger": {
+                    "type": "string",
+                  },
+                  "insertTrigger": {
+                    "type": "string",
+                  },
+                  "name": {
+                    "type": "string",
+                  },
+                  "schema": {
+                    "type": "string",
+                  },
+                  "syncFunction": {
+                    "type": "string",
+                  },
+                  "triggerFunction": {
+                    "type": "string",
+                  },
+                  "updateTrigger": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "schema",
+                  "name",
+                  "syncFunction",
+                  "triggerFunction",
+                  "insertTrigger",
+                  "updateTrigger",
+                  "deleteTrigger",
+                ],
+                "type": "object",
+              },
+              "propertyNames": {
+                "type": "string",
+              },
+              "type": "object",
             },
             "node": {
               "type": "string",
@@ -4416,6 +4667,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "idSequence": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "node": {
                   "type": "string",
                 },
@@ -4527,6 +4784,8 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -4638,6 +4897,12 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "idSequence": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "node": {
                   "type": "string",
                 },
@@ -4749,6 +5014,8 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
                 "nodeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -5014,6 +5281,159 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
       ],
       "type": "object",
     },
+    "links": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "child": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "kind": {
+            "enum": [
+              "resource",
+              "role",
+              "assignment",
+            ],
+            "type": "string",
+          },
+          "name": {
+            "type": "string",
+          },
+          "parent": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "permission": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                },
+                "type": "array",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "column": {
+                    "type": "string",
+                  },
+                  "values": {
+                    "additionalProperties": {
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                          },
+                          {
+                            "type": "number",
+                          },
+                        ],
+                      },
+                      "type": "array",
+                    },
+                    "propertyNames": {
+                      "type": "string",
+                    },
+                    "type": "object",
+                  },
+                },
+                "required": [
+                  "column",
+                  "values",
+                ],
+                "type": "object",
+              },
+            ],
+          },
+          "resource": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "role": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "schema": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "name",
+          "kind",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
     "migration": {
       "additionalProperties": false,
       "properties": {
@@ -5251,6 +5671,7 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
     "engine",
     "migration",
     "tables",
+    "links",
   ],
   "type": "object",
   "~standard": {
@@ -5425,6 +5846,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "enableTriggerFunction": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "permission": {
                   "type": "string",
                 },
@@ -5503,6 +5930,8 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "enableTriggerFunction",
                 "disableTriggerFunction",
                 "edgePolicy",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -5571,6 +6000,54 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
             },
             "insert": {
               "type": "string",
+            },
+            "link": {
+              "type": "string",
+            },
+            "linked": {
+              "type": "string",
+            },
+            "links": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                  "deleteTrigger": {
+                    "type": "string",
+                  },
+                  "insertTrigger": {
+                    "type": "string",
+                  },
+                  "name": {
+                    "type": "string",
+                  },
+                  "schema": {
+                    "type": "string",
+                  },
+                  "syncFunction": {
+                    "type": "string",
+                  },
+                  "triggerFunction": {
+                    "type": "string",
+                  },
+                  "updateTrigger": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "schema",
+                  "name",
+                  "syncFunction",
+                  "triggerFunction",
+                  "insertTrigger",
+                  "updateTrigger",
+                  "deleteTrigger",
+                ],
+                "type": "object",
+              },
+              "propertyNames": {
+                "type": "string",
+              },
+              "type": "object",
             },
             "node": {
               "type": "string",
@@ -5707,6 +6184,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "idSequence": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "node": {
                   "type": "string",
                 },
@@ -5818,6 +6301,8 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -5929,6 +6414,12 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "idSequence": {
                   "type": "string",
                 },
+                "linkRefreshFunction": {
+                  "type": "string",
+                },
+                "linked": {
+                  "type": "string",
+                },
                 "node": {
                   "type": "string",
                 },
@@ -6040,6 +6531,8 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
                 "nodeDeleteTrigger",
                 "enableTriggerFunction",
                 "disableTriggerFunction",
+                "linked",
+                "linkRefreshFunction",
               ],
               "type": "object",
             },
@@ -6293,6 +6786,158 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
         },
       },
       "type": "object",
+    },
+    "links": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "child": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "kind": {
+            "enum": [
+              "resource",
+              "role",
+              "assignment",
+            ],
+            "type": "string",
+          },
+          "name": {
+            "type": "string",
+          },
+          "parent": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "permission": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                },
+                "type": "array",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "column": {
+                    "type": "string",
+                  },
+                  "values": {
+                    "additionalProperties": {
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                          },
+                          {
+                            "type": "number",
+                          },
+                        ],
+                      },
+                      "type": "array",
+                    },
+                    "propertyNames": {
+                      "type": "string",
+                    },
+                    "type": "object",
+                  },
+                },
+                "required": [
+                  "column",
+                  "values",
+                ],
+                "type": "object",
+              },
+            ],
+          },
+          "resource": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "role": {
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string",
+              },
+              "key": {
+                "type": "string",
+              },
+              "table": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "column",
+              "table",
+            ],
+            "type": "object",
+          },
+          "schema": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "name",
+          "kind",
+        ],
+        "type": "object",
+      },
+      "type": "array",
     },
     "migration": {
       "additionalProperties": false,

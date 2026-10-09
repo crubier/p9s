@@ -13,6 +13,12 @@ import type {
   PermissionPerOperation,
   PermissionPerOperationNaming,
   SearchConfig,
+  LinkConfig,
+  LinkEnd,
+  LinkPermission,
+  LinkNamingConfig,
+  LinkNamingConfigEntry,
+  Bits,
 } from "./configuration-schema.ts";
 
 import { identifier } from "pg-sql2";
@@ -29,8 +35,14 @@ export type {
   PermissionPerOperation,
   PermissionPerOperationNaming,
   SearchConfig,
+  LinkConfig,
+  LinkEnd,
+  LinkPermission,
+  LinkNamingConfig,
+  LinkNamingConfigEntry,
+  Bits,
 };
-export { parentsOf, searchOperators } from "./configuration-schema.ts";
+export { parentsOf, searchOperators, linkIssues } from "./configuration-schema.ts";
 
 // Generic types that extend the zod base types with User parameter for compile-time safety
 export type TableNamingConfigEntry<User extends string> = Omit<TableNamingConfigEntryBase, 'permission'> & {
@@ -41,7 +53,7 @@ export type TableNamingConfig<User extends string> = {
   tables: { [key: string]: TableNamingConfigEntry<User> }
 };
 
-export type NamingConfig<User extends string> = BaseNamingConfig & DerivedNamingConfig & TableNamingConfig<User>;
+export type NamingConfig<User extends string> = BaseNamingConfig & DerivedNamingConfig & TableNamingConfig<User> & LinkNamingConfig;
 
 export type TableConfig<User extends string> = Omit<TableConfigBase, 'permission'> & {
   permission: { [user in User]: PermissionPerOperation }
@@ -55,13 +67,15 @@ export type EngineConfig<User extends string> = Omit<EngineConfigBase, 'users' |
 export type CompleteConfig<User extends string> = {
   engine: EngineConfig<User>,
   migration: MigrationConfig,
-  tables: Array<TableConfig<User>>
+  tables: Array<TableConfig<User>>,
+  links: Array<LinkConfig>,
 };
 
 export type Config<User extends string> = {
   engine?: RecursivePartial<EngineConfig<User>>,
   migration?: RecursivePartial<MigrationConfig>,
   tables?: Array<RecursivePartial<TableConfig<User>>>,
+  links?: Array<LinkConfig>,
 };
 
 export const defaultBaseNamingConfig = {
@@ -100,6 +114,8 @@ export const defaultBaseNamingConfig = {
   guard: "guard",
   validate: "validate",
   truncate: "truncate",
+  link: "link",
+  linked: "linked",
   // Before the number that orders p9s triggers, to order them with other triggers of the same table
   triggerPrefix: "",
 };
@@ -134,6 +150,8 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     sequence,
     guard,
     validate,
+    link,
+    linked,
   } = config.engine.naming;
 
   const { name } = config.engine.naming[resourceOrRole] as { name: string };
@@ -191,6 +209,8 @@ export const getDerivedResourceOrRoleNamingConfig = <User extends string>(resour
     nodeDeleteTrigger: `${triggerPrefix}10_${prefix}${name}_${node}_${deletez}_${trigger}`,
     enableTriggerFunction: `${prefix}${name}_${trigger}_${enable}`,
     disableTriggerFunction: `${prefix}${name}_${trigger}_${disable}`,
+    linked: `${linked}`,
+    linkRefreshFunction: `${prefix}${name}_${link}_${refresh}`,
   }, config.engine.naming[resourceOrRole]);
 }
 
@@ -205,7 +225,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
     pkey,
     fkey,
     insert, update, delete: deletez, trigger, function: functionz, cache,
-    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard, node, policy
+    view, backfill, enable, disable, parent, child, id, compute, validate, truncate, guard, node, policy, link, linked, refresh
   } = deepMerge(defaultBaseNamingConfig, config.engine.naming);
 
   const size = config.engine.permission.bitmap.size;
@@ -261,6 +281,8 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
       enableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${enable}`,
       disableTriggerFunction: `${prefix}${assignment.name}_${trigger}_${disable}`,
       edgePolicy: `${prefix}${assignment.name}_${edge}_${policy}`,
+      linked: `${linked}`,
+      linkRefreshFunction: `${prefix}${assignment.name}_${link}_${refresh}`,
     },
     schema: `${config.engine.schema}`,
     orBitmap: `${prefix}or_bitmap_${size}`,
@@ -283,7 +305,7 @@ export const getDerivedNamingConfig = (config: CompleteConfig<any>): DerivedNami
   }
 }
 
-export const getTableNamingConfig = <User extends string>(config: CompleteConfig<User>, generalNamingConfig: Omit<NamingConfig<User>, "tables">): TableNamingConfig<User> => {
+export const getTableNamingConfig = <User extends string>(config: CompleteConfig<User>, generalNamingConfig: Omit<NamingConfig<User>, "tables" | "links">): TableNamingConfig<User> => {
 
   const {
     fkey,
@@ -352,6 +374,21 @@ export const getTableNamingConfig = <User extends string>(config: CompleteConfig
   } as TableNamingConfig<User>;
 }
 
+export const getLinkNamingConfig = (config: CompleteConfig<any>, generalNamingConfig: BaseNamingConfig & { schema: string }): LinkNamingConfig => {
+  const { prefix, triggerPrefix, link, trigger, function: functionz, insert, update, delete: deletez, schema } = generalNamingConfig;
+  return {
+    links: Object.fromEntries((config.links ?? []).map(({ name, schema: linkSchema }) => [name, {
+      schema: `${linkSchema ?? schema}`,
+      name: `${name}`,
+      syncFunction: `${prefix}${name}_${link}_sync`,
+      triggerFunction: `${prefix}${name}_${link}_${trigger}_${functionz}`,
+      insertTrigger: `${triggerPrefix}10_${prefix}${name}_${link}_${insert}_${trigger}`,
+      updateTrigger: `${triggerPrefix}10_${prefix}${name}_${link}_${update}_${trigger}`,
+      deleteTrigger: `${triggerPrefix}10_${prefix}${name}_${link}_${deletez}_${trigger}`,
+    }])),
+  };
+}
+
 export const getCompleteNamingConfig = <User extends string>(config: CompleteConfig<User>): NamingConfig<User> => {
 
   const generalNamingConfig = deepMerge(
@@ -368,9 +405,13 @@ export const getCompleteNamingConfig = <User extends string>(config: CompleteCon
   const tableNamingConfig = getTableNamingConfig(config, generalNamingConfig);
 
   return deepMerge(
-    generalNamingConfig,
-    // 4 Add table names from the table list in config
-    tableNamingConfig
+    deepMerge(
+      generalNamingConfig,
+      // 4 Add table names from the table list in config
+      tableNamingConfig
+    ),
+    // 5 And the names of the link tables
+    getLinkNamingConfig(config, generalNamingConfig)
   );
 }
 
@@ -410,7 +451,8 @@ export const defaultConfig: CompleteConfig<any> = {
       sql: "p9s-migration.sql"
     }
   },
-  tables: []
+  tables: [],
+  links: [],
 };
 
 export const getCompleteConfig = <User extends string>(config: Config<User>): CompleteConfig<User> => {

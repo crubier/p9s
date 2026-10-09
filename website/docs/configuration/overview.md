@@ -263,6 +263,40 @@ select id, title from document_search('%budget%') where org_id = $1 order by upd
 
 The operator is `like`, `ilike`, `~`, `~*` or `%`, on text columns with a `text` value, which a [`pg_trgm`](https://www.postgresql.org/docs/current/pgtrgm.html) index serves, or `@@`, on `tsvector` columns with a `tsquery` value, which a GIN index serves. p9s does not create the indexes. The search matches through them as the owner, checks the rows that match against the select policy of the user, and reads those the user can read through RLS: it costs about what matches, readable or not, rather than the whole table. [Searches](./security-model#searches) explains why it shows no more than a filter through RLS would. Each user role with the `select` bit on the table can run it, and a migration drops the searches the config no longer declares.
 
+### Links Configuration
+
+An application that already keeps who belongs to which team, and who shares what, in its own tables names them in `links`. The migration turns their rows into edges and assignments, and from then on triggers keep the graph in step with every insert, update and delete, so the application goes on writing its own tables:
+
+```typescript
+{
+  tables: [/* app_user, team and document, as role and resource tables */],
+  links: [
+    {
+      name: "team_member", kind: "role",
+      parent: { column: "team_id", table: "team", key: "id" },
+      child: { column: "user_id", table: "app_user", key: "id" },
+    },
+    {
+      name: "document_share", kind: "assignment",
+      resource: { column: "document_id", table: "document", key: "id" },
+      role: { column: "team_id", table: "team", key: "id" },
+      permission: { column: "access", values: { viewer: ["read"], editor: ["read", "edit"] } },
+    },
+  ],
+}
+```
+
+- `kind: "resource"` links a `parent` and a `child` resource, like a document in several folders, `kind: "role"` a `parent` and a `child` role, like a team and its members, and `kind: "assignment"` a `resource` and a `role`.
+- Each end is a column of the link table, the table of the other end, and the `key` of that table the column holds, `id` when it holds the node id. A key that matches no row stops the migration, and a later insert, with a foreign key violation.
+- `permission` is the bitmap of the edge: bit names or positions, the same for every row, or a `column` and the bits of each of its values, read as text, so `true` and `false` for a boolean. A row whose value is not listed gives nothing. Without `permission`, edges have every bit, and an assignment needs one.
+- Several rows for the same pair give the union of their bits, and so do several link tables of the same kind.
+
+The edges and assignments of links have `linked` set, and the migration only removes those. Running the migration again, after rows were written while the triggers were disabled, makes the graph match the link tables again, and a config without a link drops its triggers and the edges it gave.
+
+A user who inserts, updates or deletes a row of a link table of assignments can only give, or take, bits they have on the resource, like when sharing through `assignment_edge`. Who may write a link table at all is up to its grants and its own policies. A link table cannot be truncated while linked.
+
+Limits: the ends cannot be leaf or soft deleted tables, a pair that is also the parent column of the child keeps the edge of the parent column, and edges a graph writer changes by hand on a linked pair are overwritten at the next change of the link tables.
+
 ## Validation
 
 Configuration is validated at runtime using Zod schemas. Key validations include:
@@ -274,6 +308,7 @@ Configuration is validated at runtime using Zod schemas. Key validations include
 - A `resourceLeaf` table needs `isResource` and a `resourceParent`, a `roleLeaf` table needs `isRole` and a `roleParent`, and neither can be the parent table of another table of the same kind
 - `softDelete` needs a resource or role table
 - `search` needs a resource table with a `select` bit
+- A link needs the ends of its kind, on tables of the right kind that are neither leaf nor soft deleted tables, and its bit names must exist
 
 ```typescript
 import { validateCompleteConfig } from "@p9s/core";

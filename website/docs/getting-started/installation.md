@@ -29,6 +29,8 @@ npm install @p9s/drizzle   # or @p9s/prisma
    create index on document (folder_id);
    ```
 
+   If the application already keeps memberships and shares in tables of its own, name them in [`links`](../configuration/overview#links-configuration): the migration brings their rows into the graph and keeps it in step with them.
+
 3. **Run the migration**, as the owner of the tables, in one transaction, and only when the database did not run it yet:
 
    ```bash

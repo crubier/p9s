@@ -1,8 +1,8 @@
 
 // To get syntax highlighting in VSCode with the qufiwefefwoyn.inline-sql-syntax extension
 import { type SQL, query as sql, join, literal, identifier, compile, raw } from "pg-sql2";
-import { getCompleteConfig, getCompleteNamingConfig, getNaming, parentsOf } from "@p9s/core";
-import type { CompleteConfig, Naming, Config } from "@p9s/core";
+import { getCompleteConfig, getCompleteNamingConfig, getNaming, linkIssues, parentsOf } from "@p9s/core";
+import type { Bits, CompleteConfig, Naming, Config, LinkEnd } from "@p9s/core";
 import { version } from "./version.ts";
 
 type Kind = "resource" | "role";
@@ -66,6 +66,8 @@ const createMigrationBody = <User extends string>(completeConfig: CompleteConfig
   ${createMigrationLeaves(naming, completeConfig)}
 
   ${createMigrationBootstrap(naming, completeConfig)}
+
+  ${createMigrationLinks(naming, completeConfig)}
   `;
 };
 
@@ -1932,6 +1934,292 @@ ${combined ? sql`select ${naming.assignment.enableTriggerFunction}();` : sql``}
 `;
 }
 
+
+type LinkKind = Kind | "assignment";
+
+// Hides link functions from PostGraphile, and tells the migration which functions it made for links
+const linkFunctionComment = textLiteral("@behavior -*\np9s link function");
+
+// A column of a link table, and the bound table whose rows it holds by their key
+interface LinkEndBinding {
+  column: SQL;
+  table: SQL;
+  key: SQL;
+  id: SQL;
+  // Whether the column holds a key of the table rather than its resource (or role) id
+  lookup: boolean;
+}
+
+interface LinkBinding {
+  kind: LinkKind;
+  name: string;
+  table: SQL;
+  // The parent and the child of an edge, the resource and the role of an assignment
+  first: LinkEndBinding;
+  second: LinkEndBinding;
+  // The bits a row gives, null for none
+  bits: (row: SQL) => SQL;
+  naming: Naming<any>["links"][string];
+}
+
+// The edges, or the assignments, that links of a kind keep
+const linkTarget = (kind: LinkKind, naming: Naming<any>) => kind === "assignment"
+  ? { edge: naming.assignment.edge, first: naming.assignment.resourceId, second: naming.assignment.roleId, permission: naming.assignment.permission, pkey: naming.assignment.edgePkey, linked: naming.assignment.linked, refresh: naming.assignment.linkRefreshFunction, home: undefined }
+  : { edge: naming[kind].edge, first: naming[kind].parentId, second: naming[kind].childId, permission: naming[kind].permission, pkey: naming[kind].edgePkey, linked: naming[kind].linked, refresh: naming[kind].linkRefreshFunction, home: naming[kind].home };
+
+const bitmapOf = (bits: Bits, config: CompleteConfig<any>) => {
+  const size = config.engine.permission.bitmap.size;
+  const names = config.engine.permission.bitmap.names ?? {};
+  const positions = new Set(bits.map(bit => typeof bit === "string" ? names[bit]! : bit));
+  return raw(`B'${Array.from({ length: size }, (_, position) => positions.has(position) ? "1" : "0").join("")}'`);
+};
+
+const getLinks = (naming: Naming<any>, config: CompleteConfig<any>): LinkBinding[] => (config.links ?? []).map(link => {
+  const issues = linkIssues(link, config);
+  if (issues.length > 0) {
+    throw new Error(`Link ${link.name}: ${issues.map(issue => issue.message).join(", ")}`);
+  }
+  const linkNaming = naming.links[link.name]!;
+  const endOf = (end: LinkEnd, kind: Kind): LinkEndBinding => {
+    const tableNaming = naming.tables[end.table]!;
+    const id = kind === "resource" ? tableNaming.resourceId : tableNaming.roleId;
+    const key = end.key === undefined ? id : identifier(end.key);
+    return { column: identifier(end.column), table: sql`${tableNaming.schema}.${tableNaming.name}`, key, id, lookup: compile(key).text !== compile(id).text };
+  };
+  const [first, second] = link.kind === "assignment"
+    ? [endOf(link.resource!, "resource"), endOf(link.role!, "role")]
+    : [endOf(link.parent!, link.kind), endOf(link.child!, link.kind)];
+  const permission = link.permission;
+  const bits = (row: SQL) => permission === undefined
+    ? ones(config)
+    : Array.isArray(permission)
+      ? bitmapOf(permission, config)
+      : sql`(case ${row}.${identifier(permission.column)}::text ${join(Object.entries(permission.values).map(([value, valueBits]) =>
+        sql`when ${textLiteral(value)} then ${bitmapOf(valueBits, config)}`), " ")} end)`;
+  return { kind: link.kind, name: link.name, table: sql`${linkNaming.schema}.${linkNaming.name}`, first, second, bits, naming: linkNaming };
+});
+
+// The resource (or role) id a row of a link table holds, as the owner
+const linkIdOf = (end: LinkEndBinding, row: SQL) => end.lookup
+  ? sql`(select "the_end".${end.id} from ${end.table} as "the_end" where "the_end".${end.key} = ${row}.${end.column})`
+  : sql`${row}.${end.column}`;
+
+// Tables of the application whose rows are edges or assignments. Each pair of rows they link has an edge (or an
+// assignment), with the bits of all its rows, marked as linked. A statement on a link table recomputes the pairs of
+// the rows it changed, from every link table of that kind, so the edges always say what the link tables say.
+export const createMigrationLinks = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const links = getLinks(naming, config);
+  const { type: idType } = getIdType(config);
+  const size = config.engine.permission.bitmap.size;
+  const zeros = sql`b'0'::bit(${literal(size)})`;
+  const { users } = getRoles(config);
+  const kinds: LinkKind[] = ["resource", "role", "assignment"];
+
+  const perKind = join(kinds.map(kind => {
+    const target = linkTarget(kind, naming);
+    const ofKind = links.filter(link => link.kind === kind);
+    if (ofKind.length === 0) {
+      return sql`
+-- No link keeps ${literal(kind)} edges: those they kept go with their column
+do $$
+begin
+  if exists (select from pg_attribute where "attrelid" = ${textLiteral(compile(target.edge).text)}::regclass and "attname" = ${textLiteral(nameOf(target.linked))} and not "attisdropped") then
+    delete from ${target.edge} where ${target.linked};
+    alter table ${target.edge} drop column ${target.linked};
+  end if;
+end
+$$;
+drop function if exists ${target.refresh} (${idType}[], ${idType}[]);
+`;
+    }
+    // The rows of each link table between the given pairs, found through the keys of the pairs, by index
+    const sources = join(ofKind.map(link => sql`
+      select "the_pair"."first", "the_pair"."second", ${link.bits(sql`"the_link"`)} as "permission"
+      from unnest("the_firsts", "the_seconds") as "the_pair" ("first", "second")
+      ${link.first.lookup ? sql`join ${link.first.table} as "the_first" on "the_first".${link.first.id} = "the_pair"."first"` : sql``}
+      ${link.second.lookup ? sql`join ${link.second.table} as "the_second" on "the_second".${link.second.id} = "the_pair"."second"` : sql``}
+      join ${link.table} as "the_link"
+        on "the_link".${link.first.column} = ${link.first.lookup ? sql`"the_first".${link.first.key}` : sql`"the_pair"."first"`}
+        and "the_link".${link.second.column} = ${link.second.lookup ? sql`"the_second".${link.second.key}` : sql`"the_pair"."second"`}`), `
+      union all`);
+    const notHome = target.home ? sql` and not "the_edge".${target.home}` : sql``;
+    return sql`
+alter table ${target.edge} add column if not exists ${target.linked} boolean not null default false;
+
+-- Brings the ${literal(kind)} edges of some pairs up to date with every link table of that kind. Home edges stay as their
+-- parent column says.
+create or replace function ${target.refresh} ("the_firsts" ${idType}[], "the_seconds" ${idType}[])
+returns void as $$
+declare
+  "the_fresh_firsts" ${idType}[];
+  "the_fresh_seconds" ${idType}[];
+  "the_fresh_permissions" bit(${literal(size)})[];
+begin
+  ${lockGraph(config)}
+  select array_agg("the_source"."first"), array_agg("the_source"."second"), array_agg("the_source"."permission")
+  into "the_fresh_firsts", "the_fresh_seconds", "the_fresh_permissions"
+  from (
+    select "the_row"."first", "the_row"."second", ${naming.orBitmap} ("the_row"."permission")::bit(${literal(size)}) as "permission"
+    from (${sources}
+    ) as "the_row"
+    where "the_row"."permission" is not null
+    group by "the_row"."first", "the_row"."second"
+    having position(b'1' in ${naming.orBitmap} ("the_row"."permission")) > 0
+  ) as "the_source";
+
+  delete from ${target.edge} as "the_edge"
+  using unnest("the_firsts", "the_seconds") as "the_pair" ("first", "second")
+  where "the_edge".${target.first} = "the_pair"."first" and "the_edge".${target.second} = "the_pair"."second"
+  and "the_edge".${target.linked}${notHome}
+  and not exists (
+    select from unnest("the_fresh_firsts", "the_fresh_seconds") as "the_fresh" ("first", "second")
+    where "the_fresh"."first" = "the_pair"."first" and "the_fresh"."second" = "the_pair"."second"
+  );
+
+  insert into ${target.edge} as "the_edge" (${target.first}, ${target.second}, ${target.permission}, ${target.linked})
+  select "the_fresh"."first", "the_fresh"."second", "the_fresh"."permission", true
+  from unnest("the_fresh_firsts", "the_fresh_seconds", "the_fresh_permissions") as "the_fresh" ("first", "second", "permission")
+  on conflict on constraint ${target.pkey} do update set ${target.permission} = excluded.${target.permission}, ${target.linked} = true
+  where (${target.home ? sql`not "the_edge".${target.home} and ` : sql``}("the_edge".${target.permission} is distinct from excluded.${target.permission} or not "the_edge".${target.linked}));
+end
+$$ language plpgsql volatile ${definer(naming)};
+
+${grantExecute(sql`${target.refresh} (${idType}[], ${idType}[])`, [])}
+`;
+  }), `\n`);
+
+  const perLink = join(links.map(link => {
+    const target = linkTarget(link.kind, naming);
+    const { syncFunction, triggerFunction, insertTrigger, updateTrigger, deleteTrigger } = link.naming;
+    const rowsOf = (value: SQL) => sql`jsonb_populate_recordset(null::${link.table}, ${value})`;
+    const allRows = rowsOf(sql`coalesce("the_old", '[]'::jsonb) || coalesce("the_new", '[]'::jsonb)`);
+    const unmatched = (end: LinkEndBinding) => end.lookup ? [sql`("the_row".${end.column} is not null and ${linkIdOf(end, sql`"the_row"`)} is null)`] : [];
+    const unmatchedChecks = [...unmatched(link.first), ...unmatched(link.second)];
+    const rowsAsJson = (rows: string) => sql`(select jsonb_agg(to_jsonb("the_row")) from ${identifier(rows)} as "the_row")`;
+    return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Link table ${literal(link.name)}: its rows are ${literal(link.kind)} ${link.kind === "assignment" ? sql`assignments` : sql`edges`}
+-----------------------------------------------------------------------------------------------------------------------
+-- Brings the pairs of some rows up to date: a pure recompute from the link tables, which anyone can run. A user who
+-- writes an assignment link can only give, change or take away bits they have on the resource, like when sharing.
+create or replace function ${syncFunction} ("the_old" jsonb, "the_new" jsonb, "the_check" boolean)
+returns void as $$
+declare
+  "the_firsts" ${idType}[];
+  "the_seconds" ${idType}[];
+begin
+  ${unmatchedChecks.length > 0 ? sql`if exists (select from ${rowsOf(sql`coalesce("the_new", '[]'::jsonb)`)} as "the_row" where ${join(unmatchedChecks, " or ")}) then
+    raise exception 'p9s: % has rows that hold no row of the tables they link', ${textLiteral(link.name)}
+      using errcode = 'foreign_key_violation';
+  end if;` : sql``}
+  ${link.kind === "assignment" ? sql`if "the_check" and exists (
+    select from ${allRows} as "the_row"
+    where ${link.bits(sql`"the_row"`)} is not null
+    and (${link.bits(sql`"the_row"`)} & ~ coalesce(${naming.permissionFunction}(${linkIdOf(link.first, sql`"the_row"`)}), ${zeros})) <> ${zeros}
+  ) then
+    raise exception 'p9s: the rows of % can only give bits the current user has on the resource', ${textLiteral(link.name)}
+      using errcode = 'insufficient_privilege';
+  end if;` : sql``}
+  select array_agg(${linkIdOf(link.first, sql`"the_row"`)}), array_agg(${linkIdOf(link.second, sql`"the_row"`)})
+  into "the_firsts", "the_seconds"
+  from ${allRows} as "the_row";
+  if "the_firsts" is not null then
+    perform ${target.refresh}("the_firsts", "the_seconds");
+  end if;
+end
+$$ language plpgsql volatile ${definer(naming)};
+
+select pg_temp.p9s_revoke_execute(${textLiteral(compile(sql`${syncFunction} (jsonb, jsonb, boolean)`).text)}, ${textLiteral(nameOf(syncFunction))});
+grant execute on function ${syncFunction} (jsonb, jsonb, boolean) to public;
+comment on function ${syncFunction} (jsonb, jsonb, boolean) is ${linkFunctionComment};
+
+-- As the role that changed the table, to tell whether it is a user
+create or replace function ${triggerFunction}()
+returns trigger as $$
+begin
+  if tg_op = 'INSERT' then
+    perform ${syncFunction}(null, ${rowsAsJson("p9s_new_rows")}, ${users.length > 0 ? sql`current_user = any (${roleArray(users)})` : sql`false`});
+  elsif tg_op = 'UPDATE' then
+    perform ${syncFunction}(${rowsAsJson("p9s_old_rows")}, ${rowsAsJson("p9s_new_rows")}, ${users.length > 0 ? sql`current_user = any (${roleArray(users)})` : sql`false`});
+  else
+    perform ${syncFunction}(${rowsAsJson("p9s_old_rows")}, null, ${users.length > 0 ? sql`current_user = any (${roleArray(users)})` : sql`false`});
+  end if;
+  return null;
+end;
+$$ language plpgsql security invoker set search_path = ${naming.schema}, pg_temp;
+
+${grantExecute(sql`${triggerFunction} ()`, [])}
+comment on function ${triggerFunction} () is ${linkFunctionComment};
+${attachStatementTrigger(triggerFunction, insertTrigger, link.table, "insert")}
+${attachStatementTrigger(triggerFunction, updateTrigger, link.table, "update")}
+${attachStatementTrigger(triggerFunction, deleteTrigger, link.table, "delete")}
+drop trigger if exists ${naming.truncateGuardTrigger} on ${link.table};
+create trigger ${naming.truncateGuardTrigger} before truncate on ${link.table} for each statement execute function ${naming.truncateGuardFunction}();
+
+-- The rows that were there before the table was linked, or changed while the triggers were not there
+do $$
+begin
+  ${unmatchedChecks.length > 0 ? sql`if exists (select from ${link.table} as "the_row" where ${join(unmatchedChecks, " or ")}) then
+    raise exception 'p9s: % has rows that hold no row of the tables they link', ${textLiteral(link.name)}
+      using errcode = 'foreign_key_violation';
+  end if;` : sql``}
+  perform ${target.refresh}(array_agg("the_pair"."first"), array_agg("the_pair"."second"))
+  from (
+    select ${linkIdOf(link.first, sql`"the_row"`)} as "first", ${linkIdOf(link.second, sql`"the_row"`)} as "second" from ${link.table} as "the_row"
+    union
+    select "the_edge".${target.first}, "the_edge".${target.second} from ${target.edge} as "the_edge" where "the_edge".${target.linked}
+  ) as "the_pair"
+  having count(*) > 0;
+end
+$$;
+`;
+  }), `\n`);
+
+  // Link tables of an earlier config lose their triggers and functions, which the comment of link functions tells
+  const currentFunctions = links.flatMap(link => [nameOf(link.naming.triggerFunction), nameOf(link.naming.syncFunction)]);
+  const isLinkFunction = sql`coalesce(obj_description("p"."oid", 'pg_proc'), '') = ${linkFunctionComment}`;
+  const boundTables = config.tables.map(table => compile(sql`${naming.tables[table.name]!.schema}.${naming.tables[table.name]!.name}`).text);
+  const stale = sql`
+do $$
+declare
+  "the_stale" record;
+begin
+  for "the_stale" in
+    select "t"."tgname"::text as "name", "t"."tgrelid"::regclass::text as "table",
+      ("t"."tgrelid" <> all (array[${join(boundTables.map(table => sql`to_regclass(${textLiteral(table)})`), ", ")}]::regclass[])) as "unbound"
+    from pg_trigger as "t"
+    join pg_proc as "p" on "p"."oid" = "t"."tgfoid"
+    where not "t"."tgisinternal"
+    and "p"."pronamespace" = ${textLiteral(config.engine.schema)}::regnamespace
+    and ${isLinkFunction}
+    and "p"."proname" <> all (${roleArray(currentFunctions)})
+  loop
+    execute format('drop trigger %I on %s', "the_stale"."name", "the_stale"."table");
+    if "the_stale"."unbound" then
+      execute format('drop trigger if exists %I on %s', ${textLiteral(nameOf(naming.truncateGuardTrigger))}, "the_stale"."table");
+    end if;
+  end loop;
+  for "the_stale" in
+    select "p"."oid"::regprocedure::text as "signature"
+    from pg_proc as "p"
+    where "p"."pronamespace" = ${textLiteral(config.engine.schema)}::regnamespace
+    and ${isLinkFunction}
+    and "p"."proname" <> all (${roleArray(currentFunctions)})
+  loop
+    execute format('drop function %s', "the_stale"."signature");
+  end loop;
+end
+$$;`;
+
+  return sql`
+-----------------------------------------------------------------------------------------------------------------------
+-- Links
+-----------------------------------------------------------------------------------------------------------------------
+${stale}
+${perKind}
+${perLink}
+`;
+};
 
 // The role node whose permissions the current user has. A user that is a role leaf row has the permissions of its
 // parent. As a sub-select, the lookup runs once per query.
