@@ -1,0 +1,325 @@
+diff --git a/go.mod b/go.mod
+index 1717d44..feacd31 100644
+--- a/go.mod
++++ b/go.mod
+@@ -9,9 +9,10 @@ require (
+ )
+ 
+ require (
++	github.com/crubier/p9s/packages/go v0.0.0
+ 	github.com/jackc/pgpassfile v1.0.0 // indirect
+ 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+-	github.com/jackc/pgx/v5 v5.10.0 // indirect
++	github.com/jackc/pgx/v5 v5.11.0 // indirect
+ 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+ 	github.com/jinzhu/inflection v1.0.0 // indirect
+ 	github.com/jinzhu/now v1.1.5 // indirect
+@@ -21,3 +22,5 @@ require (
+ 	golang.org/x/sync v0.22.0 // indirect
+ 	golang.org/x/text v0.41.0 // indirect
+ )
++
++replace github.com/crubier/p9s/packages/go => ../../../packages/go
+diff --git a/go.sum b/go.sum
+index 634865c..4d72793 100644
+--- a/go.sum
++++ b/go.sum
+@@ -7,8 +7,8 @@ github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsI
+ github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
+ github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
+ github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
+-github.com/jackc/pgx/v5 v5.10.0 h1:VhSvgU2jSli8o3AqIEOTJr7rZwAEUVo4E4XhR94Zfr0=
+-github.com/jackc/pgx/v5 v5.10.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
++github.com/jackc/pgx/v5 v5.11.0 h1:IzBBtyK9AHqf98cctWFifYSci2hgQR/cd56wB4p+ogg=
++github.com/jackc/pgx/v5 v5.11.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
+ github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
+ github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
+ github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
+diff --git a/main.go b/main.go
+index 73f2d96..be3e6af 100644
+--- a/main.go
++++ b/main.go
+@@ -8,6 +8,8 @@ import (
+ 	"os"
+ 	"strconv"
+ 
++	p9s "github.com/crubier/p9s/packages/go"
++	"github.com/crubier/p9s/packages/go/p9sgorm"
+ 	"github.com/pressly/goose/v3"
+ 	"gorm.io/driver/postgres"
+ 	"gorm.io/gorm"
+@@ -27,10 +29,14 @@ var (
+ 	forbidden = answer{http.StatusForbidden, map[string]string{"error": "forbidden"}}
+ )
+ 
+-// A handler of a request of a user, on the database
+-type handler func(r *http.Request, db *gorm.DB, userID int64) (answer, error)
++// A handler of a request of a user, in a transaction as the user, where the policies of p9s decide what it reads and
++// writes
++type handler func(r *http.Request, tx *gorm.DB) (answer, error)
+ 
+-type server struct{ db *gorm.DB }
++type server struct {
++	db    *gorm.DB
++	users *p9s.Identity
++}
+ 
+ func main() {
+ 	db, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{Logger: logger.Default.LogMode(logger.Warn)})
+@@ -41,7 +47,7 @@ func main() {
+ 		migrate(db)
+ 		return
+ 	}
+-	s := server{db}
++	s := server{db, p9s.Must(p9s.FromFile("p9s.config.json"))}
+ 	mux := http.NewServeMux()
+ 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })
+ 	mux.Handle("GET /projects", s.route(projects))
+@@ -68,7 +74,8 @@ func migrate(db *gorm.DB) {
+ 	}
+ }
+ 
+-// A real app signs users in, with a session or a token, this one reads the user from a header
++// A real app signs users in, with a session or a token, this one reads the user from a header. A write the policies
++// refuse rolls the transaction back, and is forbidden.
+ func (s server) route(h handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		userID, err := strconv.ParseInt(r.Header.Get("x-user-id"), 10, 64)
+@@ -76,7 +83,14 @@ func (s server) route(h handler) http.Handler {
+ 			write(w, answer{http.StatusUnauthorized, map[string]string{"error": "unauthorized"}})
+ 			return
+ 		}
+-		a, err := h(r, s.db.WithContext(r.Context()), userID)
++		var a answer
++		err = p9sgorm.AsUser(r.Context(), s.db, s.users, userID, func(tx *gorm.DB) (err error) {
++			a, err = h(r, tx)
++			return err
++		}, p9s.ReadOnly(r.Method == http.MethodGet))
++		if p9s.IsRefused(err) {
++			a, err = forbidden, nil
++		}
+ 		if err != nil {
+ 			log.Print(err)
+ 			http.Error(w, "internal error", http.StatusInternalServerError)
+@@ -101,58 +115,55 @@ func pathID(r *http.Request, name string) (int64, bool) {
+ 	return id, err == nil
+ }
+ 
+-func projects(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++func projects(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	found := []Project{}
+-	err := readableProjects(db, userID).Find(&found).Error
++	err := tx.Order("id").Find(&found).Error
+ 	return answer{http.StatusOK, found}, err
+ }
+ 
+-func listDocuments(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++func listDocuments(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	found := []DocumentItem{}
+-	err := readableDocuments(db, userID).Find(&found).Error
++	err := tx.Model(&Document{}).Order("id").Find(&found).Error
+ 	return answer{http.StatusOK, found}, err
+ }
+ 
+-func createDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++func createDocument(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	var document Document
+ 	if err := json.NewDecoder(r.Body).Decode(&document); err != nil {
+ 		return answer{http.StatusBadRequest, map[string]string{"error": "bad request"}}, nil
+ 	}
+ 	document.ID = 0
+-	bits, err := projectBits(db, userID, document.ProjectID)
+-	if err != nil || !bits["write"] {
+-		return forbidden, err
+-	}
+-	err = db.Create(&document).Error
++	err := tx.Create(&document).Error
+ 	return answer{http.StatusCreated, document}, err
+ }
+ 
+-func getDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++// A document the user does not read is not found, one they read but cannot change is forbidden
++func found(tx *gorm.DB, id int64) (bool, error) {
++	var count int64
++	err := tx.Model(&Document{}).Where("id = ?", id).Count(&count).Error
++	return count > 0, err
++}
++
++func getDocument(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	id, ok := pathID(r, "id")
+ 	if !ok {
+ 		return notFound, nil
+ 	}
+-	bits, err := documentBits(db, userID, id)
+-	if err != nil || !bits["read"] {
++	var documents []Document
++	if err := tx.Where("id = ?", id).Find(&documents).Error; err != nil || len(documents) == 0 {
+ 		return notFound, err
+ 	}
+-	var document Document
+-	err = db.Take(&document, id).Error
+-	return answer{http.StatusOK, document}, err
++	return answer{http.StatusOK, documents[0]}, nil
+ }
+ 
+-func updateDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++func updateDocument(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	id, ok := pathID(r, "id")
+ 	if !ok {
+ 		return notFound, nil
+ 	}
+-	bits, err := documentBits(db, userID, id)
+-	if err != nil || !bits["read"] {
++	if exists, err := found(tx, id); err != nil || !exists {
+ 		return notFound, err
+ 	}
+-	if !bits["write"] {
+-		return forbidden, nil
+-	}
+ 	var changes struct {
+ 		Title *string `json:"title"`
+ 		Body  *string `json:"body"`
+@@ -167,31 +178,32 @@ func updateDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error)
+ 	if changes.Body != nil {
+ 		updates["body"] = *changes.Body
+ 	}
+-	if err := db.Model(&Document{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+-		return answer{}, err
++	updated := tx.Model(&Document{}).Where("id = ?", id).Updates(updates)
++	if updated.Error != nil || updated.RowsAffected == 0 {
++		return forbidden, updated.Error
+ 	}
+ 	var document Document
+-	err = db.Take(&document, id).Error
++	err := tx.Take(&document, id).Error
+ 	return answer{http.StatusOK, document}, err
+ }
+ 
+-func deleteDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++func deleteDocument(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	id, ok := pathID(r, "id")
+ 	if !ok {
+ 		return notFound, nil
+ 	}
+-	bits, err := documentBits(db, userID, id)
+-	if err != nil || !bits["read"] {
++	if exists, err := found(tx, id); err != nil || !exists {
+ 		return notFound, err
+ 	}
+-	if !bits["delete"] {
+-		return forbidden, nil
++	deleted := tx.Delete(&Document{}, id)
++	if deleted.Error != nil || deleted.RowsAffected == 0 {
++		return forbidden, deleted.Error
+ 	}
+-	err = db.Delete(&Document{}, id).Error
+-	return answer{http.StatusNoContent, nil}, err
++	return answer{http.StatusNoContent, nil}, nil
+ }
+ 
+-func share(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
++// p9s refuses a share that gives, or takes away, bits the user does not have
++func share(r *http.Request, tx *gorm.DB) (answer, error) {
+ 	id, ok := pathID(r, "id")
+ 	target, targetOK := pathID(r, "userID")
+ 	if !ok || !targetOK {
+@@ -203,21 +215,9 @@ func share(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
+ 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || (body.Access != "viewer" && body.Access != "editor") {
+ 		return answer{http.StatusBadRequest, map[string]string{"error": "bad request"}}, nil
+ 	}
+-	bits, err := documentBits(db, userID, id)
+-	if err != nil || !bits["read"] {
++	if exists, err := found(tx, id); err != nil || !exists {
+ 		return notFound, err
+ 	}
+-	var previous []string
+-	if err := db.Model(&DocumentShare{}).Where("document_id = ? and user_id = ?", id, target).Pluck("access", &previous).Error; err != nil {
+-		return answer{}, err
+-	}
+-	for _, access := range append(previous, body.Access) {
+-		for _, bit := range bitsOf[access] {
+-			if !bits[bit] {
+-				return forbidden, nil
+-			}
+-		}
+-	}
+-	err = db.Save(&DocumentShare{DocumentID: id, UserID: target, Access: body.Access}).Error
++	err := tx.Save(&DocumentShare{DocumentID: id, UserID: target, Access: body.Access}).Error
+ 	return answer{http.StatusNoContent, nil}, err
+ }
+diff --git a/permissions.go a/permissions.go
+deleted file mode 100644
+index e32d856..0000000
+--- a/permissions.go
++++ /dev/null
+@@ -1,70 +0,0 @@
+-package main
+-
+-// Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-// shares of documents with the user
+-
+-import (
+-	"errors"
+-
+-	"gorm.io/gorm"
+-)
+-
+-type bits map[string]bool
+-
+-var bitsOf = map[string][]string{"viewer": {"read"}, "editor": {"read", "write"}, "owner": {"read", "write", "delete"}}
+-
+-func (b bits) add(access string) {
+-	for _, bit := range bitsOf[access] {
+-		b[bit] = true
+-	}
+-}
+-
+-func teamsOf(db *gorm.DB, userID int64) *gorm.DB {
+-	return db.Model(&TeamMember{}).Select("team_id").Where("user_id = ?", userID)
+-}
+-
+-func projectBits(db *gorm.DB, userID, projectID int64) (bits, error) {
+-	var accesses []string
+-	err := db.Model(&ProjectShare{}).Where("project_id = ? and team_id in (?)", projectID, teamsOf(db, userID)).Pluck("access", &accesses).Error
+-	result := bits{}
+-	for _, access := range accesses {
+-		result.add(access)
+-	}
+-	return result, err
+-}
+-
+-// The bits of the user on the document, or nil when there is no such document
+-func documentBits(db *gorm.DB, userID, documentID int64) (bits, error) {
+-	var document Document
+-	if err := db.Select("project_id").Take(&document, documentID).Error; err != nil {
+-		if errors.Is(err, gorm.ErrRecordNotFound) {
+-			return nil, nil
+-		}
+-		return nil, err
+-	}
+-	result, err := projectBits(db, userID, document.ProjectID)
+-	if err != nil {
+-		return nil, err
+-	}
+-	var accesses []string
+-	err = db.Model(&DocumentShare{}).Where("document_id = ? and user_id = ?", documentID, userID).Pluck("access", &accesses).Error
+-	for _, access := range accesses {
+-		result.add(access)
+-	}
+-	return result, err
+-}
+-
+-// Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects or
+-// shared with them
+-func readableProjectIDs(db *gorm.DB, userID int64) *gorm.DB {
+-	return db.Model(&ProjectShare{}).Select("project_id").Where("team_id in (?)", teamsOf(db, userID))
+-}
+-
+-func readableProjects(db *gorm.DB, userID int64) *gorm.DB {
+-	return db.Where("id in (?)", readableProjectIDs(db, userID)).Order("id")
+-}
+-
+-func readableDocuments(db *gorm.DB, userID int64) *gorm.DB {
+-	shared := db.Model(&DocumentShare{}).Select("document_id").Where("user_id = ?", userID)
+-	return db.Model(&Document{}).Where("project_id in (?) or id in (?)", readableProjectIDs(db, userID), shared).Order("id")
+-}

@@ -60,15 +60,19 @@ P9s.as_user(current_user.id) { @documents = Document.order(updated_at: :desc).li
 
 Models ignore the columns p9s adds, with `self.ignored_columns += ["resource_id"]`, and `belongs_to` a parent the user may not read is `optional: true`, as the database checks the foreign key. `db/schema.rb` cannot hold the policies of p9s, so use `config.active_record.schema_format = :sql`.
 
-## GORM
+## Go
+
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/go) module reads the role and the setting from `p9s.config.json`, and runs a function in a transaction as the user, for `database/sql`, pgx with `p9spgx`, and GORM with `p9sgorm`. [`examples/gorm`](https://github.com/crubier/p9s/tree/main/examples/gorm) adopts p9s in an existing `net/http` and GORM app with it:
 
 ```go
-err := db.Transaction(func(tx *gorm.DB) error {
-	if err := tx.Exec("select set_config('role', 'app_user', true), set_config('app.role_id', ?, true)", fmt.Sprint(userID)).Error; err != nil {
-		return err
-	}
+var users = p9s.Must(p9s.FromFile("p9s.config.json"))
+
+err := p9sgorm.AsUser(ctx, db, users, userID, func(tx *gorm.DB) error {
 	return tx.Order("updated_at desc").Limit(50).Find(&documents).Error
-})
+}, p9s.ReadOnly(true))
+if p9s.IsRefused(err) {
+	// 403
+}
 ```
 
 ## sqlx

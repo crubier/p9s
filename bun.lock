@@ -65,6 +65,13 @@
         "@types/bun": "latest",
       },
     },
+    "examples/gorm": {
+      "name": "@p9s/example-gorm",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/kysely": {
       "name": "@p9s/example-kysely",
       "dependencies": {
@@ -1269,6 +1276,8 @@
     "@p9s/example-drizzle": ["@p9s/example-drizzle@workspace:examples/drizzle"],
 
     "@p9s/example-fastapi": ["@p9s/example-fastapi@workspace:examples/fastapi"],
+
+    "@p9s/example-gorm": ["@p9s/example-gorm@workspace:examples/gorm"],
 
     "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/kysely"],
 

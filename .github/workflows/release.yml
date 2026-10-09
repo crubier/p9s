@@ -93,3 +93,20 @@ jobs:
           else
             gem push "p9s-$version.gem"
           fi
+
+  # A Go module in a folder takes its versions from tags with the folder as prefix
+  tag-go:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag packages/go
+        run: |
+          tag="packages/go/$GITHUB_REF_NAME"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "$tag exists"
+          else
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+          fi

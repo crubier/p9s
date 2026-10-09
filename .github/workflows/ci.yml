@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails]
+        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm]
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18
@@ -86,6 +86,11 @@ jobs:
         if: matrix.example == 'rails'
         with:
           ruby-version: "3.4"
+      - uses: actions/setup-go@v5
+        if: matrix.example == 'gorm'
+        with:
+          go-version-file: examples/gorm/before/go.mod
+          cache-dependency-path: examples/gorm/before/go.sum
       - name: Adoption of ${{ matrix.example }}
         run: bun test examples/${{ matrix.example }}
         env:
@@ -148,6 +153,36 @@ jobs:
           P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       - name: Builds the gem
         run: gem build p9s.gemspec
+
+  # The Go module, on database/sql, pgx and GORM, see packages/go
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: packages/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/go/go.mod
+          cache-dependency-path: packages/go/go.sum
+      - run: go vet ./...
+      - run: test -z "$(gofmt -l .)"
+      - run: go test -count=1 ./...
+        env:
+          P9S_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   # Runs the base and this revision in turns on the same server and fails when a median got significantly slower, see
   # the Benchmarks page. In parallel with the tests, which take about as long.
