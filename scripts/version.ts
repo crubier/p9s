@@ -29,3 +29,7 @@ const crate = path.resolve(import.meta.dir, "..", "packages", "rust", "Cargo.tom
 const manifest = await Bun.file(crate).text();
 await Bun.write(crate, manifest.replace(/^version = ".*"$/m, `version = ${JSON.stringify(version)}`));
 console.log(`p9s (crates.io) ${version}`);
+const mix = path.resolve(import.meta.dir, "..", "packages", "elixir", "mix.exs");
+const project = await Bun.file(mix).text();
+await Bun.write(mix, project.replace(/@version ".*"/, `@version ${JSON.stringify(version)}`));
+console.log(`p9s (Hex) ${version}`);

@@ -1,0 +1,6 @@
+{
+  "setup": ["mix deps.get --only prod", "mix compile"],
+  "migrate": "mix ecto.migrate",
+  "start": "mix phx.server",
+  "env": { "MIX_ENV": "prod" }
+}

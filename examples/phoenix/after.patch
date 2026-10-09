@@ -1,0 +1,229 @@
+diff --git a/lib/documents/permissions.ex a/lib/documents/permissions.ex
+deleted file mode 100644
+index cad6dbe..0000000
+--- a/lib/documents/permissions.ex
++++ /dev/null
+@@ -1,55 +0,0 @@
+-defmodule Documents.Permissions do
+-  @moduledoc """
+-  Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-  shares of documents with the user
+-  """
+-
+-  import Ecto.Query
+-
+-  alias Documents.{Document, DocumentShare, Project, ProjectShare, Repo, TeamMember}
+-
+-  @bits %{"viewer" => ["read"], "editor" => ["read", "write"], "owner" => ["read", "write", "delete"]}
+-
+-  def bits_of(access), do: Map.get(@bits, access, [])
+-
+-  defp teams_of(user_id), do: from(m in TeamMember, where: m.user_id == ^user_id, select: m.team_id)
+-
+-  def project_bits(user_id, project_id) do
+-    from(s in ProjectShare, where: s.project_id == ^project_id and s.team_id in subquery(teams_of(user_id)))
+-    |> select([s], s.access)
+-    |> Repo.all()
+-    |> Enum.flat_map(&bits_of/1)
+-    |> MapSet.new()
+-  end
+-
+-  @doc "The bits of the user on the document, or nil when there is no such document"
+-  def document_bits(user_id, document_id) do
+-    case Repo.one(from d in Document, where: d.id == ^document_id, select: d.project_id) do
+-      nil ->
+-        nil
+-
+-      project_id ->
+-        shares = Repo.all(from s in DocumentShare, where: s.document_id == ^document_id and s.user_id == ^user_id)
+-        MapSet.union(project_bits(user_id, project_id), MapSet.new(Enum.flat_map(shares, &bits_of(&1.access))))
+-    end
+-  end
+-
+-  # Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects
+-  # or shared with them
+-  defp readable_project_ids(user_id) do
+-    from(s in ProjectShare, where: s.team_id in subquery(teams_of(user_id)), select: s.project_id)
+-  end
+-
+-  def readable_projects(user_id) do
+-    from(p in Project, where: p.id in subquery(readable_project_ids(user_id)), order_by: p.id)
+-  end
+-
+-  def readable_documents(user_id) do
+-    shared = from(s in DocumentShare, where: s.user_id == ^user_id, select: s.document_id)
+-
+-    from(d in Document,
+-      where: d.project_id in subquery(readable_project_ids(user_id)) or d.id in subquery(shared),
+-      order_by: d.id
+-    )
+-  end
+-end
+diff --git a/lib/documents_web/controllers/document_controller.ex b/lib/documents_web/controllers/document_controller.ex
+index 826a944..f15aaf7 100644
+--- a/lib/documents_web/controllers/document_controller.ex
++++ b/lib/documents_web/controllers/document_controller.ex
+@@ -3,83 +3,62 @@ defmodule DocumentsWeb.DocumentController do
+ 
+   import Ecto.Query
+ 
+-  alias Documents.{Document, DocumentShare, Permissions, Repo}
++  alias Documents.{Document, DocumentShare, Repo}
+ 
+   def index(conn, _params) do
+-    documents =
+-      conn.assigns.user_id |> Permissions.readable_documents() |> select([d], map(d, [:id, :project_id, :title]))
+-
+-    json(conn, Repo.all(documents))
++    json(conn, Repo.all(from d in Document, order_by: d.id, select: map(d, [:id, :project_id, :title])))
+   end
+ 
+   def create(conn, %{"project_id" => project_id, "title" => title} = params) do
+-    if "write" in Permissions.project_bits(conn.assigns.user_id, project_id) do
+-      document = Repo.insert!(%Document{project_id: project_id, title: title, body: params["body"] || ""})
+-      conn |> put_status(201) |> json(Document.json(document))
+-    else
+-      forbidden(conn)
+-    end
++    document = Repo.insert!(%Document{project_id: project_id, title: title, body: params["body"] || ""})
++    conn |> put_status(201) |> json(Document.json(document))
+   end
+ 
+   def show(conn, %{"id" => id}) do
+-    with id when id != nil <- id(id),
+-         bits when bits != nil <- Permissions.document_bits(conn.assigns.user_id, id),
+-         true <- "read" in bits do
+-      json(conn, Document.json(Repo.get!(Document, id)))
+-    else
+-      _ -> not_found(conn)
++    case id(id) && Repo.get(Document, id(id)) do
++      nil -> not_found(conn)
++      document -> json(conn, Document.json(document))
+     end
+   end
+ 
++  # A document the user does not read is not found, one they read but cannot change is forbidden
+   def update(conn, %{"id" => id} = params) do
+-    with {:ok, id, bits} <- readable(conn, id) do
+-      if "write" in bits do
+-        changes = for {name, value} <- Map.take(params, ["title", "body"]), do: {String.to_existing_atom(name), value}
+-        Repo.update_all(from(d in Document, where: d.id == ^id), set: changes)
+-        json(conn, Document.json(Repo.get!(Document, id)))
+-      else
+-        forbidden(conn)
++    with {:ok, id} <- readable(conn, id) do
++      changes = for {name, value} <- Map.take(params, ["title", "body"]), do: {String.to_existing_atom(name), value}
++
++      case Repo.update_all(from(d in Document, where: d.id == ^id), set: changes) do
++        {0, _} -> forbidden(conn)
++        _ -> json(conn, Document.json(Repo.get!(Document, id)))
+       end
+     end
+   end
+ 
+   def delete(conn, %{"id" => id}) do
+-    with {:ok, id, bits} <- readable(conn, id) do
+-      if "delete" in bits do
+-        Repo.delete_all(from d in Document, where: d.id == ^id)
+-        send_resp(conn, 204, "")
+-      else
+-        forbidden(conn)
++    with {:ok, id} <- readable(conn, id) do
++      case Repo.delete_all(from d in Document, where: d.id == ^id) do
++        {0, _} -> forbidden(conn)
++        _ -> send_resp(conn, 204, "")
+       end
+     end
+   end
+ 
++  # p9s refuses a share that gives, or takes away, bits the user does not have
+   def share(conn, %{"id" => id, "user_id" => target, "access" => access}) when access in ["viewer", "editor"] do
+-    with {:ok, id, bits} <- readable(conn, id), target when target != nil <- id(target) do
+-      previous =
+-        Repo.one(from s in DocumentShare, where: s.document_id == ^id and s.user_id == ^target, select: s.access)
++    with {:ok, id} <- readable(conn, id), target when target != nil <- id(target) do
++      Repo.insert!(%DocumentShare{document_id: id, user_id: target, access: access},
++        on_conflict: {:replace, [:access]},
++        conflict_target: [:document_id, :user_id]
++      )
+ 
+-      if Enum.all?(Permissions.bits_of(access) ++ Permissions.bits_of(previous), &(&1 in bits)) do
+-        Repo.insert!(%DocumentShare{document_id: id, user_id: target, access: access},
+-          on_conflict: {:replace, [:access]},
+-          conflict_target: [:document_id, :user_id]
+-        )
+-
+-        send_resp(conn, 204, "")
+-      else
+-        forbidden(conn)
+-      end
++      send_resp(conn, 204, "")
+     end
+   end
+ 
+   def share(conn, _params), do: bad_request(conn)
+ 
+-  # The id and the bits of a document the user reads, or not found
+   defp readable(conn, id) do
+-    with id when id != nil <- id(id),
+-         bits when bits != nil <- Permissions.document_bits(conn.assigns.user_id, id),
+-         true <- "read" in bits do
+-      {:ok, id, bits}
++    with id when id != nil <- id(id), true <- Repo.exists?(from d in Document, where: d.id == ^id) do
++      {:ok, id}
+     else
+       _ -> not_found(conn)
+     end
+diff --git a/lib/documents_web/controllers/project_controller.ex b/lib/documents_web/controllers/project_controller.ex
+index ad3c653..0069ddc 100644
+--- a/lib/documents_web/controllers/project_controller.ex
++++ b/lib/documents_web/controllers/project_controller.ex
+@@ -3,12 +3,9 @@ defmodule DocumentsWeb.ProjectController do
+ 
+   import Ecto.Query
+ 
+-  alias Documents.{Permissions, Repo}
++  alias Documents.{Project, Repo}
+ 
+   def index(conn, _params) do
+-    json(
+-      conn,
+-      conn.assigns.user_id |> Permissions.readable_projects() |> select([p], map(p, [:id, :name])) |> Repo.all()
+-    )
++    json(conn, Repo.all(from p in Project, order_by: p.id, select: map(p, [:id, :name])))
+   end
+ end
+diff --git a/lib/documents_web.ex b/lib/documents_web.ex
+index c7d184c..a4ee7a9 100644
+--- a/lib/documents_web.ex
++++ b/lib/documents_web.ex
+@@ -2,9 +2,16 @@ defmodule DocumentsWeb do
+   def controller do
+     quote do
+       use Phoenix.Controller, formats: [:json]
++      # Every action runs in a transaction as the user, where the policies of p9s decide what it reads and writes
++      use P9s.Controller, repo: Documents.Repo
+ 
+       import Plug.Conn
+       import DocumentsWeb.Answers
++
++      def p9s_user_id(conn), do: conn.assigns.user_id
++
++      # A write the policies do not let through, after its transaction rolled back
++      def p9s_refused(conn, _error), do: forbidden(conn)
+     end
+   end
+ 
+diff --git a/mix.exs b/mix.exs
+index e0af0e1..9e10704 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -11,6 +11,8 @@ defmodule Documents.MixProject do
+     [
+       {:bandit, "~> 1.5"},
+       {:ecto_sql, "~> 3.12"},
++      # p9s from Hex in an app, from this repository in the example
++      {:p9s, path: "../../../packages/elixir"},
+       {:phoenix, "~> 1.8"},
+       {:postgrex, ">= 0.19.0"}
+     ]

@@ -133,6 +133,13 @@
         "typescript": "^5",
       },
     },
+    "examples/phoenix": {
+      "name": "@p9s/example-phoenix",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
     "examples/postgraphile": {
       "name": "@p9s/example-postgraphile",
       "version": "0.1.0",
@@ -1291,6 +1298,8 @@
     "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/kysely"],
 
     "@p9s/example-nextjs-drizzle": ["@p9s/example-nextjs-drizzle@workspace:examples/nextjs-drizzle"],
+
+    "@p9s/example-phoenix": ["@p9s/example-phoenix@workspace:examples/phoenix"],
 
     "@p9s/example-postgraphile": ["@p9s/example-postgraphile@workspace:examples/postgraphile"],
 

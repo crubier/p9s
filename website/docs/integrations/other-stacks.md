@@ -90,14 +90,16 @@ tx.commit().await?;
 
 `p9s::is_refused(&error)` tells a write the policies refused.
 
-## Ecto
+## Ecto and Phoenix
+
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/elixir) package reads the role and the setting from `p9s.config.json`, and runs a function in an Ecto transaction as the user. `use P9s.Controller` runs every action of a Phoenix controller as the user of its request. [`examples/phoenix`](https://github.com/crubier/p9s/tree/main/examples/phoenix) adopts p9s in an existing Phoenix app with it:
 
 ```elixir
-Repo.transaction(fn ->
-  Repo.query!("select set_config('role', 'app_user', true), set_config('app.role_id', $1, true)", [to_string(user_id)])
-  Repo.all(from d in Document, order_by: [desc: d.updated_at], limit: 50)
-end)
+{:ok, documents} =
+  P9s.as_user(Repo, user.id, fn -> Repo.all(from d in Document, order_by: [desc: d.updated_at], limit: 50) end)
 ```
+
+`P9s.refused?(error)` tells a write the policies refused.
 
 ## Laravel
 
