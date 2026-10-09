@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 import pytest
 
 DATABASE_URL = os.environ.get("P9S_TEST_DATABASE_URL")
+CONFORMANCE_URL = os.environ.get("P9S_CONFORMANCE_DATABASE_URL")
 
 CONFIG = {
     "engine": {
@@ -64,3 +65,27 @@ def django_database(url: str) -> dict:
         "HOST": parts.hostname or "",
         "PORT": str(parts.port or ""),
     }
+
+
+def configure_django(directory) -> None:
+    """Django settings, once a process: the database of the tests, and the one of the conformance suite"""
+    import django
+    from django.conf import settings
+
+    if settings.configured:
+        return
+    path = directory / "p9s.config.json"
+    path.write_text(json.dumps(CONFIG))
+    databases = {}
+    if DATABASE_URL:
+        databases["default"] = django_database(DATABASE_URL)
+    if CONFORMANCE_URL:
+        databases["conformance"] = django_database(CONFORMANCE_URL)
+    databases.setdefault("default", databases.get("conformance"))
+    settings.configure(
+        DATABASES=databases,
+        P9S_CONFIG=str(path),
+        P9S_USER_ID="tests.test_django.user_id_of",
+        USE_TZ=True,
+    )
+    django.setup()

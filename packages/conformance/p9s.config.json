@@ -1,0 +1,37 @@
+{
+  "engine": {
+    "users": ["p9s_conformance_user"],
+    "authentication": {
+      "getCurrentUserId": "current_role_id",
+      "setting": "p9s_conformance.user_id",
+      "key": { "table": "members", "column": "id" }
+    },
+    "grantPrivileges": true,
+    "permission": { "bitmap": { "size": 8, "names": { "read": 0, "write": 1 } } }
+  },
+  "tables": [
+    { "name": "members", "isRole": true, "roleId": "role_id" },
+    {
+      "name": "folders",
+      "isResource": true,
+      "resourceId": "resource_id",
+      "permission": { "p9s_conformance_user": { "select": 0 } }
+    },
+    {
+      "name": "notes",
+      "isResource": true,
+      "resourceId": "resource_id",
+      "resourceParent": { "column": "folder_id", "table": "folders", "key": "id" },
+      "permission": { "p9s_conformance_user": { "select": 0, "insert": 1, "update": 1, "delete": 1 } }
+    }
+  ],
+  "links": [
+    {
+      "name": "folder_shares",
+      "kind": "assignment",
+      "resource": { "column": "folder_id", "table": "folders", "key": "id" },
+      "role": { "column": "member_id", "table": "members", "key": "id" },
+      "permission": { "column": "access", "values": { "viewer": ["read"], "editor": ["read", "write"] } }
+    }
+  ]
+}

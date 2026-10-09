@@ -1,0 +1,20 @@
+{
+  "config": "p9s.config.json",
+  "role": "p9s_conformance_user",
+  "setting": "p9s_conformance.user_id",
+  "read": "select id from notes where id <= 3 order by id",
+  "reads": [
+    { "user": 1, "ids": [1] },
+    { "user": 2, "ids": [2, 3] },
+    { "user": 3, "ids": [] },
+    { "user": null, "ids": [] }
+  ],
+  "insert": {
+    "user": 2,
+    "sql": "insert into notes (folder_id, body) values (3, 'conformance') returning id, folder_id",
+    "folderId": 3
+  },
+  "refused": { "user": 2, "sql": "insert into notes (folder_id, body) values (2, 'refused')" },
+  "who": "select current_user::text as role, coalesce(current_setting('p9s_conformance.user_id', true), '') as user_id",
+  "whoUser": 1
+}

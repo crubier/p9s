@@ -273,6 +273,17 @@
         "@p9s/drizzle",
       ],
     },
+    "packages/conformance": {
+      "name": "@p9s/conformance",
+      "dependencies": {
+        "@p9s/postgres": "workspace:*",
+        "pg": "^8.23.1",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+      },
+    },
     "packages/core": {
       "name": "@p9s/core",
       "version": "0.1.0",
@@ -1285,6 +1296,8 @@
     "@p9s/benchmark-postgres": ["@p9s/benchmark-postgres@workspace:benchmarks/postgres"],
 
     "@p9s/cli": ["@p9s/cli@workspace:packages/cli"],
+
+    "@p9s/conformance": ["@p9s/conformance@workspace:packages/conformance"],
 
     "@p9s/core": ["@p9s/core@workspace:packages/core"],
 

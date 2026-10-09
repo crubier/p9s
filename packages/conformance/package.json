@@ -1,0 +1,17 @@
+{
+  "name": "@p9s/conformance",
+  "private": true,
+  "type": "module",
+  "description": "The suite every package of p9s passes: reads and writes as a user go through the policies, and nothing stays on a pooled connection",
+  "scripts": {
+    "prepare-database": "bun prepare.ts"
+  },
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1"
+  }
+}

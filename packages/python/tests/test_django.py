@@ -2,30 +2,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from .conftest import DATABASE_URL, needs_database, django_database
+from .conftest import configure_django, needs_database
 
 pytestmark = needs_database
 
 
 @pytest.fixture(scope="module")
 def django_setup(database, tmp_path_factory):
-    import json
-
-    import django
-    from django.conf import settings
-
-    from .conftest import CONFIG
-
-    path = tmp_path_factory.mktemp("django") / "p9s.config.json"
-    path.write_text(json.dumps(CONFIG))
-    if not settings.configured:
-        settings.configure(
-            DATABASES={"default": django_database(DATABASE_URL)},
-            P9S_CONFIG=str(path),
-            P9S_USER_ID="tests.test_django.user_id_of",
-            USE_TZ=True,
-        )
-        django.setup()
+    configure_django(tmp_path_factory.mktemp("django"))
     yield
 
 

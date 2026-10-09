@@ -4,6 +4,10 @@ defmodule P9s.TestRepo do
   use Ecto.Repo, otp_app: :p9s, adapter: Ecto.Adapters.Postgres
 end
 
+defmodule P9s.ConformanceRepo do
+  use Ecto.Repo, otp_app: :p9s, adapter: Ecto.Adapters.Postgres
+end
+
 defmodule P9s.TestConfig do
   def config do
     %{
@@ -24,9 +28,19 @@ defmodule P9s.TestConfig do
   end
 end
 
+excluded =
+  case System.get_env("P9S_CONFORMANCE_DATABASE_URL") do
+    nil ->
+      [:conformance]
+
+    url ->
+      {:ok, _} = P9s.ConformanceRepo.start_link(url: url, pool_size: 1, log: false)
+      []
+  end
+
 case System.get_env("P9S_TEST_DATABASE_URL") do
   nil ->
-    ExUnit.start(exclude: [:database])
+    ExUnit.start(exclude: [:database | excluded])
 
   url ->
     {:ok, _} = P9s.TestRepo.start_link(url: url, pool_size: 1, log: false)
@@ -51,5 +65,5 @@ case System.get_env("P9S_TEST_DATABASE_URL") do
       P9s.TestRepo.query!(statement)
     end
 
-    ExUnit.start()
+    ExUnit.start(exclude: excluded)
 end
