@@ -10,6 +10,8 @@
 
     // Bundler mode
     "moduleResolution": "bundler",
+    // p9s packages export their sources under the bun condition, and their dist otherwise
+    "customConditions": ["bun"],
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
@@ -27,6 +29,6 @@
     "noPropertyAccessFromIndexSignature": false
   },
   // The website and examples have their own tsconfig
-  "include": ["packages", "benchmarks"],
+  "include": ["packages", "benchmarks", "scripts"],
   "exclude": ["**/node_modules", "**/dist"]
 }

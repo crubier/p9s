@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/server.ts",
-    "build": "vite build",
+    "build": "bun run --cwd ../.. build && vite build",
     "start": "NODE_ENV=production bun src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test test",

@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import { fromNodeHeaders } from "better-auth/node";
+import { createIdentity } from "@p9s/postgres";
 import { BIT } from "../lib/permissions.js";
 import { auth } from "./auth.js";
 import { pool } from "./db.js";
+import { p9sConfig } from "./p9s.js";
+
+const users = createIdentity(p9sConfig);
 
 // The organization a request is made in, by its slug. The app sends it with every request, GraphiQL with the headers of
 // the links that open it
@@ -44,20 +48,13 @@ export const fromApiKey = async (token: string): Promise<Identity> => {
 };
 
 // Whether a role has the admin bit on the organization, checked by p9s as that role
-const isAdmin = async (roleId: string, orgResourceId: string) => {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    await client.query(`select set_config('role', 'app_user', true), set_config('app.role_id', $1, true)`, [roleId]);
+const isAdmin = (roleId: string, orgResourceId: string) =>
+  users.run(pool, roleId, async (client) => {
     const { rows } = await client.query<{ permission: string | null }>(`select resource_permission($1)::text as permission`, [
       orgResourceId,
     ]);
     return rows[0]?.permission?.[BIT.admin] === "1";
-  } finally {
-    await client.query("rollback").catch(() => {});
-    client.release();
-  }
-};
+  }, { readOnly: true });
 
 export type ImpersonationMode = "view" | "act";
 
@@ -103,12 +100,13 @@ export const identify = async (headers: IncomingHttpHeaders): Promise<Identity> 
 };
 
 // The settings of the transaction PostGraphile runs the request in, which sql/app.sql and p9s read
-export const pgSettingsOf = (identity: Identity) => ({
-  role: "app_user",
-  "app.role_id": identity.roleId ?? "",
-  "app.user_id": identity.userId ?? "",
-  "app.impersonator_member_id": identity.impersonatorMemberId ?? "",
-  // The queries of the app are short: compiling one takes longer than running it
-  jit: "off",
-  ...(identity.readOnly ? { transaction_read_only: "on" } : {}),
-});
+export const pgSettingsOf = (identity: Identity) =>
+  users.pgSettings(identity.roleId, {
+    readOnly: identity.readOnly,
+    settings: {
+      "app.user_id": identity.userId,
+      "app.impersonator_member_id": identity.impersonatorMemberId,
+      // The queries of the app are short: compiling one takes longer than running it
+      jit: "off",
+    },
+  });

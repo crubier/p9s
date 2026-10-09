@@ -1,6 +1,9 @@
+import { withUser } from "@p9s/drizzle";
+import { createIdentity } from "@p9s/postgres";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { DatabaseError, Pool } from "pg";
+import { p9sConfig } from "./p9s";
 import * as schema from "./schema";
 
 // One pool per process, kept across hot reloads in development
@@ -30,23 +33,19 @@ export interface Identity {
   impersonator?: { memberId: string; readOnly: boolean };
 }
 
-// Runs `fn` in a transaction as app_user, on behalf of a member or an API key: every query goes through RLS.
-// Settings made with `set_config(..., true)` only last until the end of the transaction, so a pooled connection
-// never keeps the identity of a previous request. When an admin views as someone, Postgres refuses every write of
-// the transaction, and when they act as someone, the audit triggers record who they are. Policies are estimated
-// at the cost of what they may read, so with JIT, Postgres would compile even small reads for longer than they run
+const users = createIdentity(p9sConfig);
+
+// Runs `fn` in a transaction as app_user, on behalf of a member or an API key: every query goes through RLS, and
+// nothing of the identity stays on the pooled connection after it. When an admin views as someone, Postgres refuses
+// every write of the transaction, and when they act as someone, the audit triggers record who they are. The queries
+// of the app are short: with JIT, Postgres would compile some for longer than they run
 export const asRole = async <T>(identity: Identity | string, fn: (tx: Tx) => Promise<T>) => {
   const { roleId, impersonator } = typeof identity === "string" ? { roleId: identity, impersonator: undefined } : identity;
   try {
-    return await db.transaction(
-      async (tx) => {
-        await tx.execute(sql`
-          select set_config('role', 'app_user', true), set_config('app.role_id', ${roleId}, true),
-            set_config('app.impersonator_member_id', ${impersonator?.memberId ?? ""}, true), set_config('jit', 'off', true)`);
-        return fn(tx);
-      },
-      { accessMode: impersonator?.readOnly ? "read only" : "read write" },
-    );
+    return await withUser(db, users, roleId, fn, {
+      readOnly: impersonator?.readOnly,
+      settings: { "app.impersonator_member_id": impersonator?.memberId, jit: "off" },
+    });
   } catch (error) {
     const code = databaseError(error)?.code;
     // A row that RLS rejects, on insert or as the new value of an update

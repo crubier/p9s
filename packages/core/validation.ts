@@ -6,7 +6,7 @@ import {
   tableConfigSchema,
   type Config,
   type CompleteConfig,
-} from "./configuration-schema";
+} from "./configuration-schema.ts";
 
 export type ValidationResult<T> =
   | { success: true; data: T }

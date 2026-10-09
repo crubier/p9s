@@ -47,7 +47,10 @@ drizzle
 
     const schemaModule = await import(pathToFileURL(schemaPath).href);
 
-    const { generateConfigurationFromDrizzleSchema } = await import("@p9s/drizzle");
+    const { generateConfigurationFromDrizzleSchema } = await import("@p9s/drizzle").catch(() => {
+      console.error("Error: install @p9s/drizzle next to @p9s/cli to read Drizzle schemas");
+      process.exit(1);
+    });
 
     const config = generateConfigurationFromDrizzleSchema(schemaModule, {
       users,

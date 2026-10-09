@@ -1,5 +1,7 @@
 {
   "name": "@p9s/core-testing",
+  "version": "0.0.0",
+  "private": true,
   "module": "index.ts",
   "type": "module",
   "scripts": {

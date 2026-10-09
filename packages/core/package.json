@@ -1,18 +1,48 @@
 {
   "name": "@p9s/core",
-  "module": "index.ts",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Vincent Lecrubier",
+  "homepage": "https://p9s.vercel.app",
+  "bugs": "https://github.com/crubier/p9s/issues",
   "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crubier/p9s.git",
+    "directory": "packages/core"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "*.ts",
+    "!*.test.ts"
+  ],
+  "description": "Configuration of p9s, hierarchical permissions for Postgres enforced with Row Level Security",
+  "keywords": [
+    "postgres",
+    "rls",
+    "permissions",
+    "authorization"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun test"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   },
   "dependencies": {
     "pg-sql2": "^4.14.1",
     "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
   }
 }

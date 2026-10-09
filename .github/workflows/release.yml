@@ -1,0 +1,46 @@
+name: Release
+
+# Pushing a tag v<version> publishes the packages at that version, which must be the one of their package.json. A
+# version already on npm is skipped, so the workflow can run again after a failure.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - name: Versions match the tag
+        run: |
+          for name in $(bun -e 'import { published } from "./scripts/published.ts"; console.log(published.join(" "))'); do
+            version=$(jq -r .version "packages/$name/package.json")
+            test "v$version" = "$GITHUB_REF_NAME" || { echo "@p9s/$name is $version, the tag is $GITHUB_REF_NAME"; exit 1; }
+          done
+      - name: Pack and check the tarballs
+        run: bun run pack:check
+      - name: Publish
+        run: |
+          for name in $(bun -e 'import { published } from "./scripts/published.ts"; console.log(published.join(" "))'); do
+            version=$(jq -r .version "packages/$name/package.json")
+            if npm view "@p9s/$name@$version" version >/dev/null 2>&1; then
+              echo "@p9s/$name@$version is already published"
+            else
+              npm publish "packed/p9s-$name-$version.tgz" --provenance --access public
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

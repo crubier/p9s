@@ -1,20 +1,53 @@
 {
   "name": "@p9s/postgres",
-  "module": "index.ts",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Vincent Lecrubier",
+  "homepage": "https://p9s.vercel.app",
+  "bugs": "https://github.com/crubier/p9s/issues",
   "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crubier/p9s.git",
+    "directory": "packages/postgres"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "*.ts",
+    "!*.test.ts"
+  ],
+  "description": "Generates the SQL migration of p9s: a permission graph over your tables, cached by triggers and enforced with Row Level Security",
+  "keywords": [
+    "postgres",
+    "rls",
+    "row level security",
+    "permissions",
+    "authorization",
+    "rbac",
+    "rebac"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@p9s/core": "workspace:*",
+    "pg-sql2": "^4.14.1"
   },
   "devDependencies": {
     "@p9s/core-testing": "workspace:*",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "pg-sql2": "^4.14.1",
-    "@p9s/core": "workspace:*",
+    "@types/bun": "latest",
     "@p9s/postgres-testing": "workspace:*"
   }
 }

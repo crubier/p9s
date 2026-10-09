@@ -1,5 +1,5 @@
 import type { SQL, } from "pg-sql2";
-import type { ReplaceNestedTypes, RecursivePartial } from "./util";
+import type { ReplaceNestedTypes, RecursivePartial } from "./util.ts";
 import type {
   BaseNamingConfig,
   DerivedNamingConfig,
@@ -13,10 +13,10 @@ import type {
   PermissionPerOperation,
   PermissionPerOperationNaming,
   SearchConfig,
-} from "./configuration-schema";
+} from "./configuration-schema.ts";
 
 import { identifier } from "pg-sql2";
-import { deepMerge, replaceNestedStrings } from "./util";
+import { deepMerge, replaceNestedStrings } from "./util.ts";
 
 // Re-export base types from schema (non-generic)
 export type {
@@ -30,7 +30,7 @@ export type {
   PermissionPerOperationNaming,
   SearchConfig,
 };
-export { parentsOf, searchOperators } from "./configuration-schema";
+export { parentsOf, searchOperators } from "./configuration-schema.ts";
 
 // Generic types that extend the zod base types with User parameter for compile-time safety
 export type TableNamingConfigEntry<User extends string> = Omit<TableNamingConfigEntryBase, 'permission'> & {

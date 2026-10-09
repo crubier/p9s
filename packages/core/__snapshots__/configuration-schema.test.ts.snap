@@ -2903,6 +2903,10 @@ exports[`Configuration JSON Schemas engineConfigSchema 1`] = `
         "getCurrentUserId": {
           "type": "string",
         },
+        "setting": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
+          "type": "string",
+        },
       },
       "required": [
         "getCurrentUserId",
@@ -3982,6 +3986,10 @@ exports[`Configuration JSON Schemas completeConfigSchema 1`] = `
           "additionalProperties": false,
           "properties": {
             "getCurrentUserId": {
+              "type": "string",
+            },
+            "setting": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
               "type": "string",
             },
           },
@@ -5269,6 +5277,10 @@ exports[`Configuration JSON Schemas configSchema 1`] = `
           "additionalProperties": false,
           "properties": {
             "getCurrentUserId": {
+              "type": "string",
+            },
+            "setting": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_.]*$",
               "type": "string",
             },
           },

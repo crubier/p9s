@@ -1,27 +1,52 @@
 {
   "name": "@p9s/cli",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Vincent Lecrubier",
+  "homepage": "https://p9s.vercel.app",
+  "bugs": "https://github.com/crubier/p9s/issues",
   "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crubier/p9s.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "p9s": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "description": "The p9s command line: generate the migration, propose a configuration from a database, check a database",
+  "keywords": [
+    "postgres",
+    "rls",
+    "permissions",
+    "cli"
+  ],
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node",
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --packages external",
     "test": "bun test"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^20"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   },
   "dependencies": {
     "@p9s/core": "workspace:*",
-    "@p9s/drizzle": "workspace:*",
     "@p9s/postgres": "workspace:*",
     "commander": "^14.0.0",
     "cosmiconfig": "^9.0.0",
     "pg-sql2": "^4.14.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20",
+    "@p9s/drizzle": "workspace:*"
+  },
+  "peerDependencies": {
+    "@p9s/drizzle": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@p9s/drizzle": {
+      "optional": true
+    }
   }
 }

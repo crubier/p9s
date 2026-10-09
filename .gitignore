@@ -146,3 +146,6 @@ Thumbs.db
 
 benchmarks/postgres/volumes/postgres
 benchmarks/postgres/results
+
+# Tarballs of bun run pack:check
+packed

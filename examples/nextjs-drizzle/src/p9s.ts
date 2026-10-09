@@ -55,7 +55,8 @@ export const p9sConfig = generateConfigurationFromDrizzleSchema(schema, {
   engine: {
     // Role the server switches to for shares and team memberships, which change the graph
     graphWriters: ["app_backend"],
-    authentication: { getCurrentUserId: "current_role_id" },
+    // The server sets app.role_id for each transaction, through withUser, and current_role_id() reads it
+    authentication: { getCurrentUserId: "current_role_id", setting: "app.role_id" },
     id: { mode: "uuid" },
     combineAssignmentsWith: "role",
     // Only shared resources have the rows of what is below them

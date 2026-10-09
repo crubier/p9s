@@ -15,7 +15,7 @@ export const createMigration = <User extends string>(config: Config<User>) => {
 
   ${createMigrationTriggerNames(completeConfig)}
 
-  ${createMigrationExtensions(naming, completeConfig)}
+  ${createMigrationExtensions(naming, completeConfig)}${createMigrationAuthentication(naming, completeConfig)}
 
   ${createMigrationAggregates(naming, completeConfig)}
 
@@ -355,6 +355,9 @@ const namesIn = (value: unknown, key = ""): Array<[string, string]> =>
 // Triggers fire in the order of their names. When the trigger prefix changes, the p9s triggers of the previous prefix
 // get the new names, so that the migration replaces them instead of adding triggers that fire next to them. A p9s
 // trigger calls a p9s function, and its name ends with the name it has without prefix.
+// The migration as text, to write to a file or run with any client
+export const createMigrationSql = <User extends string>(config: Config<User>) => compile(createMigration(config)).text;
+
 export const createMigrationTriggerNames = <User extends string>(config: CompleteConfig<User>) => {
   const namingConfig = getCompleteNamingConfig(config);
   const names = namesIn(namingConfig);
@@ -454,6 +457,27 @@ export const createMigrationExtensions = <User extends string>(naming: Naming<Us
   return getIdType(config).extension;
 }
 
+
+// The function that returns the role id of the current user, which may be in another schema, like auth.uid
+const currentUserIdFunction = (config: CompleteConfig<any>) => identifier(...config.engine.authentication.getCurrentUserId.split("."));
+
+// With a setting, the current user is the role id the server sets it to for the transaction, none when it is empty
+export const createMigrationAuthentication = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
+  const { setting } = config.engine.authentication;
+  if (!setting) return sql``;
+  const fn = currentUserIdFunction(config);
+  const { type: idType } = getIdType(config);
+  return sql`
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Current user
+-----------------------------------------------------------------------------------------------------------------------
+create or replace function ${fn} () returns ${idType}
+  as $$ select nullif(current_setting(${textLiteral(setting)}, true), '')::${idType} $$
+  language sql stable;
+${grantExecute(sql`${fn} ()`, getRoles(config).everyone)}
+`;
+};
 
 export const createMigrationAggregates = <User extends string>(naming: Naming<User>, config: CompleteConfig<User>) => {
   const { orBitmap, truncateGuardFunction } = naming;
@@ -1844,7 +1868,7 @@ ${combined ? sql`select ${naming.assignment.enableTriggerFunction}();` : sql``}
 // The role node whose permissions the current user has. A user that is a role leaf row has the permissions of its
 // parent. As a sub-select, the lookup runs once per query.
 const currentRoleNodeOf = (naming: Naming<any>, config: CompleteConfig<any>) => getLeaves("role", naming, config).length === 0
-  ? sql`${identifier(config.engine.authentication.getCurrentUserId)}()`
+  ? sql`${currentUserIdFunction(config)}()`
   : sql`(select ${naming.currentRoleNodeFunction}())`;
 
 // The role node of any role id: the parent of a role leaf row, the id itself otherwise
@@ -1888,7 +1912,7 @@ export const createMigrationCurrentUserViews = <User extends string>(naming: Nam
   const { users, everyone } = getRoles(config);
   const size = config.engine.permission.bitmap.size;
   const roleLeaves = getLeaves("role", naming, config);
-  const getCurrentUserId = sql`${identifier(config.engine.authentication.getCurrentUserId)}()`;
+  const getCurrentUserId = sql`${currentUserIdFunction(config)}()`;
   const me = currentRoleNodeOf(naming, config);
 
   // As the owner, so that the policies of role leaf tables do not apply. It takes no argument, so that it only ever

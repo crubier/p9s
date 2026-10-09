@@ -1,2 +1,2 @@
-export * from "./configuration";
-export * from "./validation";
+export * from "./configuration.ts";
+export * from "./validation.ts";

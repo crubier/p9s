@@ -14,7 +14,8 @@ export const p9sConfig = {
     users: ["app_user"],
     // The role the functions of sql/app.sql switch to for shares and team memberships, which change the graph
     graphWriters: ["app_backend"],
-    authentication: { getCurrentUserId: "current_role_id" },
+    // The server sets app.role_id for each request, through the identity helpers of p9s, and current_role_id() reads it
+    authentication: { getCurrentUserId: "current_role_id", setting: "app.role_id" },
     id: { mode: "uuid" as const },
     combineAssignmentsWith: "role" as const,
     // Only shared resources have the rows of what is below them

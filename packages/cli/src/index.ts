@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import packageJson from "../package.json" with { type: "json" };
 import { postgres } from "./commands/postgres.js";
 import { validate } from "./commands/validate.js";
 import { drizzle } from "./commands/drizzle.js";
@@ -12,7 +13,7 @@ async function main() {
   const program = new Command()
     .name("p9s")
     .description("Permission Tree CLI - manage permissions for PostgreSQL")
-    .version("0.0.1", "-v, --version", "display the version number");
+    .version(packageJson.version, "-v, --version", "display the version number");
 
   program.addCommand(postgres);
   program.addCommand(validate);

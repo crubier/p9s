@@ -29,7 +29,7 @@ describe("p9s CLI", () => {
   test("shows version with --version flag", async () => {
     const result = await $`bun run ${cliPath} --version`.text();
 
-    expect(result).toContain("0.0.1");
+    expect(result.trim()).toBe((await Bun.file(path.resolve(testDir, "../package.json")).json()).version);
   });
 
   test("shows postgres subcommand help", async () => {

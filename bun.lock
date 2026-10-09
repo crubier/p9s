@@ -106,28 +106,32 @@
     },
     "packages/cli": {
       "name": "@p9s/cli",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "bin": {
         "p9s": "./dist/index.js",
       },
       "dependencies": {
         "@p9s/core": "workspace:*",
-        "@p9s/drizzle": "workspace:*",
         "@p9s/postgres": "workspace:*",
         "commander": "^14.0.0",
         "cosmiconfig": "^9.0.0",
         "pg-sql2": "^4.14.1",
       },
       "devDependencies": {
+        "@p9s/drizzle": "workspace:*",
         "@types/bun": "latest",
         "@types/node": "^20",
       },
       "peerDependencies": {
-        "typescript": "^5",
+        "@p9s/drizzle": "workspace:*",
       },
+      "optionalPeers": [
+        "@p9s/drizzle",
+      ],
     },
     "packages/core": {
       "name": "@p9s/core",
+      "version": "0.1.0",
       "dependencies": {
         "pg-sql2": "^4.14.1",
         "zod": "4.3.5",
@@ -135,12 +139,10 @@
       "devDependencies": {
         "@types/bun": "latest",
       },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "packages/core-testing": {
       "name": "@p9s/core-testing",
+      "version": "0.0.0",
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -150,35 +152,36 @@
     },
     "packages/drizzle": {
       "name": "@p9s/drizzle",
+      "version": "0.1.0",
       "dependencies": {
         "@p9s/core": "workspace:*",
+        "@p9s/postgres": "workspace:*",
       },
       "devDependencies": {
+        "@electric-sql/pglite": "^0.3.14",
         "@types/bun": "latest",
         "drizzle-orm": "^0.45.1",
       },
       "peerDependencies": {
         "drizzle-orm": "^0.45.1",
-        "typescript": "^5",
       },
     },
     "packages/postgres": {
       "name": "@p9s/postgres",
+      "version": "0.1.0",
       "dependencies": {
         "@p9s/core": "workspace:*",
-        "@p9s/postgres-testing": "workspace:*",
         "pg-sql2": "^4.14.1",
       },
       "devDependencies": {
         "@p9s/core-testing": "workspace:*",
+        "@p9s/postgres-testing": "workspace:*",
         "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
     "packages/postgres-testing": {
       "name": "@p9s/postgres-testing",
+      "version": "0.0.0",
       "dependencies": {
         "@electric-sql/pglite": "^0.3.14",
         "@p9s/core-testing": "workspace:*",

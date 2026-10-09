@@ -1,23 +1,53 @@
 {
   "name": "@p9s/drizzle",
-  "module": "generate-config.ts",
-  "main": "generate-config.ts",
-  "exports": {
-    ".": "./generate-config.ts"
-  },
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Vincent Lecrubier",
+  "homepage": "https://p9s.vercel.app",
+  "bugs": "https://github.com/crubier/p9s/issues",
   "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crubier/p9s.git",
+    "directory": "packages/drizzle"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "*.ts",
+    "!*.test.ts"
+  ],
+  "description": "Derives the p9s configuration from a Drizzle schema, and runs Drizzle transactions as a user",
+  "keywords": [
+    "postgres",
+    "rls",
+    "permissions",
+    "drizzle"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@p9s/core": "workspace:*",
+    "@p9s/postgres": "workspace:*"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "drizzle-orm": "^0.45.1"
-  },
-  "peerDependencies": {
-    "typescript": "^5",
-    "drizzle-orm": "^0.45.1"
-  },
-  "dependencies": {
-    "@p9s/core": "workspace:*"
+    "drizzle-orm": "^0.45.1",
+    "@electric-sql/pglite": "^0.3.14"
   }
 }

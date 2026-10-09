@@ -85,6 +85,19 @@ $$;
 
   create extension if not exists "uuid-ossp";
 
+-----------------------------------------------------------------------------------------------------------------------
+-- Current user
+-----------------------------------------------------------------------------------------------------------------------
+create or replace function "current_role_id" () returns uuid
+  as $$ select nullif(current_setting('app.role_id', true), '')::uuid $$
+  language sql stable;
+
+revoke execute on function "current_role_id" () from public;
+
+grant execute on function "current_role_id" () to "app_user";
+grant execute on function "current_role_id" () to "app_backend";
+
+
   
 -----------------------------------------------------------------------------------------------------------------------
 -- Special functions

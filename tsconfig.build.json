@@ -1,0 +1,14 @@
+{
+  // What the packages publish: JavaScript and declarations in dist, with the imports of their own files rewritten to
+  // .js. Other p9s packages are read from their dist, so core builds first.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "rewriteRelativeImportExtensions": true,
+    "customConditions": [],
+    "types": []
+  }
+}

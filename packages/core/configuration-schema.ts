@@ -317,7 +317,11 @@ export const engineConfigBaseSchema = z.object({
     }),
   }),
   authentication: z.object({
+    // The function that returns the role id of the current user, maybe in another schema: "auth.uid"
     getCurrentUserId: z.string(),
+    // A setting the server sets to the role id of the user of each transaction, like "app.user_id": the migration then
+    // creates the function above, which reads it, and the identity helpers of @p9s/postgres set it
+    setting: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*$/, "a setting name with a prefix, like app.user_id").optional(),
   }),
   id: z.object({
     mode: z.enum(["integer", "uuid"]),
