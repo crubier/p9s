@@ -133,6 +133,10 @@ describe('links', () => {
     // Taking edit away from bob takes bits carol does not have
     await expect(asUser("carol", sql`delete from "document_user_share" where "user_id" = 2`)).rejects.toThrow(/only give bits/);
     expect(await titlesOf("alice")).toEqual(["plan"]);
+    // Deleting a shared document deletes its shares, which give nothing once it is gone
+    expect(await asUser("bob", sql`delete from "document" where "title" = 'memo' returning "id"`)).toHaveLength(1);
+    expect(await titlesOf("bob")).toEqual(["plan"]);
+    expect(await titlesOf("carol")).toEqual(["budget"]);
   });
 
   test('running the migration again keeps the access, and a config without links removes what they gave', async () => {

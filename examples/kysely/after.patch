@@ -1,0 +1,177 @@
+diff --git a/src/permissions.ts a/src/permissions.ts
+deleted file mode 100644
+index 514c74a..0000000
+--- a/src/permissions.ts
++++ /dev/null
+@@ -1,57 +0,0 @@
+-import { db, type Access } from "./db.ts";
+-
+-// Who may do what, as the app decides it before p9s: from the shares of projects with the teams of the user, and the
+-// shares of documents with the user
+-
+-export type Bit = "read" | "write" | "delete";
+-
+-export const bitsOf: Record<Access, Bit[]> = { viewer: ["read"], editor: ["read", "write"], owner: ["read", "write", "delete"] };
+-
+-export const projectBits = async (userId: number, projectId: number) => {
+-  const shares = await db.selectFrom("project_shares")
+-    .innerJoin("team_members", "team_members.team_id", "project_shares.team_id")
+-    .select("project_shares.access")
+-    .where("team_members.user_id", "=", userId)
+-    .where("project_shares.project_id", "=", projectId)
+-    .execute();
+-  return new Set(shares.flatMap(share => bitsOf[share.access]));
+-};
+-
+-// The bits of the user on the document, or undefined when there is no such document
+-export const documentBits = async (userId: number, documentId: number) => {
+-  const document = await db.selectFrom("documents").select("project_id").where("id", "=", documentId).executeTakeFirst();
+-  if (!document) return undefined;
+-  const share = await db.selectFrom("document_shares").select("access")
+-    .where("document_id", "=", documentId).where("user_id", "=", userId).executeTakeFirst();
+-  return new Set([...await projectBits(userId, document.project_id), ...(share ? bitsOf[share.access] : [])]);
+-};
+-
+-export const hasBits = (bits: Set<Bit>, needed: Bit[]) => needed.every(bit => bits.has(bit));
+-
+-// Every share gives read, so a user reads the projects shared with their teams, and the documents of those projects
+-// or shared with them
+-export const readableProjects = (userId: number) => db.selectFrom("projects")
+-  .select(["id", "name"])
+-  .where(eb => eb.exists(eb.selectFrom("project_shares")
+-    .innerJoin("team_members", "team_members.team_id", "project_shares.team_id")
+-    .whereRef("project_shares.project_id", "=", "projects.id")
+-    .where("team_members.user_id", "=", userId)
+-    .select(eb.lit(1).as("one"))))
+-  .orderBy("id")
+-  .execute();
+-
+-export const readableDocuments = (userId: number) => db.selectFrom("documents")
+-  .select(["id", "project_id", "title"])
+-  .where(eb => eb.or([
+-    eb.exists(eb.selectFrom("project_shares")
+-      .innerJoin("team_members", "team_members.team_id", "project_shares.team_id")
+-      .whereRef("project_shares.project_id", "=", "documents.project_id")
+-      .where("team_members.user_id", "=", userId)
+-      .select(eb.lit(1).as("one"))),
+-    eb.exists(eb.selectFrom("document_shares")
+-      .whereRef("document_shares.document_id", "=", "documents.id")
+-      .where("document_shares.user_id", "=", userId)
+-      .select(eb.lit(1).as("one"))),
+-  ]))
+-  .orderBy("id")
+-  .execute();
+diff --git a/src/server.ts b/src/server.ts
+index c85906c..e7bd357 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,6 +1,8 @@
+ import { Hono } from "hono";
++import { withUser } from "@p9s/kysely";
++import { createIdentity } from "@p9s/postgres";
++import config from "../p9s.config.json";
+ import { db, type Access } from "./db.ts";
+-import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
+ 
+ const app = new Hono<{ Variables: { userId: number } }>();
+ 
+@@ -8,6 +10,9 @@ const columns = ["id", "project_id", "title", "body"] as const;
+ const notFound = { error: "not found" };
+ const forbidden = { error: "forbidden" };
+ 
++// Every query of a request runs in a transaction as its user, and the policies of p9s decide what it reads and writes
++const users = createIdentity(config);
++
+ app.get("/health", c => c.text("ok"));
+ 
+ // A real app reads the user from its session, this one from a header
+@@ -18,55 +23,63 @@ app.use("*", async (c, next) => {
+   await next();
+ });
+ 
+-app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
++// Postgres refuses a write the policies do not let through with insufficient_privilege
++app.onError((error, c) => {
++  if ((error as { code?: string }).code === "42501") return c.json(forbidden, 403);
++  throw error;
++});
++
++app.get("/projects", async c => c.json(await withUser(db, users, c.get("userId"), trx =>
++  trx.selectFrom("projects").select(["id", "name"]).orderBy("id").execute(), { readOnly: true })));
+ 
+-app.get("/documents", async c => c.json(await readableDocuments(c.get("userId"))));
++app.get("/documents", async c => c.json(await withUser(db, users, c.get("userId"), trx =>
++  trx.selectFrom("documents").select(["id", "project_id", "title"]).orderBy("id").execute(), { readOnly: true })));
+ 
+ app.get("/documents/:id", async c => {
+-  const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  return c.json(await db.selectFrom("documents").select(columns).where("id", "=", id).executeTakeFirstOrThrow());
++  const document = await withUser(db, users, c.get("userId"), trx =>
++    trx.selectFrom("documents").select(columns).where("id", "=", Number(c.req.param("id"))).executeTakeFirst(), { readOnly: true });
++  return document ? c.json(document) : c.json(notFound, 404);
+ });
+ 
+ app.post("/documents", async c => {
+   const { project_id, title, body } = await c.req.json<{ project_id: number, title: string, body?: string }>();
+-  if (!(await projectBits(c.get("userId"), project_id)).has("write")) return c.json(forbidden, 403);
+-  const document = await db.insertInto("documents").values({ project_id, title, body }).returning(columns).executeTakeFirstOrThrow();
++  const document = await withUser(db, users, c.get("userId"), trx =>
++    trx.insertInto("documents").values({ project_id, title, body }).returning(columns).executeTakeFirstOrThrow());
+   return c.json(document, 201);
+ });
+ 
++// A document the user does not read is not found, one they read but cannot change is forbidden
+ app.patch("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+   const { title, body } = await c.req.json<{ title?: string, body?: string }>();
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("write")) return c.json(forbidden, 403);
+-  return c.json(await db.updateTable("documents").set({ title, body }).where("id", "=", id).returning(columns).executeTakeFirstOrThrow());
++  return withUser(db, users, c.get("userId"), async trx => {
++    if (!await trx.selectFrom("documents").select("id").where("id", "=", id).executeTakeFirst()) return c.json(notFound, 404);
++    const document = await trx.updateTable("documents").set({ title, body }).where("id", "=", id).returning(columns).executeTakeFirst();
++    return document ? c.json(document) : c.json(forbidden, 403);
++  });
+ });
+ 
+ app.delete("/documents/:id", async c => {
+   const id = Number(c.req.param("id"));
+-  const bits = await documentBits(c.get("userId"), id);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  if (!bits.has("delete")) return c.json(forbidden, 403);
+-  await db.deleteFrom("documents").where("id", "=", id).execute();
+-  return c.body(null, 204);
++  return withUser(db, users, c.get("userId"), async trx => {
++    if (!await trx.selectFrom("documents").select("id").where("id", "=", id).executeTakeFirst()) return c.json(notFound, 404);
++    const deleted = await trx.deleteFrom("documents").where("id", "=", id).returning("id").executeTakeFirst();
++    return deleted ? c.body(null, 204) : c.json(forbidden, 403);
++  });
+ });
+ 
++// p9s refuses a share that gives, or takes away, bits the user does not have
+ app.put("/documents/:id/shares/:userId", async c => {
+   const documentId = Number(c.req.param("id"));
+   const userId = Number(c.req.param("userId"));
+   const { access } = await c.req.json<{ access: Exclude<Access, "owner"> }>();
+-  const bits = await documentBits(c.get("userId"), documentId);
+-  if (!bits?.has("read")) return c.json(notFound, 404);
+-  const previous = await db.selectFrom("document_shares").select("access")
+-    .where("document_id", "=", documentId).where("user_id", "=", userId).executeTakeFirst();
+-  if (!hasBits(bits, bitsOf[access]) || (previous && !hasBits(bits, bitsOf[previous.access]))) return c.json(forbidden, 403);
+-  await db.insertInto("document_shares").values({ document_id: documentId, user_id: userId, access })
+-    .onConflict(oc => oc.columns(["document_id", "user_id"]).doUpdateSet({ access }))
+-    .execute();
+-  return c.body(null, 204);
++  return withUser(db, users, c.get("userId"), async trx => {
++    if (!await trx.selectFrom("documents").select("id").where("id", "=", documentId).executeTakeFirst()) return c.json(notFound, 404);
++    await trx.insertInto("document_shares").values({ document_id: documentId, user_id: userId, access })
++      .onConflict(oc => oc.columns(["document_id", "user_id"]).doUpdateSet({ access }))
++      .execute();
++    return c.body(null, 204);
++  });
+ });
+ 
+ Bun.serve({ port: Number(process.env.PORT ?? 3000), fetch: app.fetch });

@@ -188,17 +188,19 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
 - [ ] Integrations for other stacks: turn each [recipe](./website/docs/integrations/other-stacks.md) into a small package of the registry of its language, so that acting as a user is one line in any framework, each with an example codebase before p9s and an end to end test of adopting it
   - [x] One command adopts p9s: `npx @p9s/cli postgres migrate --config p9s.config.json` generates the migration of the config and runs it on `DATABASE_URL`, in one transaction, and does nothing when the database already ran it
     - [x] Existing permissions come along: the config can name the tables of the app that already hold memberships and shares, and the migration turns their rows into edges and assignments, so the users of the app keep the access they had
-  - [ ] Every integration has an example codebase and an end to end test of adopting p9s, `examples/<stack>`, with the same small domain in each stack: an organization, teams, folders, documents, comments and sharing, with seed data
-    - [ ] `before/`: the codebase as it is written without p9s, with its own migrations, seed and API, and the permissions in its code: queries joining memberships and shares to filter what each user sees, and a check before every update and delete
+    - [x] The app keeps its ids: with `authentication.key`, the server sets the id of the user in its own users table, and the current user function looks up the role id
+    - [x] Nothing to grant by hand: with `engine.grantPrivileges`, the migration grants the users the statements their permissions name, and links grant the `privileges` they list on their tables
+  - [ ] Every integration has an example codebase and an end to end test of adopting p9s, `examples/<stack>`, with the same small domain in each stack, which [the adoption tests](./examples/adoption) describe: teams, projects shared with teams, documents in projects shared with users, and the same seed data
+    - [ ] `before/`: the codebase as it is written without p9s, with its own migrations and API, and the permissions in its code: queries joining memberships and shares to filter what each user sees, and a check before every update and delete
     - [ ] `p9s.config.json`: the config of p9s for that codebase, its only addition before the migration
-    - [ ] The end to end test, run in CI on real Postgres:
-      - [ ] Takes a fresh copy of `before/`, creates its database with its own migrations and seeds it
-      - [ ] Records what each seeded user can read, create, update, delete and share through the API of `before/`
-      - [ ] Runs the p9s migration as one CLI command
-      - [ ] Tests the database as each user, with the role and setting of the config: they read exactly the rows they read before, writes they were refused are refused by the policies, and `p9s postgres doctor` reports no error
-      - [ ] Applies `after.patch`, the change an app makes to adopt p9s: each request wrapped in the helper of the integration, and the permission code deleted. The README of the example shows it.
-      - [ ] Tests the API as each user again: the same answers as before the migration, refused writes included
-      - [ ] Runs the migration command again and checks that it changes nothing
+    - [x] The end to end test, run in CI on real Postgres, one job per example: [`examples/adoption`](./examples/adoption) runs it for the `adoption.json` of an example
+      - [x] Takes a fresh copy of `before/`, creates its database with its own migrations and seeds it
+      - [x] Records what each seeded user can read, create, update, delete and share through the API of `before/`
+      - [x] Runs the p9s migration as one CLI command
+      - [x] Tests the database as each user, with the role and setting of the config: they read exactly the rows they read before, writes they were refused are refused by the policies, and `p9s postgres doctor` reports no error
+      - [x] Applies `after.patch`, the change an app makes to adopt p9s: each request wrapped in the helper of the integration, and the permission code deleted. The README of the example shows it.
+      - [x] Tests the API as each user again: the same answers as before the migration, refused writes included
+      - [x] Runs the migration command again and checks that it changes nothing
   - [ ] Python
     - [ ] `p9s` on PyPI: `as_user(session, user_id)` for SQLAlchemy, sync and async, and for Django a context manager, a view decorator and a middleware.
     - [ ] Example: FastAPI and SQLAlchemy, with Alembic.
@@ -219,8 +221,8 @@ The published packages, listed in [`scripts/published.ts`](./scripts/published.t
     - [ ] `p9s/laravel` on Packagist: `P9s::asUser($userId, fn () => ...)` and a Laravel middleware.
     - [ ] Example: Laravel.
   - [ ] TypeScript
-    - [ ] `@p9s/kysely`, and a recipe for node-postgres pools without an ORM.
-    - [ ] Example: Kysely.
+    - [x] `@p9s/kysely`, and a recipe for node-postgres pools without an ORM: `createIdentity(config).run(pool, userId, fn)`.
+    - [x] Example: [Kysely](./examples/kysely), with Hono.
     - [ ] Example: Prisma, with `@p9s/prisma`.
     - [ ] Example: Supabase, with supabase-js and the preset.
     - [ ] Example: Drizzle, and PostGraphile, in that shape too: a `before/` codebase and its end to end test, next to the existing full apps.

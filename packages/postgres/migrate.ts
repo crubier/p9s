@@ -45,6 +45,8 @@ export const migrate = async <User extends string>(client: Queryable, config: Co
       for (const role of roles.filter(role => !existing.has(role))) {
         await client.query(`create role ${quoteIdentifier(role)} nologin`);
         await client.query(`grant ${quoteIdentifier(role)} to current_user`);
+        // JIT compiles the plans of policies for longer than they take to run, see p9s postgres doctor
+        if (complete.engine.users.includes(role as User)) await client.query(`alter role ${quoteIdentifier(role)} set jit = off`);
         createdRoles.push(role);
       }
     }

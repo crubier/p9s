@@ -1,0 +1,14 @@
+{
+  "name": "@p9s/adoption",
+  "private": true,
+  "type": "module",
+  "description": "Runs an example app before p9s, adopts p9s with one command, and checks the app after p9s answers the same",
+  "dependencies": {
+    "@p9s/postgres": "workspace:*",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1"
+  }
+}

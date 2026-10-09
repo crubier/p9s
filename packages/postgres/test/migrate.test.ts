@@ -62,6 +62,10 @@ describe('migrate', () => {
           [[newUser, newWriter]]);
         expect(rows.map(row => [row.rolcanlogin, row.member])).toEqual([[false, true], [false, true]]);
         await client.query(`begin; set local role ${newUser}; rollback;`);
+        // Users get jit = off, which the doctor asks for
+        const settings = await client.query<{ setting: string }>(
+          `select unnest(setconfig) as setting from pg_db_role_setting where setrole = $1::regrole and setdatabase = 0`, [newUser]);
+        expect(settings.rows.map(row => row.setting)).toEqual(["jit=off"]);
       });
     } finally {
       await withSuperuser(async client => {

@@ -2180,6 +2180,8 @@ begin
   ${link.kind === "assignment" ? sql`if "the_check" and exists (
     select from ${allRows} as "the_row"
     where ${link.bits(sql`"the_row"`)} is not null
+    -- Rows of a resource that is gone, like those a cascade deletes with it, give nothing
+    and exists (select from ${link.first.table} as "the_end" where "the_end".${link.first.key} = "the_row".${link.first.column})
     and (${link.bits(sql`"the_row"`)} & ~ coalesce(${naming.permissionFunction}(${linkIdOf(link.first, sql`"the_row"`)}), ${zeros})) <> ${zeros}
   ) then
     raise exception 'p9s: the rows of % can only give bits the current user has on the resource', ${textLiteral(link.name)}

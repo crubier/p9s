@@ -27,7 +27,7 @@ for (const tarball of tarballs) {
 const project = await mkdtemp(path.join(os.tmpdir(), "p9s-pack-"));
 try {
   await Bun.write(path.join(project, "package.json"), JSON.stringify({ name: "p9s-pack-check", private: true, type: "module" }));
-  await $`npm install --no-audit --no-fund --loglevel=error ${tarballs} typescript@5 @types/node`.cwd(project).quiet();
+  await $`npm install --no-audit --no-fund --loglevel=error ${tarballs} kysely typescript@5 @types/node`.cwd(project).quiet();
 
   const config = {
     engine: { users: ["app_user"], authentication: { getCurrentUserId: "current_role_id", setting: "app.role_id" } },
@@ -42,6 +42,7 @@ import { readFileSync } from "node:fs";
 import { createIdentity, createMigrationSql, expectedMigrationRecord, migrationStatus } from "@p9s/postgres";
 import { validateConfig } from "@p9s/core";
 import { withUser } from "@p9s/drizzle";
+import { withUser as withKyselyUser } from "@p9s/kysely";
 import { userClient, withUser as withPrismaUser } from "@p9s/prisma";
 const config = JSON.parse(readFileSync("p9s.config.json", "utf8"));
 if (!validateConfig(config).success) throw new Error("config rejected");
@@ -51,6 +52,7 @@ if (!sql.includes("current_setting('app.role_id', true)")) throw new Error("no c
 const { text } = createIdentity(config).statement("r1");
 if (!text.startsWith("select set_config(") || typeof withUser !== "function") throw new Error("no identity helpers");
 if (typeof userClient !== "function" || typeof withPrismaUser !== "function") throw new Error("no Prisma helpers");
+if (typeof withKyselyUser !== "function") throw new Error("no Kysely helpers");
 if (typeof migrationStatus !== "function" || !sql.includes(expectedMigrationRecord(config).hash)) throw new Error("no migration record");
 console.log("node: migration of " + sql.length + " characters");
 `);
@@ -65,6 +67,7 @@ import { createMigrationSql } from "@p9s/postgres";
 import { getCompleteConfig, type Config } from "@p9s/core";
 import { generateConfigurationFromDrizzleSchema } from "@p9s/drizzle";
 import { userClient } from "@p9s/prisma";
+import { withUser as withKyselyUser } from "@p9s/kysely";
 const config: Config<"app_user"> = { engine: { users: ["app_user"] }, tables: [] };
 const sql: string = createMigrationSql(config);
 // Each of these fails to compile only if the types resolved
@@ -76,6 +79,8 @@ getCompleteConfig(config).engine.nope;
 generateConfigurationFromDrizzleSchema();
 // @ts-expect-error
 userClient({});
+// @ts-expect-error
+withKyselyUser();
 `);
   await $`npx tsc -p .`.cwd(project);
   console.log("typescript: types resolve with nodenext");

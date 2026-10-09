@@ -50,8 +50,19 @@ export interface IdentityOptions {
   setting?: string;
 }
 
-export const createIdentity = <User extends string>(config: Config<User>, options: IdentityOptions = {}): Identity => {
-  const { engine } = getCompleteConfig(config);
+// Only the engine of the config counts, so that a config read from JSON fits too, whose tables and links TypeScript
+// types too loosely for Config
+export interface IdentityConfig {
+  engine?: {
+    users?: readonly string[];
+    graphWriters?: readonly string[];
+    authentication?: { getCurrentUserId?: string; setting?: string };
+  };
+  [key: string]: unknown;
+}
+
+export const createIdentity = (config: IdentityConfig, options: IdentityOptions = {}): Identity => {
+  const { engine } = getCompleteConfig({ engine: config.engine } as Config<string>);
   const setting = options.setting ?? engine.authentication.setting;
   if (!setting) {
     throw new Error("p9s: set engine.authentication.setting, like \"app.user_id\", for the migration to read the current user from it, or pass the setting the current user function reads");

@@ -56,6 +56,36 @@ jobs:
           name: benchmark-results
           path: bench-results
 
+  # Each example app runs before p9s, adopts it with one command, and runs after p9s, see examples/adoption
+  adoption:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [kysely]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - name: Adoption of ${{ matrix.example }}
+        run: bun test examples/${{ matrix.example }}
+        env:
+          P9S_ADOPTION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
   # Runs the base and this revision in turns on the same server and fails when a median got significantly slower, see
   # the Benchmarks page. In parallel with the tests, which take about as long.
   benchmark-ab:

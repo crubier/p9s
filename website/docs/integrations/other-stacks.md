@@ -109,16 +109,19 @@ $documents = DB::transaction(function () use ($userId) {
 });
 ```
 
-## Kysely and other TypeScript clients
+## Kysely
 
-`createIdentity(config)` gives the role and the setting of the config, and `statement(userId)` the whole first statement as `{ text, values }`, with `$1` parameters, for clients that take those:
+`withUser` of `@p9s/kysely` runs a Kysely transaction as the user. [`examples/kysely`](https://github.com/crubier/p9s/tree/main/examples/kysely) adopts p9s in an existing Hono and Kysely app with it:
 
 ```ts
-import { sql } from "kysely";
+import { createIdentity } from "@p9s/postgres";
+import { withUser } from "@p9s/kysely";
 
 const users = createIdentity(p9sConfig);
-const documents = await db.transaction().execute(async trx => {
-  await sql`select set_config('role', ${users.role}, true), set_config(${users.setting}, ${String(userId)}, true)`.execute(trx);
-  return trx.selectFrom("document").select(["id", "title"]).orderBy("updated_at", "desc").limit(50).execute();
-});
+const documents = await withUser(db, users, userId, trx =>
+  trx.selectFrom("document").select(["id", "title"]).orderBy("updated_at", "desc").limit(50).execute(), { readOnly: true });
 ```
+
+## Other TypeScript clients
+
+`createIdentity(config)` gives the role and the setting of the config, and `statement(userId)` the whole first statement as `{ text, values }`, with `$1` parameters, for clients that take those. With node-postgres, `run(pool, userId, fn)` does it all, see [acting as a user](../configuration/identity#node-postgres-neon-and-pglite).

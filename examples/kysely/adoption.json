@@ -1,0 +1,5 @@
+{
+  "setup": ["bun x tsc -p ."],
+  "migrate": "bun src/migrate.ts",
+  "start": "bun src/server.ts"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@p9s/example-kysely",
+  "private": true,
+  "type": "module",
+  "description": "A Hono and Kysely app that checks permissions in its code, and the change that hands them to p9s",
+  "dependencies": {
+    "@p9s/kysely": "workspace:*",
+    "@p9s/postgres": "workspace:*",
+    "hono": "^4.13.13",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@p9s/adoption": "workspace:*",
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
+  }
+}

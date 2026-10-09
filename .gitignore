@@ -149,3 +149,6 @@ benchmarks/postgres/results
 
 # Tarballs of bun run pack:check
 packed
+
+# Copies and logs of the adoption tests of the examples
+examples/*/.adoption
