@@ -12,6 +12,7 @@
     "build": "bun run --cwd packages/core build && bun run --cwd packages/postgres build && bun run --cwd packages/drizzle build && bun run --cwd packages/kysely build && bun run --cwd packages/prisma build && bun run --cwd packages/cli build",
     "pack:check": "bun scripts/pack.ts",
     "test": "bun test packages benchmarks examples",
+    "test:each": "bun scripts/test-each.ts",
     "typecheck": "bun run --cwd packages/prisma generate && tsc --noEmit -p tsconfig.json",
     "bench": "bun benchmarks/postgres/run.ts",
     "bench:compare": "bun benchmarks/postgres/compare.ts",

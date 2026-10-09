@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18.1
+    image: public.ecr.aws/docker/library/postgres:18.1
     restart: always
     # Sized for a laptop with >= 8 GB of RAM. The whole dataset fits in shared_buffers, so the benchmark measures
     # CPU work in triggers and policies rather than disk. JIT is off because it only adds compile time to the
