@@ -7,8 +7,10 @@ import { validate } from "./commands/validate.js";
 import { drizzle } from "./commands/drizzle.js";
 import { init } from "./commands/init.js";
 
-process.on("SIGINT", () => process.exit(0));
-process.on("SIGTERM", () => process.exit(0));
+// The overloads of process.on depend on which @types/node bun-types resolves to, those of EventEmitter do not
+const signals: NodeJS.EventEmitter = process;
+signals.on("SIGINT", () => process.exit(0));
+signals.on("SIGTERM", () => process.exit(0));
 
 async function main() {
   const program = new Command()
