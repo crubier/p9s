@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -7,6 +7,20 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import { CodeWindow, type CodeTab } from '@site/src/components/landing/CodeWindow';
 import { PermissionGraph } from '@site/src/components/landing/PermissionGraph';
+import { Logo } from '@site/src/components/landing/Logo';
+import { stacks } from '@site/src/components/landing/stacks';
+import {
+  siElixir,
+  siGo,
+  siNeon,
+  siPhp,
+  siPostgresql,
+  siPython,
+  siRuby,
+  siRust,
+  siSupabase,
+  siTypescript,
+} from 'simple-icons';
 import {
   ArrowIcon,
   BitsIcon,
@@ -16,6 +30,8 @@ import {
   GitHubIcon,
   GraphQLIcon,
   LayersIcon,
+  LinkIcon,
+  MigrationIcon,
   ShareIcon,
   ShieldIcon,
   TreeIcon,
@@ -24,32 +40,60 @@ import styles from '@site/src/components/landing/landing.module.css';
 
 const heroTabs: CodeTab[] = [
   {
-    label: 'p9s.ts',
-    language: 'typescript',
+    label: 'p9s.config.json',
+    language: 'json',
     code: `
-import { createMigration } from "@p9s/postgres";
-
-export const migration = createMigration({
-  engine: {
-    users: ["app_user"],
-    authentication: { getCurrentUserId: "current_role_id" },
-    permission: {
-      bitmap: { size: 8, names: { read: 0, edit: 2, share: 5 } },
-    },
+{
+  "$schema": "https://p9s.vercel.app/p9s.config.schema.json",
+  "engine": {
+    "users": ["app_user"],
+    "authentication": { "setting": "app.user_id", "key": { "table": "member", "column": "id" } },
+    "grantPrivileges": true,
+    "permission": { "bitmap": { "size": 8, "names": { "read": 0, "edit": 2, "share": 5 } } }
   },
-  tables: [
-    { name: "team", isRole: true, roleId: "role_id" },
-    { name: "member", isRole: true, roleId: "role_id",
-      roleParent: { column: "team_id", table: "team", key: "id" } },
-    { name: "folder", isResource: true, resourceId: "resource_id",
-      resourceParent: { column: "parent_id", table: "folder", key: "id" },
-      permission: { app_user: { select: 0, update: 2, share: 5 } } },
-    { name: "document", isResource: true, resourceId: "resource_id",
-      resourceParent: { column: "folder_id", table: "folder", key: "id" },
-      permission: { app_user: { select: 0, update: 2, share: 5 } } },
+  "tables": [
+    { "name": "team", "isRole": true, "roleId": "role_id" },
+    { "name": "member", "isRole": true, "roleId": "role_id" },
+    { "name": "folder", "isResource": true, "resourceId": "resource_id",
+      "resourceParent": { "column": "parent_id", "table": "folder", "key": "id" },
+      "permission": { "app_user": { "select": 0, "update": 2, "share": 5 } } },
+    { "name": "document", "isResource": true, "resourceId": "resource_id",
+      "resourceParent": { "column": "folder_id", "table": "folder", "key": "id" },
+      "permission": { "app_user": { "select": 0, "update": 2, "share": 5 } } }
   ],
-});`,
-    caption: 'Describe your tables, or derive them from a Drizzle schema',
+  "links": [
+    { "name": "team_member", "kind": "role",
+      "parent": { "column": "team_id", "table": "team", "key": "id" },
+      "child": { "column": "member_id", "table": "member", "key": "id" } },
+    { "name": "folder_share", "kind": "assignment",
+      "resource": { "column": "folder_id", "table": "folder", "key": "id" },
+      "role": { "column": "team_id", "table": "team", "key": "id" },
+      "permission": { "column": "access",
+        "values": { "viewer": ["read"], "editor": ["read", "edit", "share"] } } }
+  ]
+}`,
+    caption: 'Your tables, and the memberships and shares you already keep, with completion in any editor',
+  },
+  {
+    label: 'terminal',
+    language: 'bash',
+    code: `
+$ npx @p9s/cli postgres migrate
+Migrated: p9s 0.1.0, migration f23b1ec9a7e2d56e
+
+# Once more: nothing to do
+$ npx @p9s/cli postgres migrate
+Up to date: p9s 0.1.0, migration f23b1ec9a7e2d56e
+
+# Or as a migration of Alembic, Django, Rails, goose, sqlx, Ecto or Laravel
+$ npx @p9s/cli postgres generate --format rails
+Migration written to: db/migrate/20261010002809_p9s_f23b1ec9.rb
+
+# No Node? The same CLI, as a single binary
+$ curl -fsSL -o p9s https://github.com/crubier/p9s/releases/latest/download/p9s-linux-x64
+$ chmod +x p9s && ./p9s postgres status
+Up to date: p9s 0.1.0, migration f23b1ec9a7e2d56e`,
+    caption: 'One command, one transaction: your existing shares come along',
   },
   {
     label: 'p9s.sql',
@@ -78,7 +122,7 @@ for each statement execute function "resource_edge_insert_trigger_function"();`,
     code: `
 -- Bob's request: who he is, for this transaction
 select set_config('role', 'app_user', true),
-       set_config('app.role_id', :bob, true);
+       set_config('app.user_id', :bob, true);
 
 -- Plain SQL. RLS returns what Bob can read, nothing else
 select title from document order by updated_at desc limit 50;
@@ -90,7 +134,7 @@ select (permission_flags(resource_permission(resource_id))).*
 from document where id = :hiring_plan;
 --  bitmap   | read | edit | share
 --  10001000 | t    | f    | f`,
-    caption: 'No SDK in the request path: Postgres checks every row',
+    caption: 'The packages of every stack run this for you: Postgres checks every row',
   },
   {
     label: 'GraphQL',
@@ -116,19 +160,20 @@ const anywhereTabs: CodeTab[] = [
     label: 'Drizzle',
     language: 'typescript',
     code: `
-// Every query of the transaction runs as the member, through RLS
-export const asMember = <T>(roleId: string, fn: (tx: Tx) => Promise<T>) =>
-  db.transaction(async (tx) => {
-    await tx.execute(sql\`select set_config('role', 'app_user', true),
-      set_config('app.role_id', \${roleId}, true)\`);
-    return fn(tx);
-  });
+import { createIdentity } from "@p9s/postgres";
+import { withUser } from "@p9s/drizzle";
+import config from "./p9s.config.json";
 
-// A server action: no permission check in sight, and none forgotten
+const users = createIdentity(config);
+
+// A server action: no permission check in sight, and none forgotten.
+// Every query of the transaction runs as the member, through RLS
 export async function renameDocument(id: string, title: string) {
   const member = await currentMember();
-  return asMember(member.roleId, (tx) =>
+  const [renamed] = await withUser(db, users, member.id, (tx) =>
     tx.update(document).set({ title }).where(eq(document.id, id)).returning());
+  if (!renamed) throw new Forbidden(); // readable, not editable: no row
+  return renamed;
 }`,
   },
   {
@@ -247,14 +292,36 @@ const features: Feature[] = [
   },
   {
     icon: <CodeIcon />,
-    title: 'One migration, from TypeScript',
+    title: 'One command, no Node needed',
     body: (
       <>
-        A typed, validated config, or one derived from your Drizzle schema. p9s writes plain SQL: no extension, no
-        service, no vendor.
+        <code>p9s postgres migrate</code> runs in one transaction and again does nothing. The CLI also ships as a
+        single binary for Linux, macOS and Windows. Plain SQL: no extension, no service.
       </>
     ),
-    to: '/docs/getting-started/installation',
+    to: '/docs/packages/cli',
+  },
+  {
+    icon: <LinkIcon />,
+    title: 'Keeps the shares you have',
+    body: (
+      <>
+        Name your tables of memberships and shares, and the migration brings their rows into the graph. Your app keeps
+        writing them, and p9s checks a share gives no more than its author has.
+      </>
+    ),
+    to: '/docs/integrations/adopting#the-config',
+  },
+  {
+    icon: <MigrationIcon />,
+    title: 'Runs with your migrations',
+    body: (
+      <>
+        <code>--format</code> writes the migration for Alembic, Django, Rails, goose, sqlx, Ecto or Laravel, so p9s
+        runs with the others, in their order.
+      </>
+    ),
+    to: '/docs/packages/cli#in-the-format-of-a-migration-tool',
   },
   {
     icon: <GraphQLIcon />,
@@ -266,6 +333,17 @@ const features: Feature[] = [
       </>
     ),
     to: '/docs/configuration/postgraphile',
+  },
+  {
+    icon: <Logo icon={siSupabase} size={22} />,
+    title: 'Supabase preset',
+    body: (
+      <>
+        <code>authenticated</code>, <code>auth.uid()</code> and <code>service_role</code> out of the box, so
+        supabase-js and PostgREST read and write through the policies of the graph.
+      </>
+    ),
+    to: '/docs/integrations/supabase',
   },
 ];
 
@@ -301,7 +379,7 @@ const comparisons: { title: string; rows: Comparison[] }[] = [
 const heroStats = [
   { value: '1.2 ms', label: 'for a page of 50 rows, through RLS' },
   { value: '39×', label: 'faster counts than a recursive policy' },
-  { value: '0', label: 'services to run beside Postgres' },
+  { value: '12', label: 'stacks, each adopted and tested end to end' },
 ];
 
 const cacheFacts = [
@@ -357,14 +435,14 @@ function Hero() {
       <div className={styles.heroGlow} aria-hidden />
       <div className={clsx('container', styles.heroInner)}>
         <div className={styles.heroText}>
-          <span className={styles.eyebrow}>Open source · PostgreSQL 14+ · TypeScript</span>
+          <span className={styles.eyebrow}>Open source · PostgreSQL 14+ · Any stack</span>
           <h1 className={styles.heroTitle}>
             Permissions that live <span className={styles.gradient}>in your database</span>
           </h1>
           <p className={styles.heroLead}>
             p9s turns the rows you already have into a permission graph: folders in spaces, members in teams, documents
             shared with anyone. Postgres enforces it with Row Level Security on every query, and smart recursive caching
-            makes each policy an index lookup.
+            makes each policy an index lookup. One command adopts it in the app you have, whatever it is written in.
           </p>
           <div className={styles.actions}>
             <Link className={clsx(styles.button, styles.buttonPrimary)} to="/docs/intro">
@@ -389,16 +467,134 @@ function Hero() {
   );
 }
 
+const worksWith = [
+  { icon: siPostgresql, name: 'PostgreSQL 14+' },
+  { icon: siTypescript, name: 'TypeScript' },
+  { icon: siPython, name: 'Python' },
+  { icon: siRuby, name: 'Ruby' },
+  { icon: siGo, name: 'Go' },
+  { icon: siRust, name: 'Rust' },
+  { icon: siElixir, name: 'Elixir' },
+  { icon: siPhp, name: 'PHP' },
+  { icon: siSupabase, name: 'Supabase' },
+  { icon: siNeon, name: 'Neon' },
+];
+
 function WorksWith() {
   return (
     <section className={styles.strip}>
       <div className={clsx('container', styles.stripInner)}>
         <span className={styles.stripLabel}>Works with</span>
-        {['PostgreSQL 14+', 'Drizzle ORM', 'PostGraphile 5', 'Next.js', 'PGlite', 'Neon'].map((name) => (
+        {worksWith.map(({ icon, name }) => (
           <span key={name} className={styles.stripItem}>
+            <Logo icon={icon} size={20} />
             {name}
           </span>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function Adopt() {
+  const [selected, setSelected] = useState(0);
+  const stack = stacks[selected]!;
+  const steps = [
+    {
+      title: 'Describe your tables',
+      body: (
+        <>
+          <code>p9s.config.json</code> names your roles and resources, and the tables where you already keep
+          memberships and shares. Its JSON Schema gives completion and checks in any editor.
+        </>
+      ),
+    },
+    {
+      title: 'Run one command',
+      body: (
+        <>
+          <code>npx @p9s/cli postgres migrate</code>, or the standalone binary: one transaction, and your users keep
+          the access they had. Or generate it as a migration of Alembic, Django, Rails, goose, sqlx, Ecto or Laravel.
+        </>
+      ),
+    },
+    {
+      title: 'Run each request as its user',
+      body: <>One line in your framework: a middleware, a controller concern, an extractor or a transaction helper.</>,
+    },
+    {
+      title: 'Delete your permission code',
+      body: (
+        <>
+          The queries stay the same. Postgres filters every read, refuses every write the user may not make, and your
+          app answers 403.
+        </>
+      ),
+    },
+  ];
+  return (
+    <section className={styles.section}>
+      <div className="container">
+        <div className={styles.sectionHead}>
+          <span className={styles.kicker}>Adopt it in the app you have</span>
+          <h2 className={styles.sectionTitle}>Your stack, your migrations, one command</h2>
+          <p className={styles.sectionLead}>
+            Keep your schema, your ORM and your migration tool. Each stack has a small package, a guide, and an example
+            app tested in CI: the code before p9s, the one command, and the patch that deletes its permission code, with
+            every user getting the same answers before and after.
+          </p>
+        </div>
+        <div className={styles.stackPicker} role="tablist" aria-label="Stacks">
+          {stacks.map((item, index) => (
+            <button
+              key={item.name}
+              type="button"
+              role="tab"
+              aria-selected={index === selected}
+              className={clsx(styles.stackButton, index === selected && styles.stackButtonActive)}
+              onClick={() => setSelected(index)}>
+              <Logo icon={item.icon} brand size={26} />
+              <span className={styles.stackName}>{item.name}</span>
+              <span className={styles.stackLanguage}>{item.language}</span>
+            </button>
+          ))}
+        </div>
+        <div className={styles.split}>
+          <ol className={styles.steps}>
+            {steps.map((step, index) => (
+              <li key={step.title} className={styles.step}>
+                <span className={styles.stepNumber}>{index + 1}</span>
+                <div>
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <CodeWindow
+            key={stack.name}
+            className={styles.stackWindow}
+            tabs={[
+              {
+                label: stack.file,
+                language: stack.prism,
+                code: stack.code,
+                caption: (
+                  <span className={styles.stackCaption}>
+                    <code>{stack.install}</code>
+                    <Link to={stack.to}>
+                      The {stack.name} guide <ArrowIcon />
+                    </Link>
+                  </span>
+                ),
+              },
+            ]}
+          />
+        </div>
+        <p className={styles.barNote}>
+          Another stack? Any client runs one statement at the start of each transaction,{' '}
+          <Link to="/docs/integrations/other-stacks">see how</Link>.
+        </p>
       </div>
     </section>
   );
@@ -520,7 +716,7 @@ function Anywhere() {
       <div className="container">
         <div className={styles.split}>
           <div>
-            <span className={styles.kicker}>From any client</span>
+            <span className={styles.kicker}>In your code</span>
             <h2 className={styles.sectionTitle}>Write your app as if everyone could see everything</h2>
             <p className={styles.sectionLead}>
               Set who the request is for, then query as usual. A row the member cannot read does not exist for them, an
@@ -561,7 +757,7 @@ function Demos() {
     },
   ];
   return (
-    <section id="demos" className={styles.section}>
+    <section id="demos" className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <div className={styles.sectionHead}>
           <span className={styles.kicker}>Live demos</span>
@@ -606,8 +802,8 @@ function CallToAction() {
       <div className={clsx('container', styles.ctaInner)}>
         <h2>Put your permissions where your data is</h2>
         <p>
-          Open source, and fast from the first query. Generate a migration for your schema, and let Postgres say no in a
-          millisecond.
+          Open source, and fast from the first query. Describe your tables, run one command, and let Postgres say no in a
+          millisecond, in whatever stack you write.
         </p>
         <div className={styles.actions}>
           <Link className={clsx(styles.button, styles.buttonPrimary)} to="/docs/intro">
@@ -626,14 +822,15 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Hierarchical permissions for Postgres"
-      description="Open source hierarchical permissions for Postgres: p9s turns your tables into a permission graph, and Row Level Security enforces it on every query, in about a millisecond thanks to smart recursive caching.">
+      description="Open source hierarchical permissions for Postgres: p9s turns your tables into a permission graph, and Row Level Security enforces it on every query, in about a millisecond thanks to smart recursive caching. One command adopts it in TypeScript, Python, Ruby, Go, Rust, Elixir or PHP apps.">
       <Hero />
       <main>
         <WorksWith />
         <HowItWorks />
         <Numbers />
-        <Features />
+        <Adopt />
         <Anywhere />
+        <Features />
         <Demos />
         <CallToAction />
       </main>

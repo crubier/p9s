@@ -67,6 +67,21 @@ export const CodeIcon = () => (
   </Icon>
 );
 
+export const LinkIcon = () => (
+  <Icon>
+    <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" />
+    <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" />
+  </Icon>
+);
+
+export const MigrationIcon = () => (
+  <Icon>
+    <rect x="3" y="3.5" width="18" height="5" rx="1.5" />
+    <rect x="3" y="15.5" width="18" height="5" rx="1.5" />
+    <path d="M12 8.5v7M9 12.5l3 3 3-3" />
+  </Icon>
+);
+
 export const GraphQLIcon = () => (
   <Icon>
     <path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5L12 2.5z" />

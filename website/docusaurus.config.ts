@@ -58,7 +58,7 @@ const config: Config = {
   themeConfig: {
     image: 'img/social-card.png',
     metadata: [
-      { name: 'keywords', content: 'postgres, postgresql, row level security, rls, permissions, authorization, access control, rbac, rebac, drizzle, postgraphile' },
+      { name: 'keywords', content: 'postgres, postgresql, row level security, rls, permissions, authorization, access control, rbac, rebac, drizzle, prisma, kysely, supabase, postgraphile, sqlalchemy, fastapi, django, rails, gorm, sqlx, axum, phoenix, ecto, laravel' },
     ],
     colorMode: {
       defaultMode: 'dark',
@@ -72,6 +72,7 @@ const config: Config = {
       },
       items: [
         { type: 'docSidebar', sidebarId: 'tutorialSidebar', position: 'left', label: 'Docs' },
+        { to: '/docs/integrations/adopting', label: 'Integrations', position: 'left' },
         { to: '/docs/configuration/security-model', label: 'Security model', position: 'left' },
         { to: '/docs/benchmarks', label: 'Benchmarks', position: 'left' },
         { to: '/#demos', label: 'Live demos', position: 'left', activeBaseRegex: '^$' },
@@ -93,10 +94,22 @@ const config: Config = {
         {
           title: 'Guides',
           items: [
+            { label: 'Adopting p9s', to: '/docs/integrations/adopting' },
+            { label: 'CLI and binaries', to: '/docs/packages/cli' },
             { label: 'Querying through RLS', to: '/docs/configuration/querying' },
             { label: 'PostGraphile', to: '/docs/configuration/postgraphile' },
             { label: 'Upgrading', to: '/docs/configuration/upgrading' },
             { label: 'Benchmarks', to: '/docs/benchmarks' },
+          ],
+        },
+        {
+          title: 'Integrations',
+          items: [
+            { label: 'Drizzle, Prisma, Kysely', to: '/docs/integrations/drizzle' },
+            { label: 'Supabase', to: '/docs/integrations/supabase' },
+            { label: 'SQLAlchemy and Django', to: '/docs/integrations/sqlalchemy' },
+            { label: 'Rails', to: '/docs/integrations/rails' },
+            { label: 'Go, Rust, Elixir, Laravel', to: '/docs/integrations/go' },
           ],
         },
         {
@@ -120,7 +133,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.oneDark,
-      additionalLanguages: ['bash'],
+      additionalLanguages: ['bash', 'ruby', 'elixir', 'php'],
     },
   } satisfies Preset.ThemeConfig,
 };

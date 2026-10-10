@@ -313,10 +313,118 @@
 }
 
 .stripItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 700;
   font-size: 1.02rem;
   letter-spacing: -0.01em;
   opacity: 0.78;
+  transition: opacity 0.15s ease;
+}
+
+.stripItem:hover {
+  opacity: 1;
+}
+
+/* Logos of simple-icons: the color of the text, or of the brand */
+
+.logo {
+  flex: none;
+  fill: currentColor;
+  transition: fill 0.15s ease;
+}
+
+[data-theme='dark'] .logoBrand,
+[data-theme='dark'] .stripItem:hover .logo {
+  fill: var(--brand-dark, currentColor);
+}
+
+[data-theme='light'] .logoBrand,
+[data-theme='light'] .stripItem:hover .logo {
+  fill: var(--brand-light, currentColor);
+}
+
+/* Adopt: the stacks, and the request wrapper of the one chosen */
+
+.stackPicker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 3rem;
+}
+
+.stackButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1rem 0.5rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--l-border);
+  background: var(--l-card);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.stackButton:hover {
+  border-color: color-mix(in srgb, var(--l-accent) 45%, transparent);
+  transform: translateY(-2px);
+}
+
+.stackButton .logo {
+  margin-bottom: 0.25rem;
+}
+
+.stackButtonActive,
+.stackButtonActive:hover {
+  border-color: var(--l-accent);
+  box-shadow: 0 14px 34px -22px color-mix(in srgb, var(--l-accent) 80%, transparent);
+}
+
+.stackName {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.stackLanguage {
+  color: var(--l-muted);
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.stackWindow .code {
+  min-height: 23rem;
+}
+
+.stackCaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.stackCaption code {
+  padding: 0.15rem 0.45rem;
+  border: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: #c7d1e3;
+  font-size: 0.78rem;
+}
+
+.stackCaption a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #8ec1f5;
+  font-weight: 600;
 }
 
 /* How it works */
@@ -812,6 +920,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .stackPicker {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .demos,
   .cacheFacts {
     grid-template-columns: minmax(0, 1fr);
@@ -825,6 +937,15 @@
 @media (max-width: 600px) {
   .features {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stackPicker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .stackLanguage {
+    display: none;
   }
 
   .code {

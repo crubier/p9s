@@ -4,14 +4,21 @@ sidebar_position: 1
 
 # Installation
 
-p9s needs **PostgreSQL** 14 or later, and Node or Bun to generate its migration. The migration is plain SQL: the application that queries the database can be written in any language.
+p9s needs **PostgreSQL** 14 or later. Its CLI runs with Node or Bun, or as a [standalone binary](../packages/cli) for Linux, macOS and Windows that needs neither. The migration is plain SQL: the application that queries the database can be written in any language, and each stack has a small package that runs the queries of a request as its user:
 
 ```bash
-npm install @p9s/core @p9s/postgres
-npm install --save-dev @p9s/cli
-# With Drizzle or Prisma, the helpers that run queries as a user
-npm install @p9s/drizzle   # or @p9s/prisma
+npm install --save-dev @p9s/cli           # the CLI, or its standalone binary
+
+npm install @p9s/drizzle @p9s/postgres    # or @p9s/prisma, @p9s/kysely
+pip install "p9s[sqlalchemy]"             # or "p9s[django]"
+bundle add p9s                            # Rails
+go get github.com/crubier/p9s/packages/go
+cargo add p9s --features axum
+composer require p9s/laravel
+# Elixir, in mix.exs: {:p9s, "~> 0.1"}
 ```
+
+To adopt p9s in an app that already checks permissions in its code, follow [adopting p9s](../integrations/adopting) and the page of your stack.
 
 ## From an existing database
 
@@ -37,10 +44,11 @@ npm install @p9s/drizzle   # or @p9s/prisma
    npx p9s postgres migrate
    ```
 
-   Or generate it, and run it with your other migrations:
+   Or generate it, and run it with your other migrations, as plain SQL or as a migration of Alembic, Django, Rails, goose, sqlx, Ecto or Laravel, see [the CLI](../packages/cli#in-the-format-of-a-migration-tool):
 
    ```bash
    npx p9s postgres generate --output migrations/p9s.sql
+   npx p9s postgres generate --format rails
    ```
 
 4. **Check the database**:
@@ -50,7 +58,7 @@ npm install @p9s/drizzle   # or @p9s/prisma
    npx p9s postgres doctor
    ```
 
-5. **Run the queries of each user as that user**, see [acting as a user](../configuration/identity):
+5. **Run the queries of each user as that user**, see [acting as a user](../configuration/identity), or the page of your stack in [integrations](../integrations/adopting):
 
    ```ts
    import { createIdentity } from "@p9s/postgres";
@@ -91,7 +99,11 @@ bun run bench
 - `packages/postgres` - Generates the SQL migration: graph tables, caches, triggers and RLS policies, and the identity, status, init and doctor helpers
 - `packages/drizzle` - Builds a p9s configuration from a Drizzle schema, and runs Drizzle transactions as a user
 - `packages/prisma` - Runs Prisma queries as a user
-- `packages/cli` - The `p9s` command line
+- `packages/kysely` - Runs Kysely transactions as a user
+- `packages/python`, `packages/ruby`, `packages/go`, `packages/rust`, `packages/elixir`, `packages/php` - Act as a user from SQLAlchemy and Django, Rails, `database/sql`, pgx and GORM, sqlx and axum, Ecto and Phoenix, and Laravel
+- `packages/conformance` - The cases every one of those packages passes
+- `packages/cli` - The `p9s` command line, also built as standalone binaries by `scripts/binaries.ts`
+- `examples/adoption` - The end to end test of adopting p9s, which each of `examples/{drizzle,prisma,kysely,supabase,postgraphile-rls,fastapi,django,rails,gorm,axum,phoenix,laravel}` runs on its `before/` codebase
 - `packages/core-testing`, `packages/postgres-testing` - Test helpers, PGlite and Postgres test databases
 - `benchmarks/postgres` - Performance benchmarks
 - `examples/nextjs-drizzle` - A team workspace built with Next.js, Drizzle and Better Auth: organizations, teams, nested folders, documents, comments, sharing and API keys, with its p9s configuration in `src/p9s.ts`
