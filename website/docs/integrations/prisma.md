@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Prisma
 
-[`@p9s/prisma`](https://github.com/crubier/p9s/tree/main/packages/prisma) runs Prisma queries as a user, in an interactive transaction with `withUser`, or each in a transaction of its own with `userClient`. [`examples/prisma`](https://github.com/crubier/p9s/tree/main/examples/prisma) adopts p9s in a Hono and Prisma app with it.
+[`@p9s/prisma`](https://github.com/crubier/p9s/tree/main/packages/prisma) runs Prisma queries as a user, in an interactive transaction with `withUser`, or each in a transaction of its own with `userClient`. [`examples/integrations/prisma`](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) adopts p9s in a Hono and Prisma app with it.
 
 ## p9s adopt
 
@@ -70,4 +70,4 @@ The Prisma schema does not change: p9s adds tables in its own schema, and polici
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/prisma/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/prisma/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/prisma/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/prisma/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/prisma/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.

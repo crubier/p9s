@@ -98,7 +98,7 @@ With `--format`, the migration is a migration of the tool of the stack, which ru
 | `ecto` | `priv/repo/migrations` | `mix ecto.migrate`, in the module of `--module`, `<App>.Repo.Migrations` of `mix.exs` by default |
 | `laravel` | `database/migrations` | `php artisan migrate` |
 
-The examples of [Alembic](https://github.com/crubier/p9s/tree/main/examples/fastapi), [Django](https://github.com/crubier/p9s/tree/main/examples/django), [Rails](https://github.com/crubier/p9s/tree/main/examples/rails), [goose](https://github.com/crubier/p9s/tree/main/examples/gorm), [sqlx](https://github.com/crubier/p9s/tree/main/examples/axum), [Ecto](https://github.com/crubier/p9s/tree/main/examples/phoenix) and [Laravel](https://github.com/crubier/p9s/tree/main/examples/laravel) test it: the migrate command of the app makes a database where each user reads and writes as the rules say.
+The examples of [Alembic](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi), [Django](https://github.com/crubier/p9s/tree/main/examples/integrations/django), [Rails](https://github.com/crubier/p9s/tree/main/examples/integrations/rails), [goose](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm), [sqlx](https://github.com/crubier/p9s/tree/main/examples/integrations/axum), [Ecto](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) and [Laravel](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) test it: the migrate command of the app makes a database where each user reads and writes as the rules say.
 
 ## postgres migrate
 
@@ -148,4 +148,4 @@ Checks the config against the schema of `@p9s/core`, and prints its errors. With
 npx p9s drizzle configure --schema src/schema.ts
 ```
 
-Derives the config from a Drizzle schema, see `@p9s/drizzle` and [the Next.js example](https://github.com/crubier/p9s/tree/main/examples/nextjs-drizzle).
+Derives the config from a Drizzle schema, see `@p9s/drizzle` and [the Next.js example](https://github.com/crubier/p9s/tree/main/examples/apps/nextjs-drizzle).

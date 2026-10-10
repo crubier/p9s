@@ -749,7 +749,7 @@ function Demos() {
       stack: 'Next.js · Drizzle · Better Auth',
       title: 'A team workspace',
       body: 'Organizations, teams, nested folders, documents, comments, sharing, API keys, an audit log, and admins acting as members. Server actions run every query through RLS.',
-      source: 'examples/nextjs-drizzle',
+      source: 'examples/apps/nextjs-drizzle',
     },
     {
       href: siteConfig.customFields!.postgraphileDemo as string,
@@ -757,7 +757,7 @@ function Demos() {
       stack: 'PostGraphile 5 · React · GraphiQL',
       title: 'The same app, on GraphQL',
       body: 'No resolvers: the API is the schema. Every page opens its own query in GraphiQL, which runs as whoever is signed in.',
-      source: 'examples/postgraphile',
+      source: 'examples/apps/postgraphile',
     },
   ];
   return (

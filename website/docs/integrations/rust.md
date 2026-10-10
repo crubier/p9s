@@ -4,7 +4,7 @@ sidebar_position: 11
 
 # Rust
 
-The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/rust) crate begins a sqlx transaction as a user, and with its `axum` feature, extracts a transaction as the user of the request. [`examples/axum`](https://github.com/crubier/p9s/tree/main/examples/axum) adopts p9s in an axum and sqlx app with it.
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/rust) crate begins a sqlx transaction as a user, and with its `axum` feature, extracts a transaction as the user of the request. [`examples/integrations/axum`](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) adopts p9s in an axum and sqlx app with it.
 
 ## p9s adopt
 
@@ -91,4 +91,4 @@ The queries name their columns, so the `role_id` and `resource_id` columns p9s a
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/axum/before) checks every handler with `src/permissions.rs`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/axum/adopt.patch) is what `p9s adopt` writes: the crate. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/axum/after.patch) is the rest, by hand: it deletes `permissions.rs` and its checks, makes `P9s` the state of the router, and gives every handler a `UserTx`.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/axum/before) checks every handler with `src/permissions.rs`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/axum/adopt.patch) is what `p9s adopt` writes: the crate. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/axum/after.patch) is the rest, by hand: it deletes `permissions.rs` and its checks, makes `P9s` the state of the router, and gives every handler a `UserTx`.

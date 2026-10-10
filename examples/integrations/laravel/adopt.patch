@@ -1,0 +1,105 @@
+diff --git a/app/Models/Document.php b/app/Models/Document.php
+index e352e04..145d7fd 100644
+--- a/app/Models/Document.php
++++ b/app/Models/Document.php
+@@ -9,5 +9,8 @@ class Document extends Model
+ {
+     public $timestamps = false;
+ 
++    /** The columns of p9s, which the API does not show */
++    protected $hidden = ['resource_id'];
++
+     protected $fillable = ['project_id', 'title', 'body'];
+ }
+diff --git a/app/Models/Project.php b/app/Models/Project.php
+index cc2490b..d94f939 100644
+--- a/app/Models/Project.php
++++ b/app/Models/Project.php
+@@ -8,5 +8,8 @@ class Project extends Model
+ {
+     public $timestamps = false;
+ 
++    /** The columns of p9s, which the API does not show */
++    protected $hidden = ['resource_id'];
++
+     protected $fillable = ['name'];
+ }
+diff --git a/bootstrap/app.php b/bootstrap/app.php
+index c8107c1..57da35b 100644
+--- a/bootstrap/app.php
++++ b/bootstrap/app.php
+@@ -1,8 +1,11 @@
+ <?php
+ 
++use Illuminate\Database\QueryException;
+ use Illuminate\Foundation\Application;
+ use Illuminate\Foundation\Configuration\Exceptions;
+ use Illuminate\Foundation\Configuration\Middleware;
++use Illuminate\Http\Request;
++use P9s\P9s;
+ 
+ return Application::configure(basePath: dirname(__DIR__))
+     ->withRouting(
+@@ -13,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
+         $middleware->alias(['authenticate' => \App\Http\Middleware\Authenticate::class]);
+     })
+     ->withExceptions(function (Exceptions $exceptions) {
+-        //
++        // A write the policies of p9s do not let through
++        $exceptions->render(fn (QueryException $error) => P9s::isRefused($error)
++            ? response()->json(['message' => 'Forbidden'], 403)
++            : null);
++    })
++    ->booted(function () {
++        P9s::resolveUserIdUsing(fn (Request $request) => $request->attributes->get('user_id'));
+     })
+     ->create();
+diff --git a/composer.json b/composer.json
+index 0fbc5ed..2f63c32 100644
+--- a/composer.json
++++ b/composer.json
+@@ -5,7 +5,8 @@
+     "license": "MIT",
+     "require": {
+         "php": "^8.3",
+-        "laravel/framework": "^13.0"
++        "laravel/framework": "^13.0",
++        "p9s/laravel": "^0.1"
+     },
+     "autoload": {
+         "psr-4": {
+@@ -17,5 +18,16 @@
+         "sort-packages": true
+     },
+     "minimum-stability": "stable",
+-    "prefer-stable": true
++    "prefer-stable": true,
++    "repositories": [
++        {
++            "type": "path",
++            "url": "../../../../packages/php",
++            "options": {
++                "versions": {
++                    "p9s/laravel": "0.1.0"
++                }
++            }
++        }
++    ]
+ }
+diff --git a/routes/api.php b/routes/api.php
+index c037d77..b86256d 100644
+--- a/routes/api.php
++++ b/routes/api.php
+@@ -3,10 +3,11 @@
+ use App\Http\Controllers\DocumentController;
+ use App\Http\Controllers\ProjectController;
+ use Illuminate\Support\Facades\Route;
++use P9s\AsUser;
+ 
+ Route::get('/health', fn () => response('ok'));
+ 
+-Route::middleware('authenticate')->group(function () {
++Route::middleware(['authenticate', AsUser::class])->group(function () {
+     Route::get('/projects', [ProjectController::class, 'index']);
+     Route::get('/documents', [DocumentController::class, 'index']);
+     Route::post('/documents', [DocumentController::class, 'store']);

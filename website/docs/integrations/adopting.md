@@ -11,22 +11,22 @@ An app with users, teams and shares checks its permissions in its code: queries 
 3. Run the migration of p9s, one command.
 4. Delete the permission code, which is yours: read and write as the user, and answer 404 and 403 where the app checked before.
 
-Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/adoption) that does exactly that to the same small app, and a test that checks that `p9s adopt` writes the same change every time, and that every user gets the same answers before and after.
+Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/integrations/adoption) that does exactly that to the same small app, and a test that checks that `p9s adopt` writes the same change every time, and that every user gets the same answers before and after.
 
 | Stack | Package | Each request as its user | Example |
 | --- | --- | --- | --- |
-| [Drizzle](./drizzle) | `@p9s/drizzle` | `withUser(db, users, userId, tx => ...)` | [Drizzle](https://github.com/crubier/p9s/tree/main/examples/drizzle) |
-| [PostGraphile](./postgraphile) | `@p9s/postgres` | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls) |
-| [Prisma](./prisma) | `@p9s/prisma` | `withUser(prisma, users, userId, tx => ...)` | [Prisma](https://github.com/crubier/p9s/tree/main/examples/prisma) |
-| [Kysely and node-postgres](./kysely) | `@p9s/kysely`, `@p9s/postgres` | `withUser(db, users, userId, trx => ...)` | [Kysely](https://github.com/crubier/p9s/tree/main/examples/kysely) |
-| [Supabase](./supabase) | none, a preset | the JWT of the user | [Supabase](https://github.com/crubier/p9s/tree/main/examples/supabase) |
-| [SQLAlchemy and FastAPI](./sqlalchemy) | `p9s[sqlalchemy]` | `with as_user(session, users, user_id):` | [FastAPI](https://github.com/crubier/p9s/tree/main/examples/fastapi) |
-| [Django](./django) | `p9s[django]` | `P9sMiddleware` | [Django](https://github.com/crubier/p9s/tree/main/examples/django) |
-| [Rails](./rails) | the `p9s` gem | `include P9s::Controller` | [Rails](https://github.com/crubier/p9s/tree/main/examples/rails) |
-| [Go](./go) | `github.com/crubier/p9s/packages/go` | `p9sgorm.AsUser(ctx, db, users, userID, func(tx) error)` | [GORM](https://github.com/crubier/p9s/tree/main/examples/gorm) |
-| [Rust](./rust) | the `p9s` crate | the `UserTx` extractor | [axum](https://github.com/crubier/p9s/tree/main/examples/axum) |
-| [Elixir](./elixir) | `p9s` on Hex | `use P9s.Controller` | [Phoenix](https://github.com/crubier/p9s/tree/main/examples/phoenix) |
-| [Laravel](./laravel) | `p9s/laravel` | the `AsUser` middleware | [Laravel](https://github.com/crubier/p9s/tree/main/examples/laravel) |
+| [Drizzle](./drizzle) | `@p9s/drizzle` | `withUser(db, users, userId, tx => ...)` | [Drizzle](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) |
+| [PostGraphile](./postgraphile) | `@p9s/postgres` | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) |
+| [Prisma](./prisma) | `@p9s/prisma` | `withUser(prisma, users, userId, tx => ...)` | [Prisma](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) |
+| [Kysely and node-postgres](./kysely) | `@p9s/kysely`, `@p9s/postgres` | `withUser(db, users, userId, trx => ...)` | [Kysely](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) |
+| [Supabase](./supabase) | none, a preset | the JWT of the user | [Supabase](https://github.com/crubier/p9s/tree/main/examples/integrations/supabase) |
+| [SQLAlchemy and FastAPI](./sqlalchemy) | `p9s[sqlalchemy]` | `with as_user(session, users, user_id):` | [FastAPI](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi) |
+| [Django](./django) | `p9s[django]` | `P9sMiddleware` | [Django](https://github.com/crubier/p9s/tree/main/examples/integrations/django) |
+| [Rails](./rails) | the `p9s` gem | `include P9s::Controller` | [Rails](https://github.com/crubier/p9s/tree/main/examples/integrations/rails) |
+| [Go](./go) | `github.com/crubier/p9s/packages/go` | `p9sgorm.AsUser(ctx, db, users, userID, func(tx) error)` | [GORM](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) |
+| [Rust](./rust) | the `p9s` crate | the `UserTx` extractor | [axum](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) |
+| [Elixir](./elixir) | `p9s` on Hex | `use P9s.Controller` | [Phoenix](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) |
+| [Laravel](./laravel) | `p9s/laravel` | the `AsUser` middleware | [Laravel](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) |
 
 Any other client runs one statement at the start of each transaction, see [other stacks](./other-stacks).
 
@@ -131,4 +131,4 @@ Postgres refuses a row the policies do not let through, a statement the role has
 
 ## The test of each example
 
-Each example has `before/`, the app as it was, `p9s.config.json`, `adopt.patch`, what `p9s adopt` writes in it, and `after.patch`, the rest of the change, made by hand. Its test runs `p9s adopt` on a fresh copy of `before/`, and checks that it writes exactly `adopt.patch`, that running it again changes nothing, and that `after.patch` applies on top. Then, in CI on Postgres, it creates the database of `before/` with its own migrations and seeds it, and records what each user can read, create, update, delete and share through its API. It runs the migration of p9s as one command, checks the database as each user, and checks that the app after both patches gives every user the same answers. With the format of its migration tool, it also makes a new database with the migrate command of the app alone. See [the adoption tests](https://github.com/crubier/p9s/tree/main/examples/adoption).
+Each example has `before/`, the app as it was, `p9s.config.json`, `adopt.patch`, what `p9s adopt` writes in it, and `after.patch`, the rest of the change, made by hand. Its test runs `p9s adopt` on a fresh copy of `before/`, and checks that it writes exactly `adopt.patch`, that running it again changes nothing, and that `after.patch` applies on top. Then, in CI on Postgres, it creates the database of `before/` with its own migrations and seeds it, and records what each user can read, create, update, delete and share through its API. It runs the migration of p9s as one command, checks the database as each user, and checks that the app after both patches gives every user the same answers. With the format of its migration tool, it also makes a new database with the migrate command of the app alone. See [the adoption tests](https://github.com/crubier/p9s/tree/main/examples/integrations/adoption).

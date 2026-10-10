@@ -72,5 +72,5 @@ except DatabaseError as error:
     raise
 ```
 
-Examples: [FastAPI and SQLAlchemy](https://github.com/crubier/p9s/tree/main/examples/fastapi), and
-[Django](https://github.com/crubier/p9s/tree/main/examples/django).
+Examples: [FastAPI and SQLAlchemy](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi), and
+[Django](https://github.com/crubier/p9s/tree/main/examples/integrations/django).

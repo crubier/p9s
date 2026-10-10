@@ -29,6 +29,6 @@
     "noPropertyAccessFromIndexSignature": false
   },
   // The website and examples have their own tsconfig
-  "include": ["packages", "benchmarks", "scripts", "examples/adoption", "examples/*/adoption.test.ts"],
+  "include": ["packages", "benchmarks", "scripts", "examples/integrations/adoption", "examples/integrations/*/adoption.test.ts"],
   "exclude": ["**/node_modules", "**/dist"]
 }

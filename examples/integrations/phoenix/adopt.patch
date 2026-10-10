@@ -1,0 +1,30 @@
+diff --git a/lib/documents_web.ex b/lib/documents_web.ex
+index c7d184c..28fb583 100644
+--- a/lib/documents_web.ex
++++ b/lib/documents_web.ex
+@@ -2,9 +2,13 @@ defmodule DocumentsWeb do
+   def controller do
+     quote do
+       use Phoenix.Controller, formats: [:json]
++      # Every action runs in a transaction as its user, where the policies of p9s decide what it reads and writes
++      use P9s.Controller, repo: Documents.Repo
+ 
+       import Plug.Conn
+       import DocumentsWeb.Answers
++
++      def p9s_user_id(conn), do: conn.assigns.user_id
+     end
+   end
+ 
+diff --git a/mix.exs b/mix.exs
+index e0af0e1..08f6061 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -11,6 +11,7 @@ defmodule Documents.MixProject do
+     [
+       {:bandit, "~> 1.5"},
+       {:ecto_sql, "~> 3.12"},
++      {:p9s, path: "../../../../packages/elixir"},
+       {:phoenix, "~> 1.8"},
+       {:postgrex, ">= 0.19.0"}
+     ]

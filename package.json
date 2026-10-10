@@ -4,7 +4,8 @@
   "workspaces": [
     "packages/*",
     "benchmarks/*",
-    "examples/*",
+    "examples/apps/*",
+    "examples/integrations/*",
     "website"
   ],
   "scripts": {

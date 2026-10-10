@@ -151,7 +151,7 @@ benchmarks/postgres/results
 packed
 
 # Copies and logs of the adoption tests of the examples
-examples/*/.adoption*
+examples/integrations/*/.adoption*
 
 # Python
 .venv

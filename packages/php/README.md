@@ -70,4 +70,4 @@ the user does not have, with `insufficient_privilege`. `P9s::isRefused($error)` 
 The migration of p9s adds a column to the tables of roles and resources, like `resource_id`, with a default. Eloquent
 reads every column, so hide it from JSON: `protected $hidden = ['resource_id'];`.
 
-Example: [Laravel](https://github.com/crubier/p9s/tree/main/examples/laravel).
+Example: [Laravel](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel).

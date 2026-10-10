@@ -23,86 +23,7 @@
         "typescript": "^5",
       },
     },
-    "examples/adoption": {
-      "name": "@p9s/adoption",
-      "dependencies": {
-        "@p9s/postgres": "workspace:*",
-        "pg": "^8.23.1",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@types/pg": "^8.23.1",
-      },
-    },
-    "examples/axum": {
-      "name": "@p9s/example-axum",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/django": {
-      "name": "@p9s/example-django",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/drizzle": {
-      "name": "@p9s/example-drizzle",
-      "dependencies": {
-        "@p9s/drizzle": "workspace:*",
-        "@p9s/postgres": "workspace:*",
-        "drizzle-orm": "^0.45.4",
-        "hono": "^4.13.13",
-        "pg": "^8.23.1",
-      },
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-        "@types/pg": "^8.23.1",
-        "drizzle-kit": "^0.31.11",
-        "typescript": "^5.9.3",
-      },
-    },
-    "examples/fastapi": {
-      "name": "@p9s/example-fastapi",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/gorm": {
-      "name": "@p9s/example-gorm",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/kysely": {
-      "name": "@p9s/example-kysely",
-      "dependencies": {
-        "@p9s/kysely": "workspace:*",
-        "@p9s/postgres": "workspace:*",
-        "hono": "^4.13.13",
-        "kysely": "^0.29.6",
-        "pg": "^8.23.1",
-      },
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-        "@types/pg": "^8.23.1",
-        "typescript": "^5.9.3",
-      },
-    },
-    "examples/laravel": {
-      "name": "@p9s/example-laravel",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/nextjs-drizzle": {
+    "examples/apps/nextjs-drizzle": {
       "name": "@p9s/example-nextjs-drizzle",
       "version": "0.1.0",
       "dependencies": {
@@ -140,14 +61,7 @@
         "typescript": "^5",
       },
     },
-    "examples/phoenix": {
-      "name": "@p9s/example-phoenix",
-      "devDependencies": {
-        "@p9s/adoption": "workspace:*",
-        "@types/bun": "latest",
-      },
-    },
-    "examples/postgraphile": {
+    "examples/apps/postgraphile": {
       "name": "@p9s/example-postgraphile",
       "version": "0.1.0",
       "dependencies": {
@@ -190,7 +104,93 @@
         "vite": "^8.3.3",
       },
     },
-    "examples/postgraphile-rls": {
+    "examples/integrations/adoption": {
+      "name": "@p9s/adoption",
+      "dependencies": {
+        "@p9s/postgres": "workspace:*",
+        "pg": "^8.23.1",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+      },
+    },
+    "examples/integrations/axum": {
+      "name": "@p9s/example-axum",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/django": {
+      "name": "@p9s/example-django",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/drizzle": {
+      "name": "@p9s/example-drizzle",
+      "dependencies": {
+        "@p9s/drizzle": "workspace:*",
+        "@p9s/postgres": "workspace:*",
+        "drizzle-orm": "^0.45.4",
+        "hono": "^4.13.13",
+        "pg": "^8.23.1",
+      },
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+        "drizzle-kit": "^0.31.11",
+        "typescript": "^5.9.3",
+      },
+    },
+    "examples/integrations/fastapi": {
+      "name": "@p9s/example-fastapi",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/gorm": {
+      "name": "@p9s/example-gorm",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/kysely": {
+      "name": "@p9s/example-kysely",
+      "dependencies": {
+        "@p9s/kysely": "workspace:*",
+        "@p9s/postgres": "workspace:*",
+        "hono": "^4.13.13",
+        "kysely": "^0.29.6",
+        "pg": "^8.23.1",
+      },
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+        "@types/pg": "^8.23.1",
+        "typescript": "^5.9.3",
+      },
+    },
+    "examples/integrations/laravel": {
+      "name": "@p9s/example-laravel",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/phoenix": {
+      "name": "@p9s/example-phoenix",
+      "devDependencies": {
+        "@p9s/adoption": "workspace:*",
+        "@types/bun": "latest",
+      },
+    },
+    "examples/integrations/postgraphile-rls": {
       "name": "@p9s/example-postgraphile-rls",
       "dependencies": {
         "@p9s/postgres": "workspace:*",
@@ -207,7 +207,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "examples/prisma": {
+    "examples/integrations/prisma": {
       "name": "@p9s/example-prisma",
       "dependencies": {
         "@p9s/postgres": "workspace:*",
@@ -225,14 +225,14 @@
         "typescript": "^5.9.3",
       },
     },
-    "examples/rails": {
+    "examples/integrations/rails": {
       "name": "@p9s/example-rails",
       "devDependencies": {
         "@p9s/adoption": "workspace:*",
         "@types/bun": "latest",
       },
     },
-    "examples/supabase": {
+    "examples/integrations/supabase": {
       "name": "@p9s/example-supabase",
       "dependencies": {
         "@p9s/postgres": "workspace:*",
@@ -1293,7 +1293,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
 
-    "@p9s/adoption": ["@p9s/adoption@workspace:examples/adoption"],
+    "@p9s/adoption": ["@p9s/adoption@workspace:examples/integrations/adoption"],
 
     "@p9s/benchmark-postgres": ["@p9s/benchmark-postgres@workspace:benchmarks/postgres"],
 
@@ -1307,33 +1307,33 @@
 
     "@p9s/drizzle": ["@p9s/drizzle@workspace:packages/drizzle"],
 
-    "@p9s/example-axum": ["@p9s/example-axum@workspace:examples/axum"],
+    "@p9s/example-axum": ["@p9s/example-axum@workspace:examples/integrations/axum"],
 
-    "@p9s/example-django": ["@p9s/example-django@workspace:examples/django"],
+    "@p9s/example-django": ["@p9s/example-django@workspace:examples/integrations/django"],
 
-    "@p9s/example-drizzle": ["@p9s/example-drizzle@workspace:examples/drizzle"],
+    "@p9s/example-drizzle": ["@p9s/example-drizzle@workspace:examples/integrations/drizzle"],
 
-    "@p9s/example-fastapi": ["@p9s/example-fastapi@workspace:examples/fastapi"],
+    "@p9s/example-fastapi": ["@p9s/example-fastapi@workspace:examples/integrations/fastapi"],
 
-    "@p9s/example-gorm": ["@p9s/example-gorm@workspace:examples/gorm"],
+    "@p9s/example-gorm": ["@p9s/example-gorm@workspace:examples/integrations/gorm"],
 
-    "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/kysely"],
+    "@p9s/example-kysely": ["@p9s/example-kysely@workspace:examples/integrations/kysely"],
 
-    "@p9s/example-laravel": ["@p9s/example-laravel@workspace:examples/laravel"],
+    "@p9s/example-laravel": ["@p9s/example-laravel@workspace:examples/integrations/laravel"],
 
-    "@p9s/example-nextjs-drizzle": ["@p9s/example-nextjs-drizzle@workspace:examples/nextjs-drizzle"],
+    "@p9s/example-nextjs-drizzle": ["@p9s/example-nextjs-drizzle@workspace:examples/apps/nextjs-drizzle"],
 
-    "@p9s/example-phoenix": ["@p9s/example-phoenix@workspace:examples/phoenix"],
+    "@p9s/example-phoenix": ["@p9s/example-phoenix@workspace:examples/integrations/phoenix"],
 
-    "@p9s/example-postgraphile": ["@p9s/example-postgraphile@workspace:examples/postgraphile"],
+    "@p9s/example-postgraphile": ["@p9s/example-postgraphile@workspace:examples/apps/postgraphile"],
 
-    "@p9s/example-postgraphile-rls": ["@p9s/example-postgraphile-rls@workspace:examples/postgraphile-rls"],
+    "@p9s/example-postgraphile-rls": ["@p9s/example-postgraphile-rls@workspace:examples/integrations/postgraphile-rls"],
 
-    "@p9s/example-prisma": ["@p9s/example-prisma@workspace:examples/prisma"],
+    "@p9s/example-prisma": ["@p9s/example-prisma@workspace:examples/integrations/prisma"],
 
-    "@p9s/example-rails": ["@p9s/example-rails@workspace:examples/rails"],
+    "@p9s/example-rails": ["@p9s/example-rails@workspace:examples/integrations/rails"],
 
-    "@p9s/example-supabase": ["@p9s/example-supabase@workspace:examples/supabase"],
+    "@p9s/example-supabase": ["@p9s/example-supabase@workspace:examples/integrations/supabase"],
 
     "@p9s/kysely": ["@p9s/kysely@workspace:packages/kysely"],
 
@@ -2341,7 +2341,7 @@
 
     "dot-prop": ["dot-prop@6.0.1", "", { "dependencies": { "is-obj": "^2.0.0" } }, "sha512-tE7ztYzXHIeyvc7N+hR3oi7FIbf/NIjVP9hmAt3yMXzrQ072/fpjGLx2GxNxGxUl5V73MEqYzioOMoVhGMJ5cA=="],
 
-    "dotenv": ["dotenv@17.2.3", "", {}, "sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w=="],
+    "dotenv": ["dotenv@17.4.2", "", {}, "sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw=="],
 
     "drizzle-kit": ["drizzle-kit@0.31.11", "", { "dependencies": { "@drizzle-team/brocli": "^0.10.2", "@esbuild-kit/esm-loader": "^2.5.5", "esbuild": "^0.25.4", "tsx": "^4.21.0" }, "bin": { "drizzle-kit": "bin.cjs" } }, "sha512-YCYqxTLIB2OCqf6w9/Vef13baBVbwQIPcbT4Y56AfO6B9ajZhDhD8Jkveg/hJvT/iuMloKD/IYYkyMMNhr7Kqg=="],
 
@@ -2412,8 +2412,6 @@
     "esast-util-from-js": ["esast-util-from-js@2.0.1", "", { "dependencies": { "@types/estree-jsx": "^1.0.0", "acorn": "^8.0.0", "esast-util-from-estree": "^2.0.0", "vfile-message": "^4.0.0" } }, "sha512-8Ja+rNJ0Lt56Pcf3TAmpBZjmx8ZcK5Ts4cAzIOjsjevg9oSXJnl6SUQ2EevU8tv3h6ZLWmoKL5H4fgWvdvfETw=="],
 
     "esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
-
-    "esbuild-register": ["esbuild-register@3.6.0", "", { "dependencies": { "debug": "^4.3.4" }, "peerDependencies": { "esbuild": ">=0.12 <1" } }, "sha512-H2/S7Pm8a9CL1uhp9OvjwrBh5Pvx0H8qVOxNu8Wed9Y7qv56MPtq+GGM8RJpq6glYJn9Wspr8uw7l55uyinNeg=="],
 
     "escalade": ["escalade@3.2.0", "", {}, "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="],
 
@@ -4485,10 +4483,6 @@
 
     "@oxc-parser/binding-wasm32-wasi/@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.5", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-HshSvXzmBxNzqejd3k/KemgQ3hdREUYFRRrgxOZ+gPljDIsO2SDZrVZMd4Z/HsxudQbE62OVyVFE8z9BCurfjA=="],
 
-    "@p9s/example-nextjs-drizzle/drizzle-kit": ["drizzle-kit@0.31.8", "", { "dependencies": { "@drizzle-team/brocli": "^0.10.2", "@esbuild-kit/esm-loader": "^2.5.5", "esbuild": "^0.25.4", "esbuild-register": "^3.5.0" }, "bin": { "drizzle-kit": "bin.cjs" } }, "sha512-O9EC/miwdnRDY10qRxM8P3Pg8hXe3LyU4ZipReKOgTwn4OqANmftj8XJz1UPUAS6NMHf0E2htjsbQujUTkncCg=="],
-
-    "@p9s/example-nextjs-drizzle/drizzle-orm": ["drizzle-orm@0.45.1", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "bun-types", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "pg", "postgres", "sql.js", "sqlite3"] }, "sha512-Te0FOdKIistGNPMq2jscdqngBRfBpC8uMFVwqjf6gtTVJHIQ/dosgV/CLBU2N4ZJBsXL5savCba9b0YJskKdcA=="],
-
     "@pnpm/network.ca-file/graceful-fs": ["graceful-fs@4.2.10", "", {}, "sha512-9ByhssR2fPVsNZj478qUUbKfmL0+t5BDVyjShtyZZLiK7ZDAArFFfopyOTj0M05wE2tJPisA4iTnnXl2YoPvOA=="],
 
     "@prisma/dev/@electric-sql/pglite": ["@electric-sql/pglite@0.4.3", "", {}, "sha512-ichuWTgtd4mOM1G4SpyGJa5trT03lWbMypDV0fUXUCXg5hiHqVAz/bZyV68NqmkLB7WcYmj1RMJVSp8HV/v/ZQ=="],
@@ -4700,8 +4694,6 @@
     "c12/chokidar": ["chokidar@5.0.0", "", { "dependencies": { "readdirp": "^5.0.0" } }, "sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw=="],
 
     "c12/defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
-
-    "c12/dotenv": ["dotenv@17.4.2", "", {}, "sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw=="],
 
     "c12/jiti": ["jiti@2.7.0", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ=="],
 

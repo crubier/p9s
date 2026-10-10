@@ -33,10 +33,10 @@ jobs:
         run: bun run pack:check
       - name: Example app typecheck and lint
         run: bun run typecheck && bun run lint
-        working-directory: examples/nextjs-drizzle
+        working-directory: examples/apps/nextjs-drizzle
       - name: PostGraphile example typecheck, generated types and build
         run: bun run typecheck && bun run codegen && git diff --exit-code web/gql && bun run build
-        working-directory: examples/postgraphile
+        working-directory: examples/apps/postgraphile
       - name: Tests on PGlite
         run: bun run test:each
       - name: The database of the conformance suite, see packages/conformance
@@ -68,7 +68,7 @@ jobs:
           name: benchmark-results
           path: bench-results
 
-  # Each example app runs before p9s, adopts it with one command, and runs after p9s, see examples/adoption
+  # Each example app runs before p9s, adopts it with one command, and runs after p9s, see examples/integrations/adoption
   adoption:
     runs-on: ubuntu-latest
     strategy:
@@ -101,8 +101,8 @@ jobs:
       - uses: actions/setup-go@v5
         if: matrix.example == 'gorm'
         with:
-          go-version-file: examples/gorm/before/go.mod
-          cache-dependency-path: examples/gorm/before/go.sum
+          go-version-file: examples/integrations/gorm/before/go.mod
+          cache-dependency-path: examples/integrations/gorm/before/go.sum
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.example == 'axum'
       - uses: erlef/setup-beam@v1
@@ -118,7 +118,7 @@ jobs:
           tools: composer
           coverage: none
       - name: Adoption of ${{ matrix.example }}
-        run: bun test examples/${{ matrix.example }}
+        run: bun test examples/integrations/${{ matrix.example }}
         env:
           P9S_ADOPTION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 

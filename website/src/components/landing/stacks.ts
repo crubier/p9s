@@ -25,7 +25,7 @@ export type Stack = {
   code: string;
 };
 
-// The request wrapper of each stack, as its guide and its example in examples/ write it
+// The request wrapper of each stack, as its guide and its example in examples/integrations/ write it
 export const stacks: Stack[] = [
   {
     name: 'Drizzle',

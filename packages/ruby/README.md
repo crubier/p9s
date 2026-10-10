@@ -59,4 +59,4 @@ Record reads every column, so ignore it: `self.ignored_columns += ["resource_id"
 exists by reading it as the user, who may not see it, or have no privilege on its table: with `optional: true`, the
 database checks the foreign key, and the policies the rest.
 
-Example: [Rails](https://github.com/crubier/p9s/tree/main/examples/rails).
+Example: [Rails](https://github.com/crubier/p9s/tree/main/examples/integrations/rails).

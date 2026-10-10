@@ -14,4 +14,4 @@ const documents = await withUser(db, users, userId, trx =>
   trx.selectFrom("documents").select(["id", "title"]).orderBy("id").execute(), { readOnly: true });
 ```
 
-See the [Kysely example](https://github.com/crubier/p9s/tree/main/examples/kysely), which adopts p9s in an existing app.
+See the [Kysely example](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely), which adopts p9s in an existing app.

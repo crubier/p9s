@@ -60,4 +60,4 @@ Postgres refuses a row the policies do not let through, a statement the role has
 the user does not have, with `insufficient_privilege`. `p9s::is_refused(&error)` tells. An update or a delete of rows
 the user reads but cannot change touches no row: check `rows_affected`, or `returning`.
 
-Example: [axum and sqlx](https://github.com/crubier/p9s/tree/main/examples/axum).
+Example: [axum and sqlx](https://github.com/crubier/p9s/tree/main/examples/integrations/axum).

@@ -62,4 +62,4 @@ Postgres refuses a row the policies do not let through, a statement the role has
 the user does not have, with `insufficient_privilege`. `p9s.IsRefused(err)` tells, through any wrapping, for pgx and
 lib/pq. An update or a delete of rows the user reads but cannot change touches no row: check `RowsAffected`.
 
-Example: [`net/http` and GORM, with goose](https://github.com/crubier/p9s/tree/main/examples/gorm).
+Example: [`net/http` and GORM, with goose](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm).

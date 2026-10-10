@@ -66,7 +66,7 @@ authentication: {
 }
 ```
 
-A request with a JWT whose `sub` is `7` then runs as the user 7 of the users table, with no function to write. `createIdentity` sets the same claims, `{"sub":"7"}`, for a server that connects directly. [`examples/supabase`](https://github.com/crubier/p9s/tree/main/examples/supabase) uses it.
+A request with a JWT whose `sub` is `7` then runs as the user 7 of the users table, with no function to write. `createIdentity` sets the same claims, `{"sub":"7"}`, for a server that connects directly. [`examples/integrations/supabase`](https://github.com/crubier/p9s/tree/main/examples/integrations/supabase) uses it.
 
 ## node-postgres, Neon and PGlite
 
@@ -99,7 +99,7 @@ import { withUser } from "@p9s/drizzle";
 const rows = await withUser(db, users, session.roleId, tx => tx.select().from(document).limit(50), { readOnly: true });
 ```
 
-`withUser` takes the database of `drizzle-orm/node-postgres`, `neon-serverless`, `pglite` or any other driver with interactive transactions. [`examples/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/nextjs-drizzle) runs every request of its users that way.
+`withUser` takes the database of `drizzle-orm/node-postgres`, `neon-serverless`, `pglite` or any other driver with interactive transactions. [`examples/apps/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/apps/nextjs-drizzle) runs every request of its users that way.
 
 ## Prisma
 
@@ -118,7 +118,7 @@ await withUser(prisma, users, session.roleId, async tx => {
 
 `userClient` is a [client extension](https://www.prisma.io/docs/orm/prisma-client/client-extensions) that sends each query in a batch transaction after the settings of the user, and keeps the types of the client. Its tests run Prisma 7 with the `@prisma/adapter-pg` driver adapter.
 
-[`examples/prisma`](https://github.com/crubier/p9s/tree/main/examples/prisma) moves a Prisma app from checks in its code to `withUser`.
+[`examples/integrations/prisma`](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) moves a Prisma app from checks in its code to `withUser`.
 
 ## Other languages
 

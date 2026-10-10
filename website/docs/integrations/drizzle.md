@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Drizzle
 
-`withUser` of [`@p9s/drizzle`](https://github.com/crubier/p9s/tree/main/packages/drizzle) runs a Drizzle transaction as a user. [`examples/drizzle`](https://github.com/crubier/p9s/tree/main/examples/drizzle) adopts p9s in a Hono and Drizzle app with it, and [`examples/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/nextjs-drizzle) is a complete Next.js app built that way.
+`withUser` of [`@p9s/drizzle`](https://github.com/crubier/p9s/tree/main/packages/drizzle) runs a Drizzle transaction as a user. [`examples/integrations/drizzle`](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) adopts p9s in a Hono and Drizzle app with it, and [`examples/apps/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/apps/nextjs-drizzle) is a complete Next.js app built that way.
 
 ## p9s adopt
 
@@ -69,4 +69,4 @@ The schema of Drizzle does not change. Keep migrating with `drizzle-kit generate
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/drizzle/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/drizzle/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/drizzle/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/drizzle/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/drizzle/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.

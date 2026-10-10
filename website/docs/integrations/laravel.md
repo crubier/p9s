@@ -4,7 +4,7 @@ sidebar_position: 13
 
 # Laravel
 
-The [`p9s/laravel`](https://github.com/crubier/p9s/tree/main/packages/php) package runs a closure in a transaction as a user, and its `AsUser` middleware runs every request as its user. [`examples/laravel`](https://github.com/crubier/p9s/tree/main/examples/laravel) adopts p9s in a Laravel API with it.
+The [`p9s/laravel`](https://github.com/crubier/p9s/tree/main/packages/php) package runs a closure in a transaction as a user, and its `AsUser` middleware runs every request as its user. [`examples/integrations/laravel`](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) adopts p9s in a Laravel API with it.
 
 ## p9s adopt
 
@@ -89,4 +89,4 @@ protected $hidden = ['resource_id'];
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/laravel/before) checks every action with `app/Permissions.php`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/laravel/adopt.patch) is what `p9s adopt` writes, with `--user-id` and the expression `$request->attributes->get('user_id')`: the package, the `AsUser` middleware after the one that finds the user, the 403 of refused writes, and the models. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/laravel/after.patch) is the rest, by hand: it deletes `Permissions.php` and its checks, and answers refused writes with the JSON of the app.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel/before) checks every action with `app/Permissions.php`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/laravel/adopt.patch) is what `p9s adopt` writes, with `--user-id` and the expression `$request->attributes->get('user_id')`: the package, the `AsUser` middleware after the one that finds the user, the 403 of refused writes, and the models. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/laravel/after.patch) is the rest, by hand: it deletes `Permissions.php` and its checks, and answers refused writes with the JSON of the app.

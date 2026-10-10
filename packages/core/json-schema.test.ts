@@ -18,7 +18,7 @@ describe("the JSON Schema of the config", () => {
   });
 
   test("every JSON config of the repository is valid", () => {
-    const files = [...new Glob("{examples,packages}/*/p9s.config.json").scanSync({ cwd: root })];
+    const files = ["examples/*/*/p9s.config.json", "packages/*/p9s.config.json"].flatMap(pattern => [...new Glob(pattern).scanSync({ cwd: root })]);
     expect(files.length).toBeGreaterThan(10);
     for (const file of files) {
       const valid = validate(JSON.parse(readFileSync(path.join(root, file), "utf8")));

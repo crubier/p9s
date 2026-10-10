@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # Django
 
-[`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI has a middleware that runs every request of Django in a transaction as its user. [`examples/django`](https://github.com/crubier/p9s/tree/main/examples/django) adopts p9s in a Django app with it.
+[`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI has a middleware that runs every request of Django in a transaction as its user. [`examples/integrations/django`](https://github.com/crubier/p9s/tree/main/examples/integrations/django) adopts p9s in a Django app with it.
 
 ## p9s adopt
 
@@ -86,4 +86,4 @@ The models do not change, and `makemigrations` finds nothing to do: Django compa
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/django/before) checks every view with `documents/permissions.py`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/django/adopt.patch) is what `p9s adopt --user-id documents.middleware.user_id_of` writes: the package, and the middleware of p9s after the one that finds the user. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/django/after.patch) is the rest, by hand: it deletes `permissions.py` and its checks, and answers 403 to refused writes, in a savepoint of each view that writes.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/django/before) checks every view with `documents/permissions.py`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/django/adopt.patch) is what `p9s adopt --user-id documents.middleware.user_id_of` writes: the package, and the middleware of p9s after the one that finds the user. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/django/after.patch) is the rest, by hand: it deletes `permissions.py` and its checks, and answers 403 to refused writes, in a savepoint of each view that writes.

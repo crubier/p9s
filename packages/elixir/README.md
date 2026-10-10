@@ -48,4 +48,4 @@ Postgres refuses a row the policies do not let through, a statement the role has
 the user does not have, with `insufficient_privilege`. `P9s.refused?(error)` tells, for `Postgrex.Error`. An
 `update_all` or a `delete_all` of rows the user reads but cannot change returns a count of 0.
 
-Example: [Phoenix](https://github.com/crubier/p9s/tree/main/examples/phoenix).
+Example: [Phoenix](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix).

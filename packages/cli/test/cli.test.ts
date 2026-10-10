@@ -303,7 +303,7 @@ describe("p9s CLI", () => {
 
   // What adopt writes for each stack is in the adopt.patch of each example of the repository, which their tests check
   describe("adopt", () => {
-    const rails = path.resolve(testDir, "../../../examples/rails");
+    const rails = path.resolve(testDir, "../../../examples/integrations/rails");
     let app: string;
     beforeAll(() => {
       app = fs.mkdtempSync(path.join(os.tmpdir(), "p9s-adopt-"));

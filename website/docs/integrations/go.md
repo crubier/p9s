@@ -4,7 +4,7 @@ sidebar_position: 10
 
 # Go
 
-The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/go) module runs a function in a transaction as a user, for `database/sql`, pgx with `p9spgx`, and GORM with `p9sgorm`. [`examples/gorm`](https://github.com/crubier/p9s/tree/main/examples/gorm) adopts p9s in a `net/http` and GORM app, with goose migrations.
+The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/go) module runs a function in a transaction as a user, for `database/sql`, pgx with `p9spgx`, and GORM with `p9sgorm`. [`examples/integrations/gorm`](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) adopts p9s in a `net/http` and GORM app, with goose migrations.
 
 ## p9s adopt
 
@@ -88,4 +88,4 @@ The structs do not change: GORM reads the columns its structs name, and leaves t
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/gorm/before) checks every handler with `permissions.go`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/gorm/adopt.patch) is what `p9s adopt` writes: the module, and `p9s.go`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/gorm/after.patch) is the rest, by hand: it deletes `permissions.go` and its checks, and runs each handler in a GORM transaction as the user of its request.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm/before) checks every handler with `permissions.go`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/gorm/adopt.patch) is what `p9s adopt` writes: the module, and `p9s.go`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/gorm/after.patch) is the rest, by hand: it deletes `permissions.go` and its checks, and runs each handler in a GORM transaction as the user of its request.

@@ -103,8 +103,8 @@ bun run bench
 - `packages/python`, `packages/ruby`, `packages/go`, `packages/rust`, `packages/elixir`, `packages/php` - Act as a user from SQLAlchemy and Django, Rails, `database/sql`, pgx and GORM, sqlx and axum, Ecto and Phoenix, and Laravel
 - `packages/conformance` - The cases every one of those packages passes
 - `packages/cli` - The `p9s` command line, also built as standalone binaries by `scripts/binaries.ts`
-- `examples/adoption` - The end to end test of adopting p9s, which each of `examples/{drizzle,prisma,kysely,supabase,postgraphile-rls,fastapi,django,rails,gorm,axum,phoenix,laravel}` runs on its `before/` codebase
+- `examples/integrations/adoption` - The end to end test of adopting p9s, which each of `examples/{drizzle,prisma,kysely,supabase,postgraphile-rls,fastapi,django,rails,gorm,axum,phoenix,laravel}` runs on its `before/` codebase
 - `packages/core-testing`, `packages/postgres-testing` - Test helpers, PGlite and Postgres test databases
 - `benchmarks/postgres` - Performance benchmarks
-- `examples/nextjs-drizzle` - A team workspace built with Next.js, Drizzle and Better Auth: organizations, teams, nested folders, documents, comments, sharing and API keys, with its p9s configuration in `src/p9s.ts`
-- `examples/postgraphile` - The same workspace served by PostGraphile, with a React front end that only talks to GraphQL
+- `examples/apps/nextjs-drizzle` - A team workspace built with Next.js, Drizzle and Better Auth: organizations, teams, nested folders, documents, comments, sharing and API keys, with its p9s configuration in `src/p9s.ts`
+- `examples/apps/postgraphile` - The same workspace served by PostGraphile, with a React front end that only talks to GraphQL
