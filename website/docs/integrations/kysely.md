@@ -6,6 +6,8 @@ sidebar_position: 5
 
 `withUser` of [`@p9s/kysely`](https://github.com/crubier/p9s/tree/main/packages/kysely) runs a Kysely transaction as a user, and `run` of [`@p9s/postgres`](https://github.com/crubier/p9s/tree/main/packages/postgres) does the same on a node-postgres pool, Neon or PGlite, without an ORM. [`examples/integrations/kysely`](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) adopts p9s in a Hono and Kysely app.
 
+The reference of each function, its options and its errors: [`@p9s/kysely`](../packages/kysely) and [`@p9s/postgres`](../packages/postgres).
+
 ## p9s adopt
 
 ```bash

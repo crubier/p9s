@@ -6,6 +6,8 @@ sidebar_position: 6
 
 PostgREST runs the requests of signed in users as the `authenticated` role, with the claims of their JWT in settings, and `auth.uid()` reads their id from them. The `supabase` preset of `@p9s/core` uses these: the policies are for `authenticated`, the current user is `auth.uid()`, ids are uuids, and `service_role` writes the graph. `anon` reads nothing.
 
+The reference of each function, its options and its errors: [`@p9s/core`](../packages/core), for the preset, and [`@p9s/postgres`](../packages/postgres).
+
 ## Configuration
 
 ```bash

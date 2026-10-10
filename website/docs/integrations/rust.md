@@ -6,6 +6,8 @@ sidebar_position: 11
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/rust) crate begins a sqlx transaction as a user, and with its `axum` feature, extracts a transaction as the user of the request. [`examples/integrations/axum`](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) adopts p9s in an axum and sqlx app with it.
 
+The reference of each function, its options and its errors: [the `p9s` crate](../packages/rust).
+
 ## p9s adopt
 
 ```bash

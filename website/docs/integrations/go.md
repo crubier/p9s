@@ -6,6 +6,8 @@ sidebar_position: 10
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/go) module runs a function in a transaction as a user, for `database/sql`, pgx with `p9spgx`, and GORM with `p9sgorm`. [`examples/integrations/gorm`](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) adopts p9s in a `net/http` and GORM app, with goose migrations.
 
+The reference of each function, its options and its errors: [the `p9s` module](../packages/go).
+
 ## p9s adopt
 
 ```bash

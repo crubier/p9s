@@ -6,6 +6,8 @@ sidebar_position: 4
 
 [`@p9s/prisma`](https://github.com/crubier/p9s/tree/main/packages/prisma) runs Prisma queries as a user, in an interactive transaction with `withUser`, or each in a transaction of its own with `userClient`. [`examples/integrations/prisma`](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) adopts p9s in a Hono and Prisma app with it.
 
+The reference of each function, its options and its errors: [`@p9s/prisma`](../packages/prisma) and [`@p9s/postgres`](../packages/postgres).
+
 ## p9s adopt
 
 ```bash

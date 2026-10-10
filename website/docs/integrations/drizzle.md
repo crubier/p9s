@@ -6,6 +6,8 @@ sidebar_position: 2
 
 `withUser` of [`@p9s/drizzle`](https://github.com/crubier/p9s/tree/main/packages/drizzle) runs a Drizzle transaction as a user. [`examples/integrations/drizzle`](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) adopts p9s in a Hono and Drizzle app with it, and [`examples/apps/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/apps/nextjs-drizzle) is a complete Next.js app built that way.
 
+The reference of each function, its options and its errors: [`@p9s/drizzle`](../packages/drizzle) and [`@p9s/postgres`](../packages/postgres).
+
 ## p9s adopt
 
 ```bash

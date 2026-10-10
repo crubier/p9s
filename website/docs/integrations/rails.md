@@ -6,6 +6,8 @@ sidebar_position: 9
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/ruby) gem runs an Active Record block as a user, and every action of a Rails controller as the user of its request. [`examples/integrations/rails`](https://github.com/crubier/p9s/tree/main/examples/integrations/rails) adopts p9s in a Rails API with it.
 
+The reference of each function, its options and its errors: [the `p9s` gem](../packages/ruby).
+
 ## p9s adopt
 
 ```bash

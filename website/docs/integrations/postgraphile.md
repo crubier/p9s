@@ -6,6 +6,8 @@ sidebar_position: 3
 
 PostGraphile runs every request as a database role and lets RLS decide, so p9s needs no package of its own there: `pgSettings` of `@p9s/postgres` gives each request the role and the user of the config, and with `engine.postgraphile`, the migration serves the graph through the API. [`examples/integrations/postgraphile-rls`](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) adopts p9s in a PostGraphile app whose policies were written by hand, and [`examples/apps/postgraphile`](https://github.com/crubier/p9s/tree/main/examples/apps/postgraphile) is a complete app built on p9s from the start.
 
+The reference of each function, its options and its errors: [`@p9s/postgres`](../packages/postgres).
+
 ## p9s adopt
 
 ```bash

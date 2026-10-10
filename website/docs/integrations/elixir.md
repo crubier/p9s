@@ -6,6 +6,8 @@ sidebar_position: 12
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/elixir) package runs a function in an Ecto transaction as a user, and every action of a Phoenix controller as the user of its request. [`examples/integrations/phoenix`](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) adopts p9s in a Phoenix API with it.
 
+The reference of each function, its options and its errors: [`p9s` on Hex](../packages/elixir).
+
 ## p9s adopt
 
 ```bash

@@ -6,6 +6,8 @@ sidebar_position: 13
 
 The [`p9s/laravel`](https://github.com/crubier/p9s/tree/main/packages/php) package runs a closure in a transaction as a user, and its `AsUser` middleware runs every request as its user. [`examples/integrations/laravel`](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) adopts p9s in a Laravel API with it.
 
+The reference of each function, its options and its errors: [`p9s/laravel`](../packages/php).
+
 ## p9s adopt
 
 ```bash

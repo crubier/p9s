@@ -6,6 +6,8 @@ sidebar_position: 7
 
 [`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI runs a transaction of a SQLAlchemy session as a user, sync or async. [`examples/integrations/fastapi`](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi) adopts p9s in a FastAPI app on async SQLAlchemy, with Alembic migrations.
 
+The reference of each function, its options and its errors: [`p9s` for Python](../packages/python#p9ssqlalchemy).
+
 ## p9s adopt
 
 ```bash

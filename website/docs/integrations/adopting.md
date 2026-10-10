@@ -15,18 +15,18 @@ Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/in
 
 | Stack | Package | Each request as its user | Example |
 | --- | --- | --- | --- |
-| [Drizzle](./drizzle) | `@p9s/drizzle` | `withUser(db, users, userId, tx => ...)` | [Drizzle](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) |
-| [PostGraphile](./postgraphile) | `@p9s/postgres` | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) |
-| [Prisma](./prisma) | `@p9s/prisma` | `withUser(prisma, users, userId, tx => ...)` | [Prisma](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) |
-| [Kysely and node-postgres](./kysely) | `@p9s/kysely`, `@p9s/postgres` | `withUser(db, users, userId, trx => ...)` | [Kysely](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) |
-| [Supabase](./supabase) | none, a preset | the JWT of the user | [Supabase](https://github.com/crubier/p9s/tree/main/examples/integrations/supabase) |
-| [SQLAlchemy and FastAPI](./sqlalchemy) | `p9s[sqlalchemy]` | `with as_user(session, users, user_id):` | [FastAPI](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi) |
-| [Django](./django) | `p9s[django]` | `P9sMiddleware` | [Django](https://github.com/crubier/p9s/tree/main/examples/integrations/django) |
-| [Rails](./rails) | the `p9s` gem | `include P9s::Controller` | [Rails](https://github.com/crubier/p9s/tree/main/examples/integrations/rails) |
-| [Go](./go) | `github.com/crubier/p9s/packages/go` | `p9sgorm.AsUser(ctx, db, users, userID, func(tx) error)` | [GORM](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) |
-| [Rust](./rust) | the `p9s` crate | the `UserTx` extractor | [axum](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) |
-| [Elixir](./elixir) | `p9s` on Hex | `use P9s.Controller` | [Phoenix](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) |
-| [Laravel](./laravel) | `p9s/laravel` | the `AsUser` middleware | [Laravel](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) |
+| [Drizzle](./drizzle) | [`@p9s/drizzle`](../packages/drizzle) | `withUser(db, users, userId, tx => ...)` | [Drizzle](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) |
+| [PostGraphile](./postgraphile) | [`@p9s/postgres`](../packages/postgres) | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) |
+| [Prisma](./prisma) | [`@p9s/prisma`](../packages/prisma) | `withUser(prisma, users, userId, tx => ...)` | [Prisma](https://github.com/crubier/p9s/tree/main/examples/integrations/prisma) |
+| [Kysely and node-postgres](./kysely) | [`@p9s/kysely`](../packages/kysely), [`@p9s/postgres`](../packages/postgres) | `withUser(db, users, userId, trx => ...)` | [Kysely](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) |
+| [Supabase](./supabase) | none, [a preset](../packages/core#presets) | the JWT of the user | [Supabase](https://github.com/crubier/p9s/tree/main/examples/integrations/supabase) |
+| [SQLAlchemy and FastAPI](./sqlalchemy) | [`p9s[sqlalchemy]`](../packages/python#p9ssqlalchemy) | `with as_user(session, users, user_id):` | [FastAPI](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi) |
+| [Django](./django) | [`p9s[django]`](../packages/python#p9sdjango) | `P9sMiddleware` | [Django](https://github.com/crubier/p9s/tree/main/examples/integrations/django) |
+| [Rails](./rails) | [the `p9s` gem](../packages/ruby) | `include P9s::Controller` | [Rails](https://github.com/crubier/p9s/tree/main/examples/integrations/rails) |
+| [Go](./go) | [`github.com/crubier/p9s/packages/go`](../packages/go) | `p9sgorm.AsUser(ctx, db, users, userID, func(tx) error)` | [GORM](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) |
+| [Rust](./rust) | [the `p9s` crate](../packages/rust) | the `UserTx` extractor | [axum](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) |
+| [Elixir](./elixir) | [`p9s` on Hex](../packages/elixir) | `use P9s.Controller` | [Phoenix](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) |
+| [Laravel](./laravel) | [`p9s/laravel`](../packages/php) | the `AsUser` middleware | [Laravel](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) |
 
 Any other client runs one statement at the start of each transaction, see [other stacks](./other-stacks).
 

@@ -6,6 +6,8 @@ sidebar_position: 8
 
 [`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI has a middleware that runs every request of Django in a transaction as its user. [`examples/integrations/django`](https://github.com/crubier/p9s/tree/main/examples/integrations/django) adopts p9s in a Django app with it.
 
+The reference of each function, its options and its errors: [`p9s` for Python](../packages/python#p9sdjango).
+
 ## p9s adopt
 
 ```bash
