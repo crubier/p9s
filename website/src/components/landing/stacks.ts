@@ -51,6 +51,30 @@ app.onError((error, c) =>
   isRefused(error) ? c.json({ error: "forbidden" }, 403) : c.json({ error: "internal" }, 500));`,
   },
   {
+    name: 'PostGraphile',
+    language: 'GraphQL',
+    icon: siGraphql,
+    to: '/docs/integrations/postgraphile',
+    install: 'npm install @p9s/postgres',
+    file: 'graphile.config.ts',
+    prism: 'typescript',
+    code: `
+import { createIdentity } from "@p9s/postgres";
+import config from "./p9s.config.json";
+
+const users = createIdentity(config);
+
+// The settings of each request: its role and its user, for the policies
+export const preset: GraphileConfig.Preset = {
+  extends: [PostGraphileAmberPreset],
+  grafast: {
+    context: requestContext => ({
+      pgSettings: users.pgSettings(userIdOf(requestContext)),
+    }),
+  },
+};`,
+  },
+  {
     name: 'Prisma',
     language: 'TypeScript',
     icon: siPrisma,
@@ -94,30 +118,6 @@ app.get("/documents", async c => c.json(await withUser(db, users, c.get("userId"
 // No ORM: a transaction on a connection of a node-postgres pool
 const rows = await users.run(pool, userId, async client =>
   (await client.query("select id, title from documents")).rows);`,
-  },
-  {
-    name: 'PostGraphile',
-    language: 'GraphQL',
-    icon: siGraphql,
-    to: '/docs/configuration/postgraphile',
-    install: 'npm install @p9s/postgres',
-    file: 'graphile.config.ts',
-    prism: 'typescript',
-    code: `
-import { createIdentity } from "@p9s/postgres";
-import config from "./p9s.config.json";
-
-const users = createIdentity(config);
-
-// The settings of each request: its role and its user, for the policies
-export const preset: GraphileConfig.Preset = {
-  extends: [PostGraphileAmberPreset],
-  grafast: {
-    context: requestContext => ({
-      pgSettings: users.pgSettings(userIdOf(requestContext)),
-    }),
-  },
-};`,
   },
   {
     name: 'Supabase',

@@ -105,7 +105,9 @@ const config: Config = {
         {
           title: 'Integrations',
           items: [
-            { label: 'Drizzle, Prisma, Kysely', to: '/docs/integrations/drizzle' },
+            { label: 'Drizzle', to: '/docs/integrations/drizzle' },
+            { label: 'PostGraphile', to: '/docs/integrations/postgraphile' },
+            { label: 'Prisma and Kysely', to: '/docs/integrations/prisma' },
             { label: 'Supabase', to: '/docs/integrations/supabase' },
             { label: 'SQLAlchemy and Django', to: '/docs/integrations/sqlalchemy' },
             { label: 'Rails', to: '/docs/integrations/rails' },

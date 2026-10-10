@@ -16,9 +16,9 @@ Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/ad
 | Stack | Package | Each request as its user | Example |
 | --- | --- | --- | --- |
 | [Drizzle](./drizzle) | `@p9s/drizzle` | `withUser(db, users, userId, tx => ...)` | [Drizzle](https://github.com/crubier/p9s/tree/main/examples/drizzle) |
+| [PostGraphile](./postgraphile) | `@p9s/postgres` | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls) |
 | [Prisma](./prisma) | `@p9s/prisma` | `withUser(prisma, users, userId, tx => ...)` | [Prisma](https://github.com/crubier/p9s/tree/main/examples/prisma) |
 | [Kysely and node-postgres](./kysely) | `@p9s/kysely`, `@p9s/postgres` | `withUser(db, users, userId, trx => ...)` | [Kysely](https://github.com/crubier/p9s/tree/main/examples/kysely) |
-| [PostGraphile](../configuration/postgraphile) | `@p9s/postgres` | `pgSettings: users.pgSettings(userId)` | [PostGraphile](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls) |
 | [Supabase](./supabase) | none, a preset | the JWT of the user | [Supabase](https://github.com/crubier/p9s/tree/main/examples/supabase) |
 | [SQLAlchemy and FastAPI](./sqlalchemy) | `p9s[sqlalchemy]` | `with as_user(session, users, user_id):` | [FastAPI](https://github.com/crubier/p9s/tree/main/examples/fastapi) |
 | [Django](./django) | `p9s[django]` | `P9sMiddleware` | [Django](https://github.com/crubier/p9s/tree/main/examples/django) |

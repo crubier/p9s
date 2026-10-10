@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "pg-permission-tree",
+      "name": "p9s",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.9.3",

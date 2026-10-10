@@ -1,4 +1,4 @@
-# p9s (pg-permission-tree)
+# p9s
 
 Hierarchical permissions for Postgres, enforced with Row Level Security.
 
