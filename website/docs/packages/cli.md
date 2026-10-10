@@ -54,6 +54,24 @@ Reads the tables, primary keys and foreign keys of a schema, `public` by default
 
 It sets the current user from the setting `app.role_id`, see [acting as a user](../configuration/identity), uuid ids when every key is a uuid, and one bit for each operation. Comments in the file tell what it guessed: read them, then adjust the config before generating the migration.
 
+## adopt
+
+```bash
+npx p9s adopt
+```
+
+Changes the code of the app in the current folder so that its requests run as their users. It finds the stack from the files of the app, or takes `--stack`, one of `rails`, `django`, `fastapi`, `laravel`, `phoenix`, `go`, `axum`, `supabase`, `postgraphile`, `prisma`, `drizzle` and `kysely`. Depending on the stack, it:
+
+- adds the package of p9s to the manifest, like the `Gemfile`, `pyproject.toml`, `composer.json`, `mix.exs`, `go.mod`, `Cargo.toml` or `package.json`. It leaves the lock file to the package manager, and prints the command to run next, like `bundle install`
+- runs every request in a transaction as its user, where the framework has one place for it: `P9s::Controller` in the application controller of Rails, the middleware of Django, the `AsUser` middleware on the routes of Laravel that authenticate users, `P9s.Controller` in the controllers of Phoenix
+- answers 403 to a write the policies refuse, in the error handler of the framework: Rails, FastAPI, Laravel and Hono
+- leaves the columns p9s adds out of the models that would read or show them, in Rails and Laravel, and lets Rails write rows without reading the rows their `belongs_to` point to
+- writes the identity of the config, which the code of the app passes to the packages, in `p9s.go` for Go and `src/p9s.ts` for TypeScript
+
+`--user-id` tells how the app finds the id of the user of a request, when it is not the default of the stack, `current_user.id` in Rails and Phoenix, the signed in user in Django and Laravel: an expression for Rails (`@user_id`), Laravel (of `$request`) and Phoenix (of `conn`), and the dotted path of a function of the request for Django. `--dry-run` lists the files it would change.
+
+It changes nothing it changed already, so running it twice is safe. It ends with what is left to you, which is specific to each app: deleting the permission checks, reading and writing as the user, and answering 404 and 403 where the app checked before. The guide of each stack in [integrations](../integrations/adopting) shows both parts, and each example of the repository holds them in `adopt.patch`, what `p9s adopt` writes, and `after.patch`, the rest.
+
 ## postgres generate
 
 ```bash

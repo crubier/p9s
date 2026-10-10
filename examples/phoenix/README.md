@@ -38,8 +38,10 @@ Then `mix ecto.migrate` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds [`p9s`](../../packages/elixir), deletes `lib/documents/permissions.ex`, and uses
-`P9s.Controller` in the controllers of the app, in `DocumentsWeb.controller/0`:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes, with `--user-id
+conn.assigns.user_id`: it adds [`p9s`](../../packages/elixir), and uses `P9s.Controller` in the controllers of the app,
+in `DocumentsWeb.controller/0`. [`after.patch`](./after.patch) is the rest, by hand: it deletes
+`lib/documents/permissions.ex` and its checks, and defines `p9s_refused/2`:
 
 ```elixir
 use Phoenix.Controller, formats: [:json]

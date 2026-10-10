@@ -1,7 +1,8 @@
-diff --git a/src/permissions.ts b/src/permissions.ts
-index 514c74a..e69de29 100644
+diff --git a/src/permissions.ts a/src/permissions.ts
+deleted file mode 100644
+index 514c74a..0000000
 --- a/src/permissions.ts
-+++ b/src/permissions.ts
++++ /dev/null
 @@ -1,57 +0,0 @@
 -import { db, type Access } from "./db.ts";
 -
@@ -61,40 +62,23 @@ index 514c74a..e69de29 100644
 -  .orderBy("id")
 -  .execute();
 diff --git a/src/server.ts b/src/server.ts
-index c85906c..7a02831 100644
+index 2a1c359..5742f07 100644
 --- a/src/server.ts
 +++ b/src/server.ts
-@@ -1,6 +1,8 @@
+@@ -1,6 +1,7 @@
  import { Hono } from "hono";
 +import { withUser } from "@p9s/kysely";
-+import { createIdentity, isRefused } from "@p9s/postgres";
-+import config from "../p9s.config.json";
  import { db, type Access } from "./db.ts";
 -import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
++import { users } from "./p9s.ts";
+ import { isRefused } from "@p9s/postgres";
  
  const app = new Hono<{ Variables: { userId: number } }>();
- 
-@@ -8,6 +10,9 @@ const columns = ["id", "project_id", "title", "body"] as const;
- const notFound = { error: "not found" };
- const forbidden = { error: "forbidden" };
- 
-+// Every query of a request runs in a transaction as its user, and the policies of p9s decide what it reads and writes
-+const users = createIdentity(config);
-+
- app.get("/health", c => c.text("ok"));
- 
- // A real app reads the user from its session, this one from a header
-@@ -18,55 +23,63 @@ app.use("*", async (c, next) => {
+@@ -25,55 +26,57 @@ app.use("*", async (c, next) => {
    await next();
  });
  
 -app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
-+// A write the policies do not let through
-+app.onError((error, c) => {
-+  if (isRefused(error)) return c.json(forbidden, 403);
-+  throw error;
-+});
-+
 +app.get("/projects", async c => c.json(await withUser(db, users, c.get("userId"), trx =>
 +  trx.selectFrom("projects").select(["id", "name"]).orderBy("id").execute(), { readOnly: true })));
  

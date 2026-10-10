@@ -39,8 +39,10 @@ Then `bin/rails db:migrate` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds the [`p9s`](../../packages/ruby) gem, deletes `app/models/permissions.rb`, and
-includes `P9s::Controller` in the application controller, after the callback that finds the user:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes, with `--user-id @user_id`: it
+adds the [`p9s`](../../packages/ruby) gem, includes `P9s::Controller` in the application controller, after the callback
+that finds the user, and changes the models as below. [`after.patch`](./after.patch) is the rest, by hand: it deletes
+`app/models/permissions.rb` and its checks, and answers refused writes with the JSON of the app:
 
 ```ruby
 class ApplicationController < ActionController::API

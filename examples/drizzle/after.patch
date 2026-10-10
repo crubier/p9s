@@ -52,42 +52,26 @@ index 1f719d2..0000000
 -  ))
 -  .orderBy(asc(documents.id));
 diff --git a/src/server.ts b/src/server.ts
-index b41470c..0fce184 100644
+index 64c4d89..f9605fd 100644
 --- a/src/server.ts
 +++ b/src/server.ts
-@@ -1,13 +1,18 @@
+@@ -1,7 +1,8 @@
 -import { and, eq } from "drizzle-orm";
 +import { asc, eq } from "drizzle-orm";
  import { Hono } from "hono";
 -import { db, documentColumns, documents, documentShares, type Access } from "./db.ts";
 -import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
 +import { withUser } from "@p9s/drizzle";
-+import { createIdentity, isRefused } from "@p9s/postgres";
-+import config from "../p9s.config.json";
 +import { db, documentColumns, documents, documentShares, projects, type Access } from "./db.ts";
++import { users } from "./p9s.ts";
+ import { isRefused } from "@p9s/postgres";
  
  const app = new Hono<{ Variables: { userId: number } }>();
- 
- const notFound = { error: "not found" };
- const forbidden = { error: "forbidden" };
- 
-+// Every query of a request runs in a transaction as its user, and the policies of p9s decide what it reads and writes
-+const users = createIdentity(config);
-+
- app.get("/health", c => c.text("ok"));
- 
- // A real app reads the user from its session, this one from a header
-@@ -18,56 +23,65 @@ app.use("*", async (c, next) => {
+@@ -25,56 +26,59 @@ app.use("*", async (c, next) => {
    await next();
  });
  
 -app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
-+// A write the policies do not let through
-+app.onError((error, c) => {
-+  if (isRefused(error)) return c.json(forbidden, 403);
-+  throw error;
-+});
-+
 +app.get("/projects", async c => c.json(await withUser(db, users, c.get("userId"), tx =>
 +  tx.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.id)), { readOnly: true })));
  

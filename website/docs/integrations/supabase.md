@@ -53,7 +53,7 @@ An app whose users have ids of its own, rather than the uuids of `auth.users`, k
 }
 ```
 
-[`examples/supabase`](https://github.com/crubier/p9s/tree/main/examples/supabase) moves such an app, whose server read and wrote everything with the service role key, to requests that run as the user, with `npx @p9s/cli postgres migrate`, and tests it end to end.
+[`examples/supabase`](https://github.com/crubier/p9s/tree/main/examples/supabase) moves such an app, whose server read and wrote everything with the service role key, to requests that run as the user, with `npx @p9s/cli postgres migrate`, and tests it end to end. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/supabase/adopt.patch) is what [`p9s adopt`](../packages/cli#adopt) writes there: the 403 of refused writes, in `app.onError` of its Hono server. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/supabase/after.patch) is the rest, by hand: the migration of grants, and requests with the JWT of the user instead of the service role key.
 
 ## Migration
 

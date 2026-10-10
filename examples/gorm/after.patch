@@ -1,42 +1,5 @@
-diff --git a/go.mod b/go.mod
-index 1717d44..feacd31 100644
---- a/go.mod
-+++ b/go.mod
-@@ -9,9 +9,10 @@ require (
- )
- 
- require (
-+	github.com/crubier/p9s/packages/go v0.0.0
- 	github.com/jackc/pgpassfile v1.0.0 // indirect
- 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
--	github.com/jackc/pgx/v5 v5.10.0 // indirect
-+	github.com/jackc/pgx/v5 v5.11.0 // indirect
- 	github.com/jackc/puddle/v2 v2.2.2 // indirect
- 	github.com/jinzhu/inflection v1.0.0 // indirect
- 	github.com/jinzhu/now v1.1.5 // indirect
-@@ -21,3 +22,5 @@ require (
- 	golang.org/x/sync v0.22.0 // indirect
- 	golang.org/x/text v0.41.0 // indirect
- )
-+
-+replace github.com/crubier/p9s/packages/go => ../../../packages/go
-diff --git a/go.sum b/go.sum
-index 634865c..4d72793 100644
---- a/go.sum
-+++ b/go.sum
-@@ -7,8 +7,8 @@ github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsI
- github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
- github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
- github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
--github.com/jackc/pgx/v5 v5.10.0 h1:VhSvgU2jSli8o3AqIEOTJr7rZwAEUVo4E4XhR94Zfr0=
--github.com/jackc/pgx/v5 v5.10.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
-+github.com/jackc/pgx/v5 v5.11.0 h1:IzBBtyK9AHqf98cctWFifYSci2hgQR/cd56wB4p+ogg=
-+github.com/jackc/pgx/v5 v5.11.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
- github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
- github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
- github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 diff --git a/main.go b/main.go
-index 73f2d96..be3e6af 100644
+index 73f2d96..7fc10b5 100644
 --- a/main.go
 +++ b/main.go
 @@ -8,6 +8,8 @@ import (
@@ -48,7 +11,7 @@ index 73f2d96..be3e6af 100644
  	"github.com/pressly/goose/v3"
  	"gorm.io/driver/postgres"
  	"gorm.io/gorm"
-@@ -27,10 +29,14 @@ var (
+@@ -27,8 +29,9 @@ var (
  	forbidden = answer{http.StatusForbidden, map[string]string{"error": "forbidden"}}
  )
  
@@ -58,24 +21,9 @@ index 73f2d96..be3e6af 100644
 +// writes
 +type handler func(r *http.Request, tx *gorm.DB) (answer, error)
  
--type server struct{ db *gorm.DB }
-+type server struct {
-+	db    *gorm.DB
-+	users *p9s.Identity
-+}
+ type server struct{ db *gorm.DB }
  
- func main() {
- 	db, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{Logger: logger.Default.LogMode(logger.Warn)})
-@@ -41,7 +47,7 @@ func main() {
- 		migrate(db)
- 		return
- 	}
--	s := server{db}
-+	s := server{db, p9s.Must(p9s.FromFile("p9s.config.json"))}
- 	mux := http.NewServeMux()
- 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })
- 	mux.Handle("GET /projects", s.route(projects))
-@@ -68,7 +74,8 @@ func migrate(db *gorm.DB) {
+@@ -68,7 +71,8 @@ func migrate(db *gorm.DB) {
  	}
  }
  
@@ -85,13 +33,13 @@ index 73f2d96..be3e6af 100644
  func (s server) route(h handler) http.Handler {
  	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
  		userID, err := strconv.ParseInt(r.Header.Get("x-user-id"), 10, 64)
-@@ -76,7 +83,14 @@ func (s server) route(h handler) http.Handler {
+@@ -76,7 +80,14 @@ func (s server) route(h handler) http.Handler {
  			write(w, answer{http.StatusUnauthorized, map[string]string{"error": "unauthorized"}})
  			return
  		}
 -		a, err := h(r, s.db.WithContext(r.Context()), userID)
 +		var a answer
-+		err = p9sgorm.AsUser(r.Context(), s.db, s.users, userID, func(tx *gorm.DB) (err error) {
++		err = p9sgorm.AsUser(r.Context(), s.db, users, userID, func(tx *gorm.DB) (err error) {
 +			a, err = h(r, tx)
 +			return err
 +		}, p9s.ReadOnly(r.Method == http.MethodGet))
@@ -101,7 +49,7 @@ index 73f2d96..be3e6af 100644
  		if err != nil {
  			log.Print(err)
  			http.Error(w, "internal error", http.StatusInternalServerError)
-@@ -101,58 +115,55 @@ func pathID(r *http.Request, name string) (int64, bool) {
+@@ -101,58 +112,55 @@ func pathID(r *http.Request, name string) (int64, bool) {
  	return id, err == nil
  }
  
@@ -179,7 +127,7 @@ index 73f2d96..be3e6af 100644
  	var changes struct {
  		Title *string `json:"title"`
  		Body  *string `json:"body"`
-@@ -167,31 +178,32 @@ func updateDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error)
+@@ -167,31 +175,32 @@ func updateDocument(r *http.Request, db *gorm.DB, userID int64) (answer, error)
  	if changes.Body != nil {
  		updates["body"] = *changes.Body
  	}
@@ -223,7 +171,7 @@ index 73f2d96..be3e6af 100644
  	id, ok := pathID(r, "id")
  	target, targetOK := pathID(r, "userID")
  	if !ok || !targetOK {
-@@ -203,21 +215,9 @@ func share(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
+@@ -203,21 +212,9 @@ func share(r *http.Request, db *gorm.DB, userID int64) (answer, error) {
  	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || (body.Access != "viewer" && body.Access != "editor") {
  		return answer{http.StatusBadRequest, map[string]string{"error": "bad request"}}, nil
  	}

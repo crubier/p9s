@@ -1,5 +1,5 @@
 {
-  "setup": ["go build -o documents ."],
+  "setup": ["go mod tidy", "go build -o documents ."],
   "migrate": "./documents migrate",
   "start": "./documents",
   "format": {"name": "goose"}

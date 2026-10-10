@@ -1,0 +1,21 @@
+diff --git a/src/server.ts b/src/server.ts
+index 5adeb9d..d52662a 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,9 +1,16 @@
+ import { Hono } from "hono";
+ import { maybeRow, rows, supabase, type Access } from "./db.ts";
+ import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
++import { isRefused } from "@p9s/postgres";
+ 
+ const app = new Hono<{ Variables: { userId: number } }>();
+ 
++// A write the policies of p9s do not let through
++app.onError((error, c) => {
++  if (isRefused(error)) return c.json({ error: "forbidden" }, 403);
++  throw error;
++});
++
+ const columns = "id, project_id, title, body";
+ const notFound = { error: "not found" };
+ const forbidden = { error: "forbidden" };

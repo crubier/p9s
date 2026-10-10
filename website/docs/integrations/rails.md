@@ -6,6 +6,15 @@ sidebar_position: 9
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/ruby) gem runs an Active Record block as a user, and every action of a Rails controller as the user of its request. [`examples/rails`](https://github.com/crubier/p9s/tree/main/examples/rails) adopts p9s in a Rails API with it.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+bundle install
+```
+
+[`p9s adopt`](../packages/cli#adopt) adds the gem, includes `P9s::Controller` in the application controller with read only transactions for `GET` and `HEAD`, answers 403 to refused writes, and changes the models as [below](#models). With `--user-id @user_id`, the user is `@user_id` rather than `current_user.id`. Then delete the permission checks, as in [the example](#the-example). The sections below are what it writes, for an app that makes the changes by hand.
+
 ## Install
 
 ```ruby
@@ -80,4 +89,4 @@ end
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/rails/before) checks every action with `app/models/permissions.rb`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/rails/after.patch) deletes it, includes `P9s::Controller` in the application controller, and changes the models as above.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/rails/before) checks every action with `app/models/permissions.rb`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/rails/adopt.patch) is what `p9s adopt --user-id @user_id` writes: the gem, `P9s::Controller` in the application controller, and the models as above. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/rails/after.patch) is the rest, by hand: it deletes `permissions.rb` and its checks, and answers refused writes with the JSON of the app.

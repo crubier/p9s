@@ -2,7 +2,7 @@ import { cosmiconfig, getDefaultSearchPlaces } from "cosmiconfig";
 import type { Config } from "@p9s/core";
 
 // Besides the places cosmiconfig looks in, p9s.config.json and p9s.config.yaml, which any stack can write
-const searchPlaces = [...getDefaultSearchPlaces("p9s"), "p9s.config.json", "p9s.config.yaml", "p9s.config.yml"];
+export const searchPlaces = [...getDefaultSearchPlaces("p9s"), "p9s.config.json", "p9s.config.yaml", "p9s.config.yml"];
 
 export async function loadConfig<User extends string>(options: { configPath?: string; cwd?: string } = {}): Promise<Config<User>> {
   const cc = cosmiconfig("p9s", { searchPlaces });

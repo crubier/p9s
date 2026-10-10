@@ -37,15 +37,16 @@ Then `php artisan migrate` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds the [`p9s/laravel`](../../packages/php) package, deletes `app/Permissions.php`,
-and adds the `AsUser` middleware after the one that finds the user:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes, with `--user-id` and the
+expression `$request->attributes->get('user_id')`: it adds the [`p9s/laravel`](../../packages/php) package, and the
+`AsUser` middleware after the one that finds the user:
 
 ```php
 Route::middleware(['authenticate', AsUser::class])->group(function () {
 ```
 
 In `bootstrap/app.php`, it tells p9s where the middleware put the id of the user, and answers 403 to a write the
-policies refused:
+policies refused, which [`after.patch`](./after.patch) makes the JSON of the app:
 
 ```php
 ->withExceptions(function (Exceptions $exceptions) {
@@ -61,7 +62,8 @@ policies refused:
 Each request then runs in a transaction that acts as its user, read only for `GET`, and the policies decide what each
 query reads and writes. A write they refuse fails with `insufficient_privilege`, the transaction rolls back, and the app
 answers 403. An update or a delete of a document the user reads but cannot change touches no row, and gets 403 too.
-The models hide the `resource_id` column p9s adds, which Eloquent would otherwise read and render.
+`p9s adopt` also makes the models hide the `resource_id` column p9s adds, which Eloquent would otherwise read and
+render. The rest of `after.patch`, by hand, deletes `app/Permissions.php` and its checks.
 
 In an app, `composer require p9s/laravel`. The example takes the package of this repository, with a path repository in
 `composer.json`.

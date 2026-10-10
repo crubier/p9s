@@ -1,0 +1,12 @@
+diff --git b/src/p9s.ts b/src/p9s.ts
+new file mode 100644
+index 0000000..970774f
+--- /dev/null
++++ b/src/p9s.ts
+@@ -0,0 +1,6 @@
++import { createIdentity } from "@p9s/postgres";
++import config from "../p9s.config.json";
++
++// How a transaction acts as the user of a request: the role and the setting of the config of p9s, whose policies decide
++// what it reads and writes
++export const users = createIdentity(config);

@@ -5,15 +5,18 @@ change that hands those checks to p9s:
 
 - `before/`: the app as it was, with its own migrations, and its permission checks in its code
 - `p9s.config.json`: the config that describes its tables, and the tables where it keeps memberships and shares
-- `after.patch`: the change to the code once p9s runs, which removes the permission checks and runs the queries of
-  each request as the user
-- `adoption.json`: how to set the app up, run its migrations, and start it, and the `format` of its migration tool for
+- `adopt.patch`: what [`p9s adopt`](../../packages/cli/src/adopt) writes in `before/`, the package of p9s and what
+  hooks it into the app, which the test checks it still writes
+- `after.patch`: the rest of the change to the code, by hand, after `p9s adopt`, which removes the permission checks
+  and runs the queries of each request as the user
+- `adoption.json`: the options of `p9s adopt` under `adopt`, how to set the app up, which also installs what `p9s adopt`
+  added, run its migrations, and start it, and the `format` of its migration tool for
   `p9s postgres generate --format`, see [`harness.ts`](./harness.ts). With
   `"stack": "supabase"`, each database gets what a Supabase project has, its roles, `auth` schema and grants, and the
   app gets PostgREST under `/rest/v1` of `SUPABASE_URL`, with the keys of the project, see [`supabase.ts`](./supabase.ts)
 - `adoption.test.ts`: the test, which calls the harness of this folder
 
-The adoption itself is one command, in the folder of the app:
+The adoption of the database is one command, in the folder of the app:
 
 ```bash
 npx @p9s/cli postgres migrate --config p9s.config.json
@@ -21,7 +24,16 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 
 ## What the test does
 
-1. Copies `before/` twice, applies `after.patch` to the second copy, and creates two databases
+Without a database, for each example:
+
+1. Runs `p9s adopt` with the options of `adoption.json` in a copy of `before/`, and checks that it is the same, file
+   for file, as `before/` with `adopt.patch`
+2. Runs `p9s adopt` again, which must find nothing to change, and checks that `after.patch` applies
+
+With a database:
+
+1. Copies `before/` twice, runs `p9s adopt` in the second copy and applies `after.patch` to it, and creates two
+   databases
 2. Runs the migrations of the app on the first database, loads [`seed.sql`](./seed.sql), starts the app, and runs the
    [scenario](./scenario.ts): requests of each user, each with the status the rules below give
 3. Runs the p9s migration on that database, in one command
@@ -38,12 +50,14 @@ npx @p9s/cli postgres migrate --config p9s.config.json
    the rows of the seed inserted after p9s
 
 `P9S_ADOPTION_DATABASE_URL` is a Postgres server where the role of the URL can create databases and roles, like
-`postgresql://postgres@localhost:5432/postgres`. Without it, the tests are skipped. Run the tests of one example with
-`bun test examples/kysely`, and keep the databases and copies with `P9S_ADOPTION_KEEP=1`. The Supabase example
-downloads a release of PostgREST once, or takes the binary of `P9S_POSTGREST`, or `postgrest` on the `PATH`.
+`postgresql://postgres@localhost:5432/postgres`. Without it, only the tests without a database run. Run the tests of
+one example with `bun test examples/kysely`, and keep the databases and copies with `P9S_ADOPTION_KEEP=1`. The Supabase
+example downloads a release of PostgREST once, or takes the binary of `P9S_POSTGREST`, or `postgrest` on the `PATH`.
 
-To change the code after p9s, `bun examples/adoption/patch.ts edit kysely` writes the patched copy to
-`examples/kysely/.adoption-edit`, and `bun examples/adoption/patch.ts save kysely` writes the patch again from it.
+To change the code after p9s, `bun examples/adoption/patch.ts edit kysely` writes the copy after `p9s adopt` and
+`after.patch` to `examples/kysely/.adoption-edit`, and `bun examples/adoption/patch.ts save kysely` writes both patches
+again: `adopt.patch` from what `p9s adopt` writes now, and `after.patch` from the rest of `.adoption-edit`. After a
+change to `p9s adopt`, `edit` then `save` writes both again, `after.patch` on top of what `p9s adopt` writes now.
 
 ## The app
 

@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { cp, mkdir, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import pg from "pg";
 import { createIdentity } from "@p9s/postgres";
@@ -29,10 +30,12 @@ export interface Descriptor {
   stack?: "supabase";
   // The migration tool of the app, for p9s postgres generate --format, with the options it needs, like --previous
   format?: { name: string; options?: string };
+  // The options of p9s adopt for the app, like ["--user-id", "@user_id"]
+  adopt?: string[];
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
-export const generated = new Set(["node_modules", ".adoption", ".adoption-before", ".adoption-after", ".adoption-edit", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log"]);
+export const generated = new Set(["node_modules", ".adoption", ".adoption-before", ".adoption-after", ".adoption-edit", ".adoption-adopt", ".adoption-expected", "generated", ".venv", "target", "_build", "deps", "vendor", "__pycache__", "tmp", "log"]);
 
 export const copyApp = async (from: string, to: string) => {
   await rm(to, { recursive: true, force: true });
@@ -41,6 +44,46 @@ export const copyApp = async (from: string, to: string) => {
 
 export const applyPatch = async (patch: string, directory: string) => {
   if (await Bun.file(patch).exists()) await run(`patch -p1 -E --forward --quiet < "${patch}"`, directory);
+};
+
+export const readDescriptor = async (example: string): Promise<Descriptor> => JSON.parse(await readFile(path.join(example, "adoption.json"), "utf8"));
+
+// Runs the CLI of this repository in a folder, with the arguments as they are, without a shell
+export const runCli = async (args: string[], cwd: string, env: Record<string, string> = {}) => {
+  const child = Bun.spawn([process.execPath, cli, ...args], { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
+  const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+  if (code !== 0) throw new Error(`p9s ${args.join(" ")} exited with ${code} in ${cwd}\n${stdout}\n${stderr}`);
+  return stdout;
+};
+
+// A copy of before/ with its config, which p9s adopt changes, with the packages of this repository
+export const adoptCopy = async (example: string, directory: string) => {
+  await copyApp(path.join(example, "before"), directory);
+  await cp(path.join(example, "p9s.config.json"), path.join(directory, "p9s.config.json"));
+  const { adopt = [] } = await readDescriptor(example);
+  return runCli(["adopt", "--config", "p9s.config.json", "--packages", repository, ...adopt], directory);
+};
+
+// What p9s adopt must write: a copy of before/ with its config and adopt.patch
+export const expectedCopy = async (example: string, directory: string) => {
+  await copyApp(path.join(example, "before"), directory);
+  await cp(path.join(example, "p9s.config.json"), path.join(directory, "p9s.config.json"));
+  await applyPatch(path.join(example, "adopt.patch"), directory);
+};
+
+// git diff of two folders, without their generated folders, as a patch whose paths are a/... and b/...
+export const diffApps = async (from: string, to: string, leave: string[] = []) => {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "p9s-diff-"));
+  try {
+    await copyApp(from, path.join(scratch, "a"));
+    await copyApp(to, path.join(scratch, "b"));
+    for (const file of leave) for (const side of ["a", "b"]) await rm(path.join(scratch, side, file), { force: true });
+    const diff = Bun.spawnSync(["git", "diff", "--no-index", "--no-prefix", "--no-color", "a", "b"], { cwd: scratch });
+    if (diff.exitCode > 1) throw new Error(diff.stderr.toString());
+    return diff.stdout.toString();
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 };
 
 // A command that hangs fails on its own, rather than the test that runs it
@@ -293,6 +336,25 @@ export const describeAdoption = (example: string) => {
     return { base: server.base, leaks: stack?.leaks ?? (async () => []), stop: async () => { await server.stop(); await stack?.stop(); } };
   };
 
+  // Without a database: what p9s adopt changes in before/ is adopt.patch, running it again changes nothing, and the
+  // change left to the person, after.patch, applies on it
+  describe(`p9s adopt on ${name}`, () => {
+    const adopted = path.join(example, ".adoption-adopt");
+    const expected = path.join(example, ".adoption-expected");
+    afterAll(async () => {
+      for (const directory of [adopted, expected]) await rm(directory, { recursive: true, force: true });
+    });
+
+    test("npx @p9s/cli adopt writes what adopt.patch holds, once, and after.patch applies on it", async () => {
+      expect(await adoptCopy(example, adopted)).toMatch(/^Changed, for /);
+      await expectedCopy(example, expected);
+      expect(await diffApps(expected, adopted)).toBe("");
+      const { adopt = [] } = await readDescriptor(example);
+      expect(await runCli(["adopt", "--config", "p9s.config.json", "--packages", repository, ...adopt], adopted)).toMatch(/^Nothing to change/);
+      await applyPatch(path.join(example, "after.patch"), adopted);
+    }, timeout);
+  });
+
   describe.skipIf(!base)(`adoption of ${name}`, () => {
     afterAll(async () => {
       for (const stop of stops) await stop();
@@ -306,10 +368,9 @@ export const describeAdoption = (example: string) => {
       descriptor = JSON.parse(await readFile(path.join(example, "adoption.json"), "utf8"));
       config = JSON.parse(await readFile(path.join(example, "p9s.config.json"), "utf8"));
       await mkdir(work, { recursive: true });
-      for (const app of ["before", "after"] as const) {
-        await copyApp(path.join(example, "before"), apps[app]);
-        await cp(path.join(example, "p9s.config.json"), path.join(apps[app], "p9s.config.json"));
-      }
+      await copyApp(path.join(example, "before"), apps.before);
+      await cp(path.join(example, "p9s.config.json"), path.join(apps.before, "p9s.config.json"));
+      await adoptCopy(example, apps.after);
       await applyPatch(path.join(example, "after.patch"), apps.after);
       for (const app of ["before", "after"] as const) {
         for (const command of descriptor.setup ?? []) await run(command, apps[app], descriptor.env);

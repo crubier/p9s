@@ -520,7 +520,12 @@ function Adopt() {
     },
     {
       title: 'Run each request as its user',
-      body: <>One line in your framework: a middleware, a controller concern, an extractor or a transaction helper.</>,
+      body: (
+        <>
+          One line in your framework: a middleware, a controller concern, an extractor or a transaction helper.{' '}
+          <code>npx @p9s/cli adopt</code> adds the package and hooks it in for you.
+        </>
+      ),
     },
     {
       title: 'Delete your permission code',

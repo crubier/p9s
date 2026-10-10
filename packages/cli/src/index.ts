@@ -6,6 +6,7 @@ import { postgres } from "./commands/postgres.js";
 import { validate } from "./commands/validate.js";
 import { drizzle } from "./commands/drizzle.js";
 import { init } from "./commands/init.js";
+import { adopt } from "./commands/adopt.js";
 
 // The overloads of process.on depend on which @types/node bun-types resolves to, those of EventEmitter do not
 const signals: NodeJS.EventEmitter = process;
@@ -20,6 +21,7 @@ async function main() {
 
   program.addCommand(init);
   program.addCommand(postgres);
+  program.addCommand(adopt);
   program.addCommand(validate);
   program.addCommand(drizzle);
 

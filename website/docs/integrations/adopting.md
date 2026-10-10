@@ -7,11 +7,11 @@ sidebar_position: 1
 An app with users, teams and shares checks its permissions in its code: queries join memberships and shares to filter what each user sees, and a check runs before every update and delete. Adopting p9s moves those checks into Postgres, in the same four steps in every stack:
 
 1. Describe the tables in `p9s.config.json`.
-2. Run the migration of p9s, one command.
-3. Run each request in a transaction as its user, with the package of the stack.
-4. Delete the permission code, and answer 403 to a write the policies refuse.
+2. Run `p9s adopt`, which adds the package of the stack, runs each request in a transaction as its user where the framework allows it, and answers 403 to a write the policies refuse.
+3. Run the migration of p9s, one command.
+4. Delete the permission code, which is yours: read and write as the user, and answer 404 and 403 where the app checked before.
 
-Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/adoption) that does exactly that to the same small app, and a test that checks every user gets the same answers before and after.
+Each stack has [an example](https://github.com/crubier/p9s/tree/main/examples/adoption) that does exactly that to the same small app, and a test that checks that `p9s adopt` writes the same change every time, and that every user gets the same answers before and after.
 
 | Stack | Package | Each request as its user | Example |
 | --- | --- | --- | --- |
@@ -84,6 +84,31 @@ The config says which tables are roles and resources, and where the app already 
 
 `$schema` gives completion and checks in editors, see [the CLI](../packages/cli#the-json-schema-of-the-config), and `p9s validate config` checks the rest. [Links](../configuration/overview#links-configuration) and [acting as a user](../configuration/identity) tell more.
 
+## p9s adopt
+
+In the folder of the app, next to its config:
+
+```bash
+npx @p9s/cli adopt
+```
+
+It finds the stack from the files of the app, makes the changes that every app of the stack makes, prints the command that installs the package, and what is left to you. What it writes depends on how much the framework decides:
+
+| Stack | What `p9s adopt` writes |
+| --- | --- |
+| [Rails](./rails) | the gem, `P9s::Controller` and a 403 in the application controller, the columns of p9s ignored in the models |
+| [Django](./django) | the package, the middleware of p9s and its settings |
+| [Laravel](./laravel) | the package, the `AsUser` middleware, a 403 for refused writes, the columns of p9s hidden in the models |
+| [Elixir](./elixir) | the package, `P9s.Controller` in the controllers |
+| [SQLAlchemy and FastAPI](./sqlalchemy) | the package, the identity, a 403 for refused writes, and Alembic leaving the tables of p9s alone |
+| [Drizzle](./drizzle), [Prisma](./prisma), [Kysely](./kysely) | the identity in `src/p9s.ts`, and a 403 for refused writes in a Hono app |
+| [PostGraphile](./postgraphile) | the identity in `src/p9s.ts` |
+| [Supabase](./supabase) | a 403 for refused writes in a Hono app |
+| [Go](./go) | the module, and the identity in `p9s.go` |
+| [Rust](./rust) | the crate |
+
+Where the user comes from is up to the app: `--user-id` tells it when it is not the default of the stack, like `--user-id @user_id` in Rails, see [the CLI](../packages/cli#adopt). Running it twice changes nothing the second time.
+
 ## The migration
 
 After the migrations of the app, in its folder, with `DATABASE_URL` set:
@@ -106,4 +131,4 @@ Postgres refuses a row the policies do not let through, a statement the role has
 
 ## The test of each example
 
-Each example has `before/`, the app as it was, `p9s.config.json`, and `after.patch`, the change that adopts p9s. Its test, run in CI on Postgres, takes a fresh copy of `before/`, creates its database with its own migrations and seeds it, and records what each user can read, create, update, delete and share through its API. Then it runs the migration of p9s as one command, checks the database as each user, applies the patch, and checks that the API gives every user the same answers. With the format of its migration tool, it also makes a new database with the migrate command of the app alone. See [the adoption tests](https://github.com/crubier/p9s/tree/main/examples/adoption).
+Each example has `before/`, the app as it was, `p9s.config.json`, `adopt.patch`, what `p9s adopt` writes in it, and `after.patch`, the rest of the change, made by hand. Its test runs `p9s adopt` on a fresh copy of `before/`, and checks that it writes exactly `adopt.patch`, that running it again changes nothing, and that `after.patch` applies on top. Then, in CI on Postgres, it creates the database of `before/` with its own migrations and seeds it, and records what each user can read, create, update, delete and share through its API. It runs the migration of p9s as one command, checks the database as each user, and checks that the app after both patches gives every user the same answers. With the format of its migration tool, it also makes a new database with the migrate command of the app alone. See [the adoption tests](https://github.com/crubier/p9s/tree/main/examples/adoption).

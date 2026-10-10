@@ -1,0 +1,106 @@
+diff --git a/Gemfile b/Gemfile
+index a70e321..30a7191 100644
+--- a/Gemfile
++++ b/Gemfile
+@@ -2,6 +2,7 @@ source "https://rubygems.org"
+ 
+ gem "actionpack", "~> 8.1"
+ gem "activerecord", "~> 8.1"
++gem "p9s", path: "../../../packages/ruby"
+ gem "pg", "~> 1.6"
+ gem "puma", "~> 8.0"
+ gem "railties", "~> 8.1"
+diff --git a/app/controllers/application_controller.rb b/app/controllers/application_controller.rb
+index c303e43..dd66b1c 100644
+--- a/app/controllers/application_controller.rb
++++ b/app/controllers/application_controller.rb
+@@ -2,6 +2,16 @@
+ class ApplicationController < ActionController::API
+   before_action :authenticate
+ 
++  # Every action runs in a transaction as its user, where the policies of p9s decide what it reads and writes
++  include P9s::Controller
++
++  # A write the policies do not let through, after its transaction rolled back
++  rescue_from ActiveRecord::StatementInvalid do |error|
++    raise error unless P9s.refused?(error)
++
++    head :forbidden
++  end
++
+   private
+ 
+   def authenticate
+@@ -17,4 +27,13 @@ class ApplicationController < ActionController::API
+   def forbidden
+     render json: { error: "forbidden" }, status: :forbidden
+   end
++
++  # Read only transactions for the requests that read
++  def p9s_read_only?
++    request.get? || request.head?
++  end
++
++  def p9s_user_id
++    @user_id
++  end
+ end
+diff --git a/app/models/document.rb b/app/models/document.rb
+index 3f85b2d..f8901d2 100644
+--- a/app/models/document.rb
++++ b/app/models/document.rb
+@@ -1,5 +1,9 @@
+ # Deleting a document deletes its shares in the database, with on_delete: :cascade
+ class Document < ApplicationRecord
+-  belongs_to :project
++  # The columns of p9s, which the app neither reads nor writes
++  self.ignored_columns += ["resource_id"]
++  # The database checks the foreign keys, and the policies of p9s what the user writes. A required belongs_to
++  # would read the row it points to as the user, who may not read it.
++  belongs_to :project, optional: true
+   has_many :document_shares
+ end
+diff --git a/app/models/document_share.rb b/app/models/document_share.rb
+index 236f1c4..43f6b72 100644
+--- a/app/models/document_share.rb
++++ b/app/models/document_share.rb
+@@ -1,5 +1,7 @@
+ class DocumentShare < ApplicationRecord
+   self.primary_key = %i[document_id user_id]
+-  belongs_to :document
+-  belongs_to :user
++  # The database checks the foreign keys, and the policies of p9s what the user writes. A required belongs_to
++  # would read the row it points to as the user, who may not read it.
++  belongs_to :document, optional: true
++  belongs_to :user, optional: true
+ end
+diff --git a/app/models/project.rb b/app/models/project.rb
+index e743421..fb3bafb 100644
+--- a/app/models/project.rb
++++ b/app/models/project.rb
+@@ -1,4 +1,6 @@
+ class Project < ApplicationRecord
++  # The columns of p9s, which the app neither reads nor writes
++  self.ignored_columns += ["resource_id"]
+   has_many :project_shares
+   has_many :documents
+ end
+diff --git a/app/models/team.rb b/app/models/team.rb
+index f0436a4..7a2022c 100644
+--- a/app/models/team.rb
++++ b/app/models/team.rb
+@@ -1,3 +1,5 @@
+ class Team < ApplicationRecord
++  # The columns of p9s, which the app neither reads nor writes
++  self.ignored_columns += ["role_id"]
+   has_many :team_members
+ end
+diff --git a/app/models/user.rb b/app/models/user.rb
+index 379658a..8534d1e 100644
+--- a/app/models/user.rb
++++ b/app/models/user.rb
+@@ -1,2 +1,4 @@
+ class User < ApplicationRecord
++  # The columns of p9s, which the app neither reads nor writes
++  self.ignored_columns += ["role_id"]
+ end

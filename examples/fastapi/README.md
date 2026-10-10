@@ -40,11 +40,13 @@ Then `alembic upgrade head` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds [`p9s`](../../packages/python), deletes `app/permissions.py`, and gives each
-route a session whose transaction acts as the user with `as_user_async`:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: it adds
+[`p9s`](../../packages/python), the identity `users`, the 403 of refused writes, and `include_object` in
+`migrations/env.py`. [`after.patch`](./after.patch) is the rest, by hand: it deletes `app/permissions.py` and its
+checks, and gives each route a session whose transaction acts as the user with `as_user_async`:
 
 ```python
-users = Identity.from_file(Path(__file__).parent.parent / "p9s.config.json")
+users = Identity.from_file("p9s.config.json")
 
 async def writing(user: UserId) -> AsyncIterator[AsyncSession]:
     async with Session() as session, as_user_async(session, users, user):

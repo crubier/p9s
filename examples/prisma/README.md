@@ -30,11 +30,13 @@ policies, triggers and functions, which Prisma leaves alone.
 
 ## After
 
-[`after.patch`](./after.patch) deletes `src/permissions.ts`, and runs the queries of each request as its user with
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: `src/p9s.ts`, which exports
+the identity `users` of the config, and the 403 of refused writes in `app.onError`. [`after.patch`](./after.patch) is
+the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with
 `withUser` of [`@p9s/prisma`](../../packages/prisma), in an interactive transaction:
 
 ```ts
-const users = createIdentity(config);
+import { users } from "./p9s.ts";
 
 app.get("/projects", async c => c.json(await withUser(prisma, users, c.get("userId"), tx =>
   tx.project.findMany({ select: { id: true, name: true }, orderBy: { id: "asc" } }), { readOnly: true })));

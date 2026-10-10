@@ -6,6 +6,15 @@ sidebar_position: 7
 
 [`p9s`](https://github.com/crubier/p9s/tree/main/packages/python) on PyPI runs a transaction of a SQLAlchemy session as a user, sync or async. [`examples/fastapi`](https://github.com/crubier/p9s/tree/main/examples/fastapi) adopts p9s in a FastAPI app on async SQLAlchemy, with Alembic migrations.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+uv sync
+```
+
+In a FastAPI app, [`p9s adopt`](../packages/cli#adopt) adds `p9s[sqlalchemy]` to `pyproject.toml`, makes the identity `users` next to `FastAPI()`, answers 403 to refused writes with an exception handler, and makes autogenerate of Alembic leave alone what p9s adds to the database. Then run the queries of each request in a session as its user, and delete the permission checks, as in [the example](#the-example). The sections below are what it writes, for an app that makes the changes by hand.
+
 ## Install
 
 ```bash
@@ -85,4 +94,4 @@ context.configure(connection=connection, target_metadata=target_metadata, includ
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/fastapi/before) works out the access of a user in `app/permissions.py`, which every route asks first. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/fastapi/after.patch) deletes it, and gives each route a session as its user. The models do not change.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/fastapi/before) works out the access of a user in `app/permissions.py`, which every route asks first. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/fastapi/adopt.patch) is what `p9s adopt` writes: the package, the identity, the exception handler and `include_object`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/fastapi/after.patch) is the rest, by hand: it deletes `permissions.py` and its checks, gives each route a session as its user, and answers refused writes with the JSON of the app. The models do not change.

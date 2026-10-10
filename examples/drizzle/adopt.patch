@@ -1,0 +1,33 @@
+diff --git b/src/p9s.ts b/src/p9s.ts
+new file mode 100644
+index 0000000..970774f
+--- /dev/null
++++ b/src/p9s.ts
+@@ -0,0 +1,6 @@
++import { createIdentity } from "@p9s/postgres";
++import config from "../p9s.config.json";
++
++// How a transaction acts as the user of a request: the role and the setting of the config of p9s, whose policies decide
++// what it reads and writes
++export const users = createIdentity(config);
+diff --git a/src/server.ts b/src/server.ts
+index b41470c..64c4d89 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -2,9 +2,16 @@ import { and, eq } from "drizzle-orm";
+ import { Hono } from "hono";
+ import { db, documentColumns, documents, documentShares, type Access } from "./db.ts";
+ import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
++import { isRefused } from "@p9s/postgres";
+ 
+ const app = new Hono<{ Variables: { userId: number } }>();
+ 
++// A write the policies of p9s do not let through
++app.onError((error, c) => {
++  if (isRefused(error)) return c.json({ error: "forbidden" }, 403);
++  throw error;
++});
++
+ const notFound = { error: "not found" };
+ const forbidden = { error: "forbidden" };
+ 

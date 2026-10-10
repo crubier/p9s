@@ -6,6 +6,14 @@ sidebar_position: 5
 
 `withUser` of [`@p9s/kysely`](https://github.com/crubier/p9s/tree/main/packages/kysely) runs a Kysely transaction as a user, and `run` of [`@p9s/postgres`](https://github.com/crubier/p9s/tree/main/packages/postgres) does the same on a node-postgres pool, Neon or PGlite, without an ORM. [`examples/kysely`](https://github.com/crubier/p9s/tree/main/examples/kysely) adopts p9s in a Hono and Kysely app.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+```
+
+[`p9s adopt`](../packages/cli#adopt) adds `@p9s/postgres` and `@p9s/kysely` to `package.json`, writes `src/p9s.ts`, which exports the identity `users` of [the config](#config), and in a Hono app, answers 403 to refused writes with `app.onError`. Then run the queries of each request with `withUser(db, users, userId, trx => ...)`, and delete the permission checks, as in [the example](#the-example).
+
 ## Install
 
 ```bash
@@ -62,4 +70,4 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/kysely/before) checks every route with `src/permissions.ts`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/kysely/after.patch) deletes it, and runs the queries of each request as its user with `withUser`. Sharing a document is still an insert into `document_shares`, which p9s checks gives no more than the user has.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/kysely/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/kysely/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/kysely/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`. Sharing a document is still an insert into `document_shares`, which p9s checks gives no more than the user has.

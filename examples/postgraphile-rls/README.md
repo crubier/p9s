@@ -37,10 +37,12 @@ with them.
 
 ## After
 
-[`after.patch`](./after.patch) adds that migration, and takes the settings of each request from the config:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: `src/p9s.ts`, which exports
+the identity `users` of the config. [`after.patch`](./after.patch) is the rest, by hand: it adds that migration, and
+takes the settings of each request from `users`:
 
 ```ts
-const users = createIdentity(config);
+import { users } from "./p9s.ts";
 
 grafast: {
   context: requestContext => ({ pgSettings: users.pgSettings(userIdOf(requestContext)) }),

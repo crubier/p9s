@@ -1,74 +1,16 @@
-diff --git a/Gemfile b/Gemfile
-index a70e321..00809d0 100644
---- a/Gemfile
-+++ b/Gemfile
-@@ -2,6 +2,8 @@ source "https://rubygems.org"
- 
- gem "actionpack", "~> 8.1"
- gem "activerecord", "~> 8.1"
-+# p9s from RubyGems in an app, from this repository in the example
-+gem "p9s", path: "../../../packages/ruby"
- gem "pg", "~> 1.6"
- gem "puma", "~> 8.0"
- gem "railties", "~> 8.1"
-diff --git a/Gemfile.lock b/Gemfile.lock
-index a0554d9..bad6921 100644
---- a/Gemfile.lock
-+++ b/Gemfile.lock
-@@ -1,3 +1,9 @@
-+PATH
-+  remote: ../../../packages/ruby
-+  specs:
-+    p9s (0.1.0)
-+      activerecord (>= 7.0)
-+
- GEM
-   remote: https://rubygems.org/
-   specs:
-@@ -153,6 +159,7 @@ PLATFORMS
- DEPENDENCIES
-   actionpack (~> 8.1)
-   activerecord (~> 8.1)
-+  p9s!
-   pg (~> 1.6)
-   puma (~> 8.0)
-   railties (~> 8.1)
 diff --git a/app/controllers/application_controller.rb b/app/controllers/application_controller.rb
-index c303e43..f74b513 100644
+index dd66b1c..5ef4cd5 100644
 --- a/app/controllers/application_controller.rb
 +++ b/app/controllers/application_controller.rb
-@@ -1,6 +1,15 @@
--# A real app signs users in, with a session or a token, this one reads the user from a header
-+# A real app signs users in, with a session or a token, this one reads the user from a header. Then every action runs in
-+# a transaction as its user, and the policies of p9s decide what it reads and writes.
- class ApplicationController < ActionController::API
-   before_action :authenticate
-+  include P9s::Controller
-+
-+  # A write the policies do not let through, after its transaction rolled back
-+  rescue_from ActiveRecord::StatementInvalid do |error|
-+    raise error unless P9s.refused?(error)
-+
+@@ -9,7 +9,7 @@ class ApplicationController < ActionController::API
+   rescue_from ActiveRecord::StatementInvalid do |error|
+     raise error unless P9s.refused?(error)
+ 
+-    head :forbidden
 +    forbidden
-+  end
+   end
  
    private
- 
-@@ -10,6 +19,14 @@ class ApplicationController < ActionController::API
-     render json: { error: "unauthorized" }, status: :unauthorized if @user_id.nil?
-   end
- 
-+  def p9s_user_id
-+    @user_id
-+  end
-+
-+  def p9s_read_only?
-+    request.get?
-+  end
-+
-   def not_found
-     render json: { error: "not found" }, status: :not_found
-   end
 diff --git a/app/controllers/documents_controller.rb b/app/controllers/documents_controller.rb
 index 11fada0..7b2fd2c 100644
 --- a/app/controllers/documents_controller.rb
@@ -146,34 +88,6 @@ index 3693940..955197c 100644
 +    render json: Project.order(:id).as_json(only: %i[id name])
    end
  end
-diff --git a/app/models/document.rb b/app/models/document.rb
-index 3f85b2d..32bc5e5 100644
---- a/app/models/document.rb
-+++ b/app/models/document.rb
-@@ -1,5 +1,9 @@
- # Deleting a document deletes its shares in the database, with on_delete: :cascade
- class Document < ApplicationRecord
--  belongs_to :project
-+  # The column p9s adds, with its default, which the app neither reads nor writes
-+  self.ignored_columns += ["resource_id"]
-+  # The database checks the foreign key, and the policies whether the user writes in the project. belongs_to would
-+  # check that the project exists by reading it, as the user, who may not see it.
-+  belongs_to :project, optional: true
-   has_many :document_shares
- end
-diff --git a/app/models/document_share.rb b/app/models/document_share.rb
-index 236f1c4..4fdfca2 100644
---- a/app/models/document_share.rb
-+++ b/app/models/document_share.rb
-@@ -1,5 +1,6 @@
- class DocumentShare < ApplicationRecord
-   self.primary_key = %i[document_id user_id]
--  belongs_to :document
--  belongs_to :user
-+  # The database checks the foreign keys, and app_user does not read users
-+  belongs_to :document, optional: true
-+  belongs_to :user, optional: true
- end
 diff --git a/app/models/permissions.rb a/app/models/permissions.rb
 deleted file mode 100644
 index 547c0d1..0000000
@@ -219,33 +133,3 @@ index 547c0d1..0000000
 -    Document.where(project_id: readable_project_ids(user_id)).or(Document.where(id: shared)).order(:id)
 -  end
 -end
-diff --git a/app/models/project.rb b/app/models/project.rb
-index e743421..d11158f 100644
---- a/app/models/project.rb
-+++ b/app/models/project.rb
-@@ -1,4 +1,6 @@
- class Project < ApplicationRecord
-+  # The column p9s adds, with its default, which the app neither reads nor writes
-+  self.ignored_columns += ["resource_id"]
-   has_many :project_shares
-   has_many :documents
- end
-diff --git a/app/models/team.rb b/app/models/team.rb
-index f0436a4..5a1a7b0 100644
---- a/app/models/team.rb
-+++ b/app/models/team.rb
-@@ -1,3 +1,5 @@
- class Team < ApplicationRecord
-+  # The column p9s adds, with its default, which the app neither reads nor writes
-+  self.ignored_columns += ["role_id"]
-   has_many :team_members
- end
-diff --git a/app/models/user.rb b/app/models/user.rb
-index 379658a..38dad74 100644
---- a/app/models/user.rb
-+++ b/app/models/user.rb
-@@ -1,2 +1,4 @@
- class User < ApplicationRecord
-+  # The column p9s adds, with its default, which the app neither reads nor writes
-+  self.ignored_columns += ["role_id"]
- end

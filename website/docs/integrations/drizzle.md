@@ -6,6 +6,14 @@ sidebar_position: 2
 
 `withUser` of [`@p9s/drizzle`](https://github.com/crubier/p9s/tree/main/packages/drizzle) runs a Drizzle transaction as a user. [`examples/drizzle`](https://github.com/crubier/p9s/tree/main/examples/drizzle) adopts p9s in a Hono and Drizzle app with it, and [`examples/nextjs-drizzle`](https://github.com/crubier/p9s/tree/main/examples/nextjs-drizzle) is a complete Next.js app built that way.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+```
+
+[`p9s adopt`](../packages/cli#adopt) adds `@p9s/postgres` and `@p9s/drizzle` to `package.json`, writes `src/p9s.ts`, which exports the identity `users` of [the config](#config), and in a Hono app, answers 403 to refused writes with `app.onError`. Then run the queries of each request with `withUser(db, users, userId, tx => ...)`, and delete the permission checks, as in [the example](#the-example).
+
 ## Install
 
 ```bash
@@ -61,4 +69,4 @@ The schema of Drizzle does not change. Keep migrating with `drizzle-kit generate
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/drizzle/before) checks every route with `src/permissions.ts`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/drizzle/after.patch) deletes it, and runs the queries of each request as its user with `withUser`.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/drizzle/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/drizzle/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/drizzle/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.

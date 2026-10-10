@@ -77,23 +77,23 @@ index 680bc5e..0000000
 -    .order("id"));
 -};
 diff --git a/src/server.ts b/src/server.ts
-index 5adeb9d..07690c2 100644
+index d52662a..45e0624 100644
 --- a/src/server.ts
 +++ b/src/server.ts
-@@ -1,8 +1,9 @@
+@@ -1,9 +1,9 @@
  import { Hono } from "hono";
 -import { maybeRow, rows, supabase, type Access } from "./db.ts";
 -import { bitsOf, documentBits, hasBits, projectBits, readableDocuments, readableProjects } from "./permissions.ts";
-+import { isRefused } from "@p9s/postgres";
 +import { clientOf, maybeRow, rows, type Access, type Client } from "./db.ts";
+ import { isRefused } from "@p9s/postgres";
  
 -const app = new Hono<{ Variables: { userId: number } }>();
 +// Every request goes through PostgREST as its user, and the policies of p9s decide what it reads and writes
 +const app = new Hono<{ Variables: { supabase: Client } }>();
  
- const columns = "id, project_id, title, body";
- const notFound = { error: "not found" };
-@@ -14,54 +15,56 @@ app.get("/health", c => c.text("ok"));
+ // A write the policies of p9s do not let through
+ app.onError((error, c) => {
+@@ -21,54 +21,50 @@ app.get("/health", c => c.text("ok"));
  app.use("*", async (c, next) => {
    const userId = Number(c.req.header("x-user-id"));
    if (!Number.isInteger(userId)) return c.json({ error: "unauthorized" }, 401);
@@ -103,12 +103,6 @@ index 5adeb9d..07690c2 100644
  });
  
 -app.get("/projects", async c => c.json(await readableProjects(c.get("userId"))));
-+// A write the policies do not let through
-+app.onError((error, c) => {
-+  if (isRefused(error)) return c.json(forbidden, 403);
-+  throw error;
-+});
-+
 +app.get("/projects", async c => c.json(await rows(c.get("supabase").from("projects").select("id, name").order("id"))));
  
 -app.get("/documents", async c => c.json(await readableDocuments(c.get("userId"))));

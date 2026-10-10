@@ -194,36 +194,16 @@ index ad3c653..0069ddc 100644
    end
  end
 diff --git a/lib/documents_web.ex b/lib/documents_web.ex
-index c7d184c..a4ee7a9 100644
+index 28fb583..ae4e414 100644
 --- a/lib/documents_web.ex
 +++ b/lib/documents_web.ex
-@@ -2,9 +2,16 @@ defmodule DocumentsWeb do
-   def controller do
-     quote do
-       use Phoenix.Controller, formats: [:json]
-+      # Every action runs in a transaction as the user, where the policies of p9s decide what it reads and writes
-+      use P9s.Controller, repo: Documents.Repo
- 
-       import Plug.Conn
+@@ -9,6 +9,9 @@ defmodule DocumentsWeb do
        import DocumentsWeb.Answers
-+
-+      def p9s_user_id(conn), do: conn.assigns.user_id
+ 
+       def p9s_user_id(conn), do: conn.assigns.user_id
 +
 +      # A write the policies do not let through, after its transaction rolled back
 +      def p9s_refused(conn, _error), do: forbidden(conn)
      end
    end
  
-diff --git a/mix.exs b/mix.exs
-index e0af0e1..9e10704 100644
---- a/mix.exs
-+++ b/mix.exs
-@@ -11,6 +11,8 @@ defmodule Documents.MixProject do
-     [
-       {:bandit, "~> 1.5"},
-       {:ecto_sql, "~> 3.12"},
-+      # p9s from Hex in an app, from this repository in the example
-+      {:p9s, path: "../../../packages/elixir"},
-       {:phoenix, "~> 1.8"},
-       {:postgrex, ">= 0.19.0"}
-     ]

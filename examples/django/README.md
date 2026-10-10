@@ -42,8 +42,10 @@ Then `manage.py migrate` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds [`p9s`](../../packages/python), deletes `documents/permissions.py`, and adds the
-middleware of p9s after the one that finds the user:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes, with `--user-id
+documents.middleware.user_id_of`: it adds [`p9s`](../../packages/python), and the middleware of p9s after the one that
+finds the user. [`after.patch`](./after.patch) is the rest, by hand: it deletes `documents/permissions.py` and its
+checks, and answers 403 to refused writes.
 
 ```python
 MIDDLEWARE = ["documents.middleware.UserFromHeader", "p9s.django.P9sMiddleware"]

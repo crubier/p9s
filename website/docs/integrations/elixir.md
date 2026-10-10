@@ -6,6 +6,15 @@ sidebar_position: 12
 
 The [`p9s`](https://github.com/crubier/p9s/tree/main/packages/elixir) package runs a function in an Ecto transaction as a user, and every action of a Phoenix controller as the user of its request. [`examples/phoenix`](https://github.com/crubier/p9s/tree/main/examples/phoenix) adopts p9s in a Phoenix API with it.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+mix deps.get
+```
+
+[`p9s adopt`](../packages/cli#adopt) adds `p9s` to the deps of `mix.exs`, and `use P9s.Controller` with the repo of the app to the `controller` of `lib/<app>_web.ex`, which every controller uses. With `--user-id conn.assigns.user_id`, or any expression of `conn`, it defines `p9s_user_id/1`, which is `conn.assigns.current_user.id` by default. Then delete the permission checks, as in [the example](#the-example). The sections below are what it writes, for an app that makes the changes by hand.
+
 ## Install
 
 ```elixir
@@ -70,4 +79,4 @@ The schemas do not change: Ecto reads the fields its schemas name, and leaves th
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/phoenix/before) checks every action with `lib/documents/permissions.ex`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/phoenix/after.patch) deletes it and uses `P9s.Controller` in the controllers of the app.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/phoenix/before) checks every action with `lib/documents/permissions.ex`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/phoenix/adopt.patch) is what `p9s adopt --user-id conn.assigns.user_id` writes: the package, and `P9s.Controller` in the controllers of the app. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/phoenix/after.patch) is the rest, by hand: it deletes `permissions.ex` and its checks, and answers refused writes with the JSON of the app, in `p9s_refused/2`.

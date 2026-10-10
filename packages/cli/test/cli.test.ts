@@ -1,6 +1,7 @@
 import { expect, describe, test, beforeAll, afterAll } from "bun:test";
 import { $ } from "bun";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 const testDir = import.meta.dir;
@@ -298,5 +299,43 @@ describe("p9s CLI", () => {
     } catch (error: any) {
       expect(error.stderr.toString()).toContain("ENOENT");
     }
+  });
+
+  // What adopt writes for each stack is in the adopt.patch of each example of the repository, which their tests check
+  describe("adopt", () => {
+    const rails = path.resolve(testDir, "../../../examples/rails");
+    let app: string;
+    beforeAll(() => {
+      app = fs.mkdtempSync(path.join(os.tmpdir(), "p9s-adopt-"));
+    });
+    afterAll(() => fs.rmSync(app, { recursive: true, force: true }));
+
+    test("shows adopt help", async () => {
+      const result = await $`bun run ${cliPath} adopt --help`.text();
+
+      expect(result).toContain("--stack");
+      expect(result).toContain("--user-id");
+      expect(result).toContain("--dry-run");
+    });
+
+    test("says which stacks it knows when it finds none", async () => {
+      fs.copyFileSync(path.join(rails, "p9s.config.json"), path.join(app, "p9s.config.json"));
+      const result = await $`bun run ${cliPath} adopt`.cwd(app).nothrow();
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.toString()).toContain("Found no stack p9s adopt knows");
+      expect(result.stderr.toString()).toContain("rails, django, fastapi");
+    });
+
+    test("lists the files it would change with --dry-run, and changes none", async () => {
+      fs.cpSync(path.join(rails, "before"), app, { recursive: true });
+      const gemfile = fs.readFileSync(path.join(app, "Gemfile"), "utf-8");
+      const result = await $`bun run ${cliPath} adopt --dry-run`.cwd(app).text();
+
+      expect(result).toContain("Would change, for Rails:\n  Gemfile\n  app/controllers/application_controller.rb");
+      expect(result).toContain("Then run: bundle install");
+      expect(result).toContain("https://p9s.vercel.app/docs/integrations/rails");
+      expect(fs.readFileSync(path.join(app, "Gemfile"), "utf-8")).toBe(gemfile);
+    });
   });
 });

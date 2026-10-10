@@ -39,10 +39,11 @@ added, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds the [`p9s`](../../packages/rust) crate with its `axum` feature, deletes
-`src/permissions.rs`, and makes `P9s`, the pool and the identity, the state of the router. The middleware that finds the
-user puts it in the request as `CurrentUser`, and every handler takes a `UserTx`, a transaction as that user, read only
-for `GET`:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: the
+[`p9s`](../../packages/rust) crate with its `axum` feature. [`after.patch`](./after.patch) is the rest, by hand: it
+deletes `src/permissions.rs` and its checks, and makes `P9s`, the pool and the identity, the state of the router. The
+middleware that finds the user puts it in the request as `CurrentUser`, and every handler takes a `UserTx`, a
+transaction as that user, read only for `GET`:
 
 ```rust
 async fn update_document(mut tx: UserTx, Path(id): Path<i64>, Json(changes): Json<Changes>) -> Answer {

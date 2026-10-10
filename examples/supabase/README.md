@@ -36,8 +36,9 @@ writes the same migration as a file of the Supabase CLI instead.
 
 ## After
 
-[`after.patch`](./after.patch) deletes `src/permissions.ts`, and sends the requests of each user with a client of
-their own, whose JWT PostgREST runs as `authenticated`:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: the 403 of refused writes in
+`app.onError`. [`after.patch`](./after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and
+sends the requests of each user with a client of their own, whose JWT PostgREST runs as `authenticated`:
 
 ```ts
 app.get("/documents", async c => c.json(await rows(c.get("supabase").from("documents").select("id, project_id, title").order("id"))));

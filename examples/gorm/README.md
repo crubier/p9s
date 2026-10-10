@@ -38,11 +38,13 @@ Then `./documents migrate` runs it, and the adoption test checks that too.
 
 ## After
 
-[`after.patch`](./after.patch) adds [`p9s`](../../packages/go), deletes `permissions.go`, and runs each handler in a
-GORM transaction as the user of its request, read only for `GET`:
+[`adopt.patch`](./adopt.patch) is what [`p9s adopt`](../../packages/cli/src/adopt) writes: it adds
+[`p9s`](../../packages/go), and `p9s.go`, with the identity `users` of the config. [`after.patch`](./after.patch) is the
+rest, by hand: it deletes `permissions.go` and its checks, and runs each handler in a GORM transaction as the user of
+its request, read only for `GET`:
 
 ```go
-err = p9sgorm.AsUser(r.Context(), s.db, s.users, userID, func(tx *gorm.DB) (err error) {
+err = p9sgorm.AsUser(r.Context(), s.db, users, userID, func(tx *gorm.DB) (err error) {
 	a, err = h(r, tx)
 	return err
 }, p9s.ReadOnly(r.Method == http.MethodGet))

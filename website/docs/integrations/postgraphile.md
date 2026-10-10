@@ -6,6 +6,14 @@ sidebar_position: 3
 
 PostGraphile runs every request as a database role and lets RLS decide, so p9s needs no package of its own there: `pgSettings` of `@p9s/postgres` gives each request the role and the user of the config, and with `engine.postgraphile`, the migration serves the graph through the API. [`examples/postgraphile-rls`](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls) adopts p9s in a PostGraphile app whose policies were written by hand, and [`examples/postgraphile`](https://github.com/crubier/p9s/tree/main/examples/postgraphile) is a complete app built on p9s from the start.
 
+## p9s adopt
+
+```bash
+npx @p9s/cli adopt
+```
+
+[`p9s adopt`](../packages/cli#adopt) adds `@p9s/postgres` to `package.json`, and writes `src/p9s.ts`, which exports the identity `users` of [the config](#config). Then give `pgSettings` the settings of `users`, and drop the policies written by hand, as in [the example](#the-example).
+
 ## Install
 
 ```bash
@@ -70,4 +78,4 @@ An app that wrote its policies by hand drops them first, in a migration of its o
 
 ## The example
 
-[`before/`](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls/before) decides who reads and writes what in its migration: functions that work out the bits of the current user from `team_members`, `project_shares` and `document_shares`, a policy for each statement on `projects` and `documents`, and a trigger that checks the shares of documents. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/postgraphile-rls/after.patch) adds a migration that drops them, and takes the settings of each request from the config. The routes and their GraphQL operations stay the same, and its test checks that every user gets the same answers before and after.
+[`before/`](https://github.com/crubier/p9s/tree/main/examples/postgraphile-rls/before) decides who reads and writes what in its migration: functions that work out the bits of the current user from `team_members`, `project_shares` and `document_shares`, a policy for each statement on `projects` and `documents`, and a trigger that checks the shares of documents. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/postgraphile-rls/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/postgraphile-rls/after.patch) is the rest, by hand: it adds a migration that drops them, and takes the settings of each request from `users`. The routes and their GraphQL operations stay the same, and its test checks that every user gets the same answers before and after.
