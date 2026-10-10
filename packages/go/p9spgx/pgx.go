@@ -16,11 +16,6 @@ type Beginner interface {
 
 // SetUser acts as the user for the rest of a transaction already begun.
 func SetUser(ctx context.Context, tx pgx.Tx, users *p9s.Identity, userID any, opts ...p9s.TxOption) error {
-	if p9s.Options(opts...).ReadOnly {
-		if _, err := tx.Exec(ctx, "set transaction read only"); err != nil {
-			return err
-		}
-	}
 	query, args, err := users.Statement(userID, opts...)
 	if err != nil {
 		return err

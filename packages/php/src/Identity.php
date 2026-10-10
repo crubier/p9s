@@ -74,12 +74,13 @@ final class Identity
     }
 
     /**
-     * The settings of a transaction of the user, as [name, value] pairs, the role first
+     * The settings of a transaction of the user, as [name, value] pairs, the role first, with transaction_read_only for
+     * a read only transaction, which Postgres takes even after the transaction has run a statement
      *
      * @param  array<string, scalar|null>  $settings  more settings for the transaction
      * @return list<array{string, string}>
      */
-    public function settings(int|string|null $userId, ?string $role = null, array $settings = []): array
+    public function settings(int|string|null $userId, ?string $role = null, array $settings = [], bool $readOnly = false): array
     {
         $chosen = $role ?? $this->role;
         if (! in_array($chosen, $this->roles, true)) {
@@ -89,6 +90,9 @@ final class Identity
         $pairs = [['role', $chosen], [$this->setting, $this->value($userId)]];
         foreach ($settings as $name => $value) {
             $pairs[] = [(string) $name, self::text($value)];
+        }
+        if ($readOnly) {
+            $pairs[] = ['transaction_read_only', 'on'];
         }
 
         return $pairs;
@@ -100,9 +104,9 @@ final class Identity
      * @param  array<string, scalar|null>  $settings
      * @return array{string, list<string>}
      */
-    public function statement(int|string|null $userId, ?string $role = null, array $settings = []): array
+    public function statement(int|string|null $userId, ?string $role = null, array $settings = [], bool $readOnly = false): array
     {
-        $pairs = $this->settings($userId, $role, $settings);
+        $pairs = $this->settings($userId, $role, $settings, $readOnly);
         $calls = implode(', ', array_fill(0, count($pairs), 'set_config(?, ?, true)'));
 
         return ["select {$calls}", array_merge(...$pairs)];

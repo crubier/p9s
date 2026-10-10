@@ -2,7 +2,7 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier, raw, type SQL } from "pg-sql2";
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
 import { bits, combineModes, setupBlog } from './helpers';
-import { CHECKED_ROWS, CHECKED_WRITTEN_ROWS, FEW_RESOURCES, MORE_RESOURCES } from '../generation';
+import { CHECKED_ROWS, CHECKED_WRITTEN_ROWS, LISTED_RESOURCES } from '../generation';
 
 // Groups in a tree of 1 + 8 + 64 + 512, posts spread over the 512 leaves: post n is in group 74 + n % 512. Role 2 can
 // read the first half of the tree, the groups of posts 0 to 255 modulo 512, and a few posts shared with its parent role
@@ -103,38 +103,32 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         expect(offset.postsRead).toBeGreaterThan(5000);
       }, { timeout: 60000 });
 
-      // A user who reads few resources lists them all at the first row, whatever the statement, and checks none
-      test('a user who reads few resources lists them from the first row', async () => {
+      // A user who reads few resources lists them all at the second row, whatever the statement, and checks one
+      test('a user who reads few resources checks the first row, then lists them all', async () => {
         await load(combineAssignmentsWith);
         const statement = sql`select count(*)::int as "n" from "blog_post"`;
         const count = await asRole3(statement);
         // The posts of the group, and those shared with its parent role
         expect(count.rows[0].n).toBe((POSTS / 512 | 0) + SHARED.length);
-        expect(count.checked).toBe(0);
-        expect(await listings(statement, asRole3)).toEqual([`first(${FEW_RESOURCES})`]);
+        expect(count.checked).toBe(1);
+        expect(await listings(statement, asRole3)).toEqual([`first(${LISTED_RESOURCES})`]);
         const search = await asRole3(sql`select "id" from "blog_post" where "name" ilike '%post 1%'`);
         expect(search.rows.length).toBeGreaterThan(0);
-        expect(search.checked).toBe(0);
+        expect(search.checked).toBe(1);
         expect((await asRole3(sql`${budget("10")} ${statement}`)).checked).toBe(10);
         expect((await asRole3(sql`${budget("on")} ${statement}`)).rows).toEqual(count.rows);
       }, { timeout: 60000 });
 
-      // Users who read more list some of their resources at the first row. A row that is not among them is checked by
-      // its ancestors, which is all a lookup by id does. Past it, a statement lists more, then checks rows one by one,
-      // 200 by default, then lists every resource: a first page or the rows of a group never list them all, a count or a
-      // search do. p9s.check_rows says how many rows to check for every user, on for every row, off for none.
+      // A lookup by id checks its row by its ancestors, and lists nothing. Past the first row, a statement lists some of
+      // the resources of the user, checks the rows that are not among them one by one, 200 by default, then lists every
+      // resource: a first page or the rows of a group never list them all, a count or a search do. p9s.check_rows says
+      // how many rows to check for every user, on for every row, off for none.
       test('reads check the rows they read up to p9s.check_rows, then list', async () => {
         await load(combineAssignmentsWith);
         const lookup = sql`select "id" from "blog_post" where "id" = 300`;
-        expect((await asRole2(lookup)).rows).toEqual([{ id: 300 }]);
-        expect((await asRole2(lookup)).checked).toBeLessThanOrEqual(1);
-        expect(await listings(lookup)).toEqual([`first(${FEW_RESOURCES})`]);
-        // A readable post that the first listing does not have
-        const { rows: [{ id: unlisted }] } = await asRole2(sql`select max("id") as "id" from "blog_post"
-          where "resource_id" not in (select "the_id" from current_resource_access_0_first(${raw(String(FEW_RESOURCES))}) as "the_id" where "the_id" is not null)`);
-        const unlistedLookup = sql`select "id" from "blog_post" where "id" = ${raw(String(unlisted))}`;
-        expect(await asRole2(unlistedLookup)).toMatchObject({ rows: [{ id: unlisted }], checked: 1 });
-        expect(await listings(unlistedLookup)).toEqual([`first(${FEW_RESOURCES})`]);
+        expect(await asRole2(lookup)).toMatchObject({ rows: [{ id: 300 }], checked: 1 });
+        expect(await listings(lookup)).toEqual([]);
+        expect(await asRole2(sql`select "id" from "blog_post" where "id" = 299`)).toMatchObject({ rows: [], checked: 1 });
 
         const page = sql`select "id" from "blog_post" order by "id" limit 50`;
         const first = await asRole2(page);
@@ -156,7 +150,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         expect(await listings(sparse)).not.toContain("list()");
         const count = sql`select count(*)::int from "blog_post"`;
         expect((await asRole2(count)).checked).toBe(CHECKED_ROWS);
-        expect(await listings(count)).toEqual([`first(${FEW_RESOURCES})`, `first(${MORE_RESOURCES})`, "list()"]);
+        expect(await listings(count)).toEqual([`first(${LISTED_RESOURCES})`, "list()"]);
 
         const always = await asRole2(sql`${budget("on")} select "id" from "blog_post" where "group_id" between 70 and 90`);
         expect(always.checked).toBeGreaterThan(600);

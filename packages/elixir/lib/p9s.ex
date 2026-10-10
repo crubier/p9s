@@ -44,7 +44,6 @@ defmodule P9s do
   @doc "Acts as the user for the rest of the current transaction"
   @spec set_user(module(), term(), keyword()) :: :ok
   def set_user(repo, user_id, opts \\ []) do
-    if opts[:read_only], do: repo.query!("set transaction read only")
     {statement, params} = Identity.statement(opts[:identity] || identity(), user_id, opts)
     repo.query!(statement, params)
     :ok

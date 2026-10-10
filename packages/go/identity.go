@@ -140,7 +140,8 @@ func (i *Identity) Value(userID any) string {
 	return string(claims)
 }
 
-// Settings are the settings of a transaction of the user, the role first. No user reads as no one.
+// Settings are the settings of a transaction of the user, the role first, with transaction_read_only for a read only
+// transaction, which Postgres takes even after the transaction has run a statement. No user reads as no one.
 func (i *Identity) Settings(userID any, opts ...TxOption) ([][2]string, error) {
 	o := Options(opts...)
 	role := i.Role
@@ -150,7 +151,11 @@ func (i *Identity) Settings(userID any, opts ...TxOption) ([][2]string, error) {
 	if !i.roles[role] {
 		return nil, fmt.Errorf("p9s: %s is not a role of engine.users or engine.graphWriters", role)
 	}
-	return append([][2]string{{"role", role}, {i.Setting, i.Value(userID)}}, o.Settings...), nil
+	settings := append([][2]string{{"role", role}, {i.Setting, i.Value(userID)}}, o.Settings...)
+	if o.ReadOnly {
+		settings = append(settings, [2]string{"transaction_read_only", "on"})
+	}
+	return settings, nil
 }
 
 // Statement is the statement to run first in a transaction, with positional parameters:

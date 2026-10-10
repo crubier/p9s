@@ -57,9 +57,7 @@ def as_user(
     chosen = identity or default_identity()
     with transaction.atomic(using=using):
         with connections[using].cursor() as cursor:
-            if read_only:
-                cursor.execute("set transaction read only")
-            cursor.execute(*chosen.statement(user_id, role=role, settings=settings))
+            cursor.execute(*chosen.statement(user_id, role=role, settings=settings, read_only=read_only))
         yield
 
 

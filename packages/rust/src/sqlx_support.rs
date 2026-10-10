@@ -11,9 +11,6 @@ pub async fn set_user(
 ) -> sqlx::Result<()> {
     let (statement, values) =
         identity.statement(user_id, options).map_err(|error| sqlx::Error::Configuration(Box::new(error)))?;
-    if options.read_only {
-        sqlx::query("set transaction read only").execute(&mut *connection).await?;
-    }
     let mut query = sqlx::query(&statement);
     for value in values {
         query = query.bind(value);

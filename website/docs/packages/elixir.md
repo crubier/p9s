@@ -39,7 +39,7 @@ The identity comes from `p9s.config.json` in the folder the app runs in, or the 
 
 | Option | |
 | --- | --- |
-| `:read_only` | Runs `set transaction read only` first |
+| `:read_only` | Adds `transaction_read_only` to the settings, for a read only transaction |
 | `:role` | Another role of `engine.users` or `engine.graphWriters`. Another raises `ArgumentError` |
 | `:settings` | Other settings of the transaction, like `%{"app.tenant_id" => 3}`. `nil` sets them empty, and booleans `on` and `off` |
 | `:identity` | Another identity than `P9s.identity/0` |
@@ -83,7 +83,7 @@ An action whose transaction rolls back for another reason raises, and an error t
 | Function | |
 | --- | --- |
 | `value(identity, user_id)` | The value of the setting for a user: the id as text, JSON claims, or `""` for `nil` |
-| `settings(identity, user_id, opts \\ [])` | The settings of a transaction of the user, as `{name, value}` pairs, the role first, with `:role` and `:settings` |
+| `settings(identity, user_id, opts \\ [])` | The settings of a transaction of the user, as `{name, value}` pairs, the role first, with `:role`, `:settings`, and `:read_only` for `transaction_read_only` |
 | `statement(identity, user_id, opts \\ [])` | `{"select set_config($1, $2, true), ...", params}` |
 
 The struct has `role`, `setting`, `claim` and `roles`, the roles of `engine.users` and `engine.graphWriters`.

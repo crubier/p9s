@@ -14,11 +14,6 @@ var placeholder = regexp.MustCompile(`\$\d+`)
 
 // SetUser acts as the user for the rest of a transaction already begun.
 func SetUser(tx *gorm.DB, users *p9s.Identity, userID any, opts ...p9s.TxOption) error {
-	if p9s.Options(opts...).ReadOnly {
-		if err := tx.Exec("set transaction read only").Error; err != nil {
-			return err
-		}
-	}
 	query, args, err := users.Statement(userID, opts...)
 	if err != nil {
 		return err

@@ -38,12 +38,14 @@ module P9s
       claim ? JSON.generate(claim => user_id.to_s) : user_id.to_s
     end
 
-    # The settings of a transaction of the user, as [name, value] pairs, the role first. No user reads as no one.
-    def settings(user_id, role: nil, settings: {})
+    # The settings of a transaction of the user, as [name, value] pairs, the role first, with transaction_read_only for a
+    # read only transaction, which Postgres takes even after the transaction has run a statement. No user reads as no one.
+    def settings(user_id, role: nil, settings: {}, read_only: false)
       chosen = role || self.role
       raise ArgumentError, "p9s: #{chosen} is not a role of engine.users or engine.graphWriters" unless roles.include?(chosen)
 
-      [["role", chosen], [setting, value(user_id)], *settings.map { |name, value| [name.to_s, text(value)] }]
+      [["role", chosen], [setting, value(user_id)], *settings.map { |name, value| [name.to_s, text(value)] },
+       *(read_only ? [%w[transaction_read_only on]] : [])]
     end
 
     # The statement to run first in a transaction, with positional parameters:

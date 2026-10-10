@@ -159,7 +159,8 @@ impl Identity {
         }
     }
 
-    /// The settings of a transaction of the user, the role first
+    /// The settings of a transaction of the user, the role first, with `transaction_read_only` for a read only
+    /// transaction, which Postgres takes even after the transaction has run a statement
     pub fn settings(&self, user_id: impl Into<UserId>, options: &TxOptions) -> Result<Vec<(String, String)>, Error> {
         let role = options.role.clone().unwrap_or_else(|| self.role.clone());
         if !self.roles.contains(&role) {
@@ -167,6 +168,9 @@ impl Identity {
         }
         let mut settings = vec![("role".to_string(), role), (self.setting.clone(), self.value(&user_id.into()))];
         settings.extend(options.settings.iter().cloned());
+        if options.read_only {
+            settings.push(("transaction_read_only".to_string(), "on".to_string()));
+        }
         Ok(settings)
     }
 

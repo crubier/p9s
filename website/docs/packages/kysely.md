@@ -26,7 +26,7 @@ const documents = await withUser(db, users, userId, trx =>
   trx.selectFrom("documents").select(["id", "title"]).orderBy("id").execute(), { readOnly: true });
 ```
 
-`withUser(db, identity, userId, fn, options?)` runs `fn(trx)` in a Kysely transaction, `db.transaction().execute(fn)`, as the user, and returns what it returns. It runs `set transaction read only` first for `readOnly`, rather than the access mode of the transaction, which some dialects leave out, then `select set_config(...)` of the settings of the user, so every query of `trx` goes through the policies.
+`withUser(db, identity, userId, fn, options?)` runs `fn(trx)` in a Kysely transaction, `db.transaction().execute(fn)`, as the user, and returns what it returns. It runs `select set_config(...)` of the settings of the user first, with `transaction_read_only` for `readOnly` rather than the access mode of the transaction, which some dialects leave out, so every query of `trx` goes through the policies.
 
 | Parameter | |
 | --- | --- |

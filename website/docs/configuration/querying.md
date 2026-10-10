@@ -15,10 +15,11 @@ Left to itself, Postgres would choose by the number of rows it expects the scan 
 
 A select policy goes through these steps, and stops at the first that decides the row:
 
-1. At the first row, it lists the first 1000 resources the user has the bit on. A user who has fewer has them all, and every row of the statement is a hash probe from then on.
-2. For a row that is not among them, the first one is checked by its ancestors. A lookup by id stops there: one listing of at most 1000 resources and at most one check.
-3. Past that row, it lists the first 3000, all of them for most users.
-4. For a row that is not among these either, it checks rows one by one, 200 per statement, then lists every resource the user has the bit on.
+1. The first row is checked by its ancestors. A lookup by id stops there, with one check and no listing.
+2. Past that row, it lists the first 3000 resources the user has the bit on, all of them for most users. A user who has fewer has them all, and every row of the statement is a hash probe from then on.
+3. For a row that is not among them, it checks rows one by one, 200 per statement, then lists every resource the user has the bit on.
+
+Telling the first row from the others reads the count of the policy at every row, about 0.1 µs. Listing at the first row would spare that to statements over many rows, 2 ms over 20,000, and cost every lookup by id a listing: 0.6 ms for a user who reads 1,600 resources, two or three times in a request of the example apps that reads a document before and after it changes it. With a first listing of 1000, as before, a user who reads 1,300 resources listed 1000 of them in every lookup, and twice in statements over many rows.
 
 So a statement that reads a few rows never lists everything, and one that reads many lists it once, after at most 200 checks. A page whose rows are mostly unreadable stays a few milliseconds: in the example app, the first page of an organization of 181,000 documents took 72 to 75 ms with 50 checks, which made it list everything, and 5 to 6 ms with 200. Update and delete policies only do the last step: they check the rows they write, then list past 50, as a statement that writes many rows is rarely a page. The select policy of a statement that updates or deletes rows does the same, as listing first would also read the cache entries that writes leave behind until a vacuum. A later statement of the same query string, sent in one message, is taken for a write too. That changes its speed, not its rows.
 
@@ -26,24 +27,25 @@ The rows of `insert ... returning` are checked by the select policy before the s
 
 The policies keep their counts in settings of the transaction, one per table and operation, which each statement resets. Every way lets the same rows through: they differ in speed only.
 
-On the planner side, checks and listings are functions that cost 1 to it, so the policies add almost nothing to the estimate of a statement. A count of 20,000 posts through RLS stays under a cost of 10,000, well below the default threshold of JIT, 100,000. Before, Postgres compiled that count with JIT in 140 ms. It now takes 12 ms, with or without JIT. The functions list through the indexes, from the assignments of the user down, so a user who reads few resources never scans a whole cache.
+On the planner side, checks and listings are functions that cost 1 to it, so the policies add almost nothing to the estimate of a statement. A count of 20,000 posts through RLS stays under a cost of 10,000, well below the default threshold of JIT, 100,000. Before, Postgres compiled that count with JIT in 140 ms. It now takes 14 ms, with or without JIT. The functions list through the indexes, from the assignments of the user down, so a user who reads few resources never scans a whole cache.
 
 Out of 20,000 posts, `combineAssignmentsWith: none`, JIT off, execution time from `EXPLAIN ANALYZE` in milliseconds, 25th to 75th percentile:
 
 | Statement                            | 10,000 readable: before | now        | 44 readable: before | now       |
 | ------------------------------------ | ----------------------- | ---------- | ------------------- | --------- |
-| Search names with `ilike`            | 122–130                 | 15–17      | 180–194             | 1.2–1.4   |
-| The same, behind `offset 0`          | 8.6–11                  | 15–17      | 1.7–2.1             | 1.3–1.6   |
-| First page of 50                     | 2.6–3.4                 | 0.27–0.38  | 2.2–2.5             | 1.8–2.1   |
-| Read one post by id                  | 0.03–0.04               | 0.29–0.41  | 0.03–0.05           | 0.09–0.13 |
-| Count every readable post            | 5.1–6.2                 | 12–13      | 1.8–2.2             | 1.2–1.5   |
-| Posts of one group                   | 0.22–0.46               | 1.05–1.26  | 0.45–0.58           | 0.12–0.19 |
+| Search names with `ilike`            | 122–130                 | 14.8–15.0  | 180–194             | 3.6–3.7   |
+| The same, behind `offset 0`          | 8.6–11                  | 15.2–15.5  | 1.7–2.1             | 3.5–3.7   |
+| First page of 50                     | 2.6–3.4                 | 0.73–0.76  | 2.2–2.5             | 4.0–4.1   |
+| Read one post by id                  | 0.03–0.04               | 0.04–0.05  | 0.03–0.05           | 0.04–0.05 |
+| Count every readable post            | 5.1–6.2                 | 13.5–13.9  | 1.8–2.2             | 3.7–3.9   |
+| Posts of one group                   | 0.22–0.46               | 0.78–0.84  | 0.45–0.58           | 0.10–0.13 |
 
 The steps cost something too, and some statements are slower than before:
 
-- A user with more than 3000 resources pays for the two first listings and the 200 checks before listing everything, and each row after that still misses the first listing and reads the count: a statement over every row, like the count above, takes about twice as long, and one behind `offset 0`, which listed at once, about 1.5 times.
-- A lookup by id lists up to 1000 resources: about 0.3 ms instead of a single check of 0.03 ms, for a user with that many, and the rows of one group about 1 ms instead of 0.2 to 0.5 ms.
-- A count over a small table, like folders, for a user with more than 1000 resources, is up to 3 ms slower.
+- A user with more than 3000 resources pays for the first listing and the 200 checks before listing everything, and each row after that still misses the first listing and reads the count: a statement over every row, like the count above, takes about twice as long, and one behind `offset 0`, which listed at once, about 1.5 times.
+- Every row past the first reads the count. A statement over the 20,000 posts takes about 2 ms more for a user who reads few of them, 3.5 to 4 ms instead of 1.6 to 1.8 ms when the policy listed at the first row, and some 15% more for a user who reads 10,000.
+- A first page, or the rows of one group, list up to 3000 resources past their first row: about 0.75 ms for a user with that many, instead of 0.27 to 0.38 ms when the first listing had 1000, and 0.2 to 0.5 ms for the rows of a group when the policy was left to the planner.
+- A count over a small table, like folders, lists up to 3000 resources past its first row: up to 3 ms more than checking its rows.
 
 ### `p9s.check_rows` {#check-rows}
 
@@ -134,7 +136,7 @@ order by updated_at desc, id desc
 limit 50;
 ```
 
-A page never lists everything the user can read: it lists up to 1000 resources, and checks the rows that are not among them. A first page of 50 takes 0.27 to 0.38 ms for a user who reads 10,000 posts, instead of 2.6 to 3.4 ms when it listed them all.
+A page never lists everything the user can read: it checks its first row, lists up to 3000 resources, and checks the rows that are not among them. A first page of 50 takes 0.73 to 0.76 ms for a user who reads 10,000 posts, instead of 2.6 to 3.4 ms when it listed them all.
 
 ## What was shared with the user
 

@@ -30,8 +30,7 @@ module P9s
     # Acts as the user for the rest of the current transaction
     def set_user(user_id, read_only: false, role: nil, settings: {}, identity: self.identity, model: ::ActiveRecord::Base)
       connection = model.connection
-      connection.execute("set transaction read only") if read_only
-      sql, values = identity.statement(user_id, role: role, settings: settings)
+      sql, values = identity.statement(user_id, role: role, settings: settings, read_only: read_only)
       connection.select_all(model.sanitize_sql_array([sql.gsub(/\$\d+/, "?"), *values]), "p9s")
       nil
     end

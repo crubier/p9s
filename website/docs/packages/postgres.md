@@ -42,8 +42,8 @@ It throws when `engine.users` is empty, and when there is no setting, neither in
 | --- | --- |
 | `role` | The role transactions take by default, the first of `engine.users` |
 | `setting` | The setting the current user function reads |
-| `settings(userId, options?)` | The settings of a transaction of the user, as `[name, value]` pairs, the role first |
-| `pgSettings(userId, options?)` | The same as an object, with `transaction_read_only: "on"` for `readOnly`, for servers that set the settings of each request, like `pgSettings` of PostGraphile |
+| `settings(userId, options?)` | The settings of a transaction of the user, as `[name, value]` pairs, the role first, with `transaction_read_only` for `readOnly` |
+| `pgSettings(userId, options?)` | The same as an object, for servers that set the settings of each request, like `pgSettings` of PostGraphile |
 | `statement(userId, options?)` | `{ text, values }` of the statement to run first in a transaction: `select set_config($1, $2, true), set_config($3, $4, true)...` |
 | `run(pool, userId, fn, options?)` | Runs `fn(client)` in a transaction on a connection of the pool, as the user, and returns what it returns |
 
@@ -55,7 +55,7 @@ The options of `settings`, `statement` and the others:
 | --- | --- | --- |
 | `role` | `role` | Another role of `engine.users` or `engine.graphWriters`. Another role throws |
 | `settings` | none | Other settings of the transaction, like those an audit trigger reads. `null` and `undefined` set them empty |
-| `readOnly` | `false` | `run` begins `read only`, `pgSettings` adds `transaction_read_only`. Not for `settings` and `statement` |
+| `readOnly` | `false` | Adds `transaction_read_only` to the settings, which Postgres takes even after the transaction has run a statement |
 
 Every setting is set with `set_config(name, value, true)`, so it ends with the transaction, and a pooled connection never keeps the identity of a previous request.
 
@@ -162,4 +162,4 @@ await writeFile(path.join(migrationDirectories.alembic, fileName), content);
 
 ### Constants
 
-`version` is the version of the package, which the migration records. `FEW_RESOURCES`, `MORE_RESOURCES`, `CHECKED_ROWS` and `CHECKED_WRITTEN_ROWS` are the numbers of resources the policies list and of rows they check before listing everything, see [how policies run](../configuration/querying#how-policies-run).
+`version` is the version of the package, which the migration records. `LISTED_RESOURCES`, `CHECKED_ROWS` and `CHECKED_WRITTEN_ROWS` are the number of resources the policies list after the first row and of rows they check before listing everything, see [how policies run](../configuration/querying#how-policies-run).

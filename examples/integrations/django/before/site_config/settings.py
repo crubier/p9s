@@ -25,6 +25,9 @@ DATABASES = {
         "PASSWORD": _database.password or "",
         "HOST": _database.hostname or "",
         "PORT": str(_database.port or ""),
+        # Connections stay open between requests, rather than one for each
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 

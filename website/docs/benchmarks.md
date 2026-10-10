@@ -161,7 +161,7 @@ Policies used to leave the choice between checking ancestors and listing to the 
 | Rename an object, as org admin        | 2.2 / 1.3   | 0.94–1.4 / 0.69–0.84    |
 | Delete 1000 objects in one statement  | 19 / 40     | 19–21 / 43–45           |
 
-`ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 200 checks, as `offset 0` made it do. A statement that writes lists after 50: with 200, deleting 1000 objects took 24 / 51 ms. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup lists up to 1000 resources instead of checking one row, up to 0.3 ms more. With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
+`ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 200 checks, as `offset 0` made it do. A statement that writes lists after 50: with 200, deleting 1000 objects took 24 / 51 ms. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup listed up to 1000 resources instead of checking one row, up to 0.3 ms more, until reads checked their first row before listing, see [how policies run](./configuration/querying#how-policies-run). With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
 
 The benchmark rolls back thousands of rows created under the projects of the application user, which stay in the indexes until a vacuum. Listing what the user can read walks them all: writes that listed first took 3 to 7 ms then, against 0.3 to 1 ms for those that check.
 
@@ -208,7 +208,7 @@ Before this, the primary key of the cache started with the parent. Postgres 18 c
 
 ## The examples
 
-Each [example app](https://github.com/crubier/p9s/tree/main/examples/integrations) has a benchmark of the app before p9s, which checks permissions in its code, and of the app after `p9s adopt` and `after.patch`, which leaves them to the policies. Each app gets its own database on the same server, with its migrations, the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql), and for the app after, the migration of p9s. 20 users, each in 3 teams that share about 60 projects and 1200 documents with them, list the projects and the documents, read a document, create one, rename one, and share one with another user. The requests go to each app in turns, a few at a time, after a warm-up, and every answer must have the status the rules give. The apps have no endpoint that counts.
+Each [example app](https://github.com/crubier/p9s/tree/main/examples/integrations) has a benchmark of the app before p9s, which checks permissions in its code, and of the app after `p9s adopt` and `after.patch`, which leaves them to the policies. Each app gets its own database on the same server, with its migrations, the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql), and for the app after, the migration of p9s. 20 users, each in 3 teams that share about 60 projects and 1200 documents with them, list the projects and the documents, read a document, create one, rename one, and share one with another user. The requests go to each app in turns, a few at a time, after a warm-up, and every answer must have the status the rules give.
 
 ```bash
 P9S_ADOPTION_DATABASE_URL=postgresql://postgres@localhost:5432/postgres bun run bench:integrations [kysely ...]
@@ -221,17 +221,24 @@ The median of the app after p9s divided by the median of the app before:
 
 | Example | List projects | List documents | Read a document | Create a document | Update a document | Share a document |
 |---|---:|---:|---:|---:|---:|---:|
-| [Axum](./integrations/rust#benchmark) | 4.09× | 2.38× | 1.40× | 2.22× | 1.38× | 2.79× |
-| [Django](./integrations/django#benchmark) | 1.66× | 1.71× | 1.39× | 1.92× | 1.93× | 1.73× |
-| [Drizzle](./integrations/drizzle#benchmark) | 3.08× | 1.90× | 1.28× | 2.31× | 2.30× | 2.12× |
-| [FastAPI](./integrations/sqlalchemy#benchmark) | 1.32× | 1.20× | 0.82× | 1.04× | 0.89× | 0.92× |
-| [GORM](./integrations/go#benchmark) | 4.58× | 2.24× | 2.11× | 2.07× | 2.65× | 2.54× |
-| [Kysely](./integrations/kysely#benchmark) | 3.46× | 2.19× | 1.73× | 2.80× | 3.08× | 3.13× |
-| [Laravel](./integrations/laravel#benchmark) | 1.42× | 1.35× | 1.31× | 1.67× | 1.68× | 1.69× |
-| [Phoenix](./integrations/elixir#benchmark) | 4.74× | 2.14× | 2.10× | 3.48× | 3.26× | 3.82× |
-| [PostGraphile](./integrations/postgraphile#benchmark) | 0.19× | 0.04× | 1.57× | 1.84× | 1.97× | 1.60× |
-| [Prisma](./integrations/prisma#benchmark) | 3.32× | 1.43× | 1.43× | 2.47× | 3.16× | 2.22× |
-| [Rails](./integrations/rails#benchmark) | 1.34× | 1.18× | 0.91× | 0.85× | 1.09× | 0.77× |
-| [Supabase](./integrations/supabase#benchmark) | 1.02× | 2.15× | 0.39× | 0.57× | 0.68× | 0.71× |
+| [Axum](./integrations/rust#benchmark) | 3.05× | 1.83× | 0.65× | 2.00× | 1.00× | 1.55× |
+| [Django](./integrations/django#benchmark) | 1.29× | 1.34× | 0.79× | 1.10× | 1.10× | 0.92× |
+| [Drizzle](./integrations/drizzle#benchmark) | 2.27× | 1.61× | 0.78× | 1.63× | 1.32× | 1.11× |
+| [FastAPI](./integrations/sqlalchemy#benchmark) | 1.20× | 1.10× | 0.72× | 1.07× | 0.92× | 0.88× |
+| [GORM](./integrations/go#benchmark) | 3.26× | 1.90× | 1.04× | 1.73× | 1.56× | 1.53× |
+| [Kysely](./integrations/kysely#benchmark) | 2.45× | 1.71× | 1.00× | 2.05× | 1.71× | 1.51× |
+| [Laravel](./integrations/laravel#benchmark) | 1.39× | 1.29× | 1.23× | 1.59× | 1.54× | 1.62× |
+| [Phoenix](./integrations/elixir#benchmark) | 3.16× | 1.70× | 1.04× | 2.76× | 1.82× | 2.45× |
+| [PostGraphile](./integrations/postgraphile#benchmark) | 0.14× | 0.04× | 1.06× | 1.66× | 1.32× | 1.16× |
+| [Prisma](./integrations/prisma#benchmark) | 2.35× | 1.25× | 0.94× | 1.96× | 1.75× | 1.28× |
+| [Rails](./integrations/rails#benchmark) | 1.18× | 1.11× | 0.87× | 0.88× | 0.96× | 0.79× |
+| [Supabase](./integrations/supabase#benchmark) | 0.77× | 1.56× | 0.25× | 0.55× | 0.55× | 0.46× |
 
 Measured on Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64, PostgreSQL 18.6.
+
+Where the time of the apps after p9s goes, measured with pgbench on the database of the Kysely example:
+
+- Each request is a transaction that starts with the settings of the user, in one `select set_config(...)` that also makes it read only for reads: `begin`, that statement and `commit` take about 0.1 ms more than the queries.
+- A read checks its first row by its ancestors, which is all a lookup by id does, about 0.05 ms, then lists what the user can read, about 0.6 ms for the 1,600 resources of a user here, and probes each row. Each row also reads the count of the policy, about 0.1 µs: the list of documents reads 20,000 rows, about 2 ms more than the query of the app before.
+- Writes keep the graph up to date in triggers: a new document adds the cache rows of its ancestors, a share refreshes the assignment it changes, about 0.1 ms each.
+- A new connection reads the catalog of the tables, views and functions that the policies use, and plans their queries, 5 to 8 ms on its first request instead of 1 to 2 ms before. An app that opens a connection for each request pays it every time, like Laravel here, as PHP does by default. Keep connections open: `CONN_MAX_AGE` of Django, as the example does, persistent connections of PDO, or a pooler like PgBouncer.

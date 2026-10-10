@@ -51,7 +51,8 @@ defmodule P9s.Identity do
 
   @doc """
   The settings of a transaction of the user, as `{name, value}` pairs, the role first. Options: `:role`, another role of
-  `engine.users` or `engine.graphWriters`, and `:settings`, other settings, like `%{"app.tenant_id" => 3}`.
+  `engine.users` or `engine.graphWriters`, `:settings`, other settings, like `%{"app.tenant_id" => 3}`, and
+  `:read_only`, for `transaction_read_only`, which Postgres takes even after the transaction has run a statement.
   """
   @spec settings(t(), term(), keyword()) :: [{String.t(), String.t()}]
   def settings(%__MODULE__{} = identity, user_id, opts \\ []) do
@@ -62,7 +63,8 @@ defmodule P9s.Identity do
     end
 
     others = for {name, value} <- opts[:settings] || [], do: {to_string(name), text(value)}
-    [{"role", role}, {identity.setting, value(identity, user_id)} | others]
+    read_only = if opts[:read_only], do: [{"transaction_read_only", "on"}], else: []
+    [{"role", role}, {identity.setting, value(identity, user_id)} | others ++ read_only]
   end
 
   @doc "The statement to run first in a transaction, and its parameters: `select set_config($1, $2, true), ...`"

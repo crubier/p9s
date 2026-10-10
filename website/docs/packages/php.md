@@ -34,7 +34,7 @@ $titles = P9s::asUser($userId, fn () => Document::pluck('title'), readOnly: true
 
 | Argument | |
 | --- | --- |
-| `readOnly` | Runs `set transaction read only` first |
+| `readOnly` | Adds `transaction_read_only` to the settings, for a read only transaction |
 | `role` | Another role of `engine.users` or `engine.graphWriters`. Another throws `InvalidArgumentException` |
 | `settings` | Other settings of the transaction, like `['app.tenant_id' => 3]`. `null` sets them empty, and booleans `on` and `off` |
 | `connection` | A connection or its name, the default connection by default |
@@ -88,8 +88,8 @@ The `AsUser` middleware runs the rest of the request in a transaction as its use
 | --- | --- |
 | `role`, `setting`, `claim`, `roles` | The role transactions take, the first of `engine.users`, the setting the current user function reads, its claim or `null`, and the roles of `engine.users` and `engine.graphWriters` |
 | `value($userId)` | The value of the setting for a user: the id as text, JSON claims, or `''` for `null` |
-| `settings($userId, role: null, settings: [])` | The settings of a transaction of the user, as `[name, value]` pairs, the role first |
-| `statement($userId, role: null, settings: [])` | `['select set_config(?, ?, true), ...', $values]` |
+| `settings($userId, role: null, settings: [], readOnly: false)` | The settings of a transaction of the user, as `[name, value]` pairs, the role first, with `transaction_read_only` for `readOnly` |
+| `statement($userId, role: null, settings: [], readOnly: false)` | `['select set_config(?, ?, true), ...', $values]` |
 
 ## Models
 

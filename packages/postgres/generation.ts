@@ -1204,10 +1204,29 @@ export const createMigrationResourceOrRole = <User extends string>(kind: Kind, n
       using errcode = 'program_limit_exceeded';
   end if;`;
 
+  // New edges to nodes without children, like a new row under its parent, only add paths that end at their child, each
+  // through one new edge: the rows of the parent with the bits of the edge. Ored into the rows the child already has,
+  // they are what the refresh would compute, without planning it in every new session.
+  const refreshLeaves = sql`
+  insert into ${edgeCache} as "the_cache" (${parentId}, ${childId}, ${permission})
+  select "the_ancestor".${parentId}, "the_new".${childId}, ${orBitmap} (("the_ancestor".${permission} & "the_new".${permission})::bit(${literal(size)}))
+  from "p9s_new_rows" as "the_new"
+  join ${edgeCache} as "the_ancestor" on "the_ancestor".${childId} = "the_new".${parentId}${assignedOnly ? sql`
+  where exists (select from ${assignment.edge} as "the_assignment" where "the_assignment".${assignment.resourceId} = "the_ancestor".${parentId})` : sql``}
+  group by "the_ancestor".${parentId}, "the_new".${childId}
+  on conflict on constraint ${edgeCachePkey}
+  do update set ${permission} = coalesce("the_cache".${permission}, b'0'::bit(${literal(size)})) | excluded.${permission}
+  where coalesce("the_cache".${permission}, b'0'::bit(${literal(size)})) | excluded.${permission} is distinct from "the_cache".${permission};`;
+  const refresh = (event: TriggerEvent) => event !== "insert" ? refreshAffected(changed[event]) : sql`
+  if not exists (select from "p9s_new_rows" as "the_new" join ${edge} as "the_edge" on "the_edge".${parentId} = "the_new".${childId}) then${refreshLeaves}
+  else
+${refreshAffected(changed[event])}
+  end if;`;
+
   const edgeTrigger = (functionName: SQL, triggerName: SQL, event: TriggerEvent) =>
     statementTrigger(naming, config, functionName, triggerName, edge, event,
       sql`${event === "delete" ? sql`` : sql`${validateEdges}${checkDepth}`}
-${refreshAffected(changed[event])}`, indexLookupsOnly);
+${refresh(event)}`, indexLookupsOnly);
 
   // What bound rows do to the graph, shared by the tables of this tree. Each takes the ids of the rows a statement
   // changed, and for inserts and parent changes, the parent id of each row (null for none). Only the bound-table
@@ -2116,7 +2135,8 @@ drop function if exists ${target.refresh} (${idType}[], ${idType}[]);
 alter table ${target.edge} add column if not exists ${target.linked} boolean not null default false;
 
 -- Brings the ${literal(kind)} edges of some pairs up to date with every link table of that kind. Home edges stay as their
--- parent column says.
+-- parent column says. With array arguments, plpgsql would plan each statement again on every call, for about four times
+-- the time it runs: every lookup is by key, so the generic plan is as good.
 create or replace function ${target.refresh} ("the_firsts" ${idType}[], "the_seconds" ${idType}[])
 returns void as $$
 declare
@@ -2151,7 +2171,7 @@ begin
   on conflict on constraint ${target.pkey} do update set ${target.permission} = excluded.${target.permission}, ${target.linked} = true
   where (${target.home ? sql`not "the_edge".${target.home} and ` : sql``}("the_edge".${target.permission} is distinct from excluded.${target.permission} or not "the_edge".${target.linked}));
 end
-$$ language plpgsql volatile ${definer(naming)};
+$$ language plpgsql volatile ${definer(naming)} set plan_cache_mode = force_generic_plan;
 
 ${grantExecute(sql`${target.refresh} (${idType}[], ${idType}[])`, [])}
 `;
@@ -2198,7 +2218,7 @@ begin
     perform ${target.refresh}("the_firsts", "the_seconds");
   end if;
 end
-$$ language plpgsql volatile ${definer(naming)};
+$$ language plpgsql volatile ${definer(naming)} set plan_cache_mode = force_generic_plan;
 
 select pg_temp.p9s_revoke_execute(${textLiteral(compile(sql`${syncFunction} (jsonb, jsonb, boolean)`).text)}, ${textLiteral(nameOf(syncFunction))});
 grant execute on function ${syncFunction} (jsonb, jsonb, boolean) to public;
@@ -2317,11 +2337,11 @@ const currentAccessViewOf = (naming: Naming<any>, bit: number) => identifier(`${
 const currentAccessCheckOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_check`);
 const currentAccessListOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_list`);
 const currentAccessFirstOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_first`);
-// Reads list this many resources the user has the bit on, once per statement: that costs about as much as checking 25
-// rows one by one, and is all of them for a user with few. For others, a read that goes past its first row lists more:
-// all of them for most users, at the cost of about 80 rows.
-export const FEW_RESOURCES = 1000;
-export const MORE_RESOURCES = 3000;
+// Reads check their first row, which is all a lookup by id reads, then list this many resources the user has the bit
+// on, once per statement: all of them for most users, at the cost of checking about 80 rows one by one. Telling the
+// first row from the others reads the count at every row, about 0.1 µs, which listing at the first row would spare to
+// statements over many rows, at the cost of a listing in every lookup by id.
+export const LISTED_RESOURCES = 3000;
 // Then statements check this many rows before listing every resource the user has the bit on. Listing costs about one
 // check for every 40 resources, so past the 3000 above, checking 200 rows costs no more than listing 8000 resources: a
 // page whose rows are mostly unreadable, or not among the first listed, stays a few milliseconds, and a count of
@@ -2623,8 +2643,7 @@ export const createMigrationDataModelPolicies = <User extends string>(naming: Na
   const bindings = new Map([...nodeBindings, ...getLeaves("resource", naming, config)].map(binding => [binding.tableName, binding]));
 
   // A bit known when migrating has its own view, see createMigrationCurrentUserViews
-  const accessCheck = (target: SQL, bit: number | SQL) => typeof bit === "number" ? sql`
-  exists (select from ${currentAccessViewOf(naming, bit)} as "var_access" where "var_access".${assignment.resourceId} = ${target})` : sql`
+  const accessCheck = (target: SQL, bit: number | SQL) => typeof bit === "number" ? sql`${currentAccessCheckOf(naming, bit)}(${target})` : sql`
   exists (
     select from ${currentAccessView} as "var_access"
     where "var_access".${assignment.resourceId} = ${target} and ${hasBit("var_access", assignment.permission, bit)}
@@ -2704,11 +2723,9 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   // every resource the user has the bit on, for the rows it expects the scan to return. A filter that runs after the
   // policy, like ilike, which is not leakproof, makes it expect few rows and check every row of the table. So the
   // policy decides as the statement runs, and only reads the state it keeps for the rows it has not decided yet:
-  // - Reads first list a few resources the user has the bit on, all of them for a user with few.
-  // - For a row that is not among them, the first is checked by its ancestors, which is all a lookup by id reads.
-  // - Past it, reads list more, all of them for most users.
-  // - For a row that is not among these either, the policy checks rows one by one, 200 by default, then lists every
-  //   resource.
+  // - Reads check their first row by its ancestors, which is all a lookup by id reads.
+  // - Past it, reads list the resources the user has the bit on, all of them for most users.
+  // - For a row that is not among them, the policy checks rows one by one, 200 by default, then lists every resource.
   // Writes, which rarely read many rows, only check then list, after 50 rows, and so does the select policy of the
   // statement that writes, which Postgres runs after theirs: they mark the table as written by the statement, known by
   // the time it started. Listing first would read every resource under the parents of the user, and the rows that writes leave
@@ -2745,10 +2762,10 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   case when not ${reset} then null${parent ? sql`
   when ${inserted} then ${currentAccessCheckOf(naming, bit)}(${parent}) or ${checkThenList}` : sql``}
   when ${written} then ${checkThenList}
-  else coalesce(${first(FEW_RESOURCES)}, case current_setting(${counter}, true)
-    when ${checkRowsOr(CHECKED_ROWS)} then ${list}
-    when (select case when ${auto} then '0' end) then ${check}
-    else coalesce(${first(MORE_RESOURCES)}, ${check}) end) end`;
+  else coalesce(
+    case current_setting(${counter}, true) when (select case when ${auto} then '0' end) then ${check} end,
+    ${first(LISTED_RESOURCES)},
+    case current_setting(${counter}, true) when ${checkRowsOr(CHECKED_ROWS)} then ${list} else ${check} end) end`;
   };
 
   // What the select policy of a user lets through, for the policy and for the searches

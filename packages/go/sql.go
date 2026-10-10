@@ -13,11 +13,6 @@ type Execer interface {
 
 // SetUser acts as the user for the rest of a transaction already begun.
 func (i *Identity) SetUser(ctx context.Context, tx Execer, userID any, opts ...TxOption) error {
-	if Options(opts...).ReadOnly {
-		if _, err := tx.ExecContext(ctx, "set transaction read only"); err != nil {
-			return err
-		}
-	}
 	query, args, err := i.Statement(userID, opts...)
 	if err != nil {
 		return err

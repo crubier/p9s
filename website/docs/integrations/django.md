@@ -54,6 +54,12 @@ with as_user(user_id):
 
 The tables Django reads for itself during a request, like sessions, then need grants to `app_user` too.
 
+The first request of a connection reads the catalog of what the policies use and plans their queries, a few milliseconds. Django opens a connection for each request unless `CONN_MAX_AGE` keeps it open, as the example does:
+
+```python
+DATABASES = {"default": {..., "CONN_MAX_AGE": 60, "CONN_HEALTH_CHECKS": True}}
+```
+
 ## Refused writes
 
 A refused write breaks the transaction it runs in. Run it in a savepoint, with `transaction.atomic()`, so the transaction of the request survives, and answer 403:
@@ -92,15 +98,15 @@ The models do not change, and `makemigrations` finds nothing to do: Django compa
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/django) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/django) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 14.16 | 16.16 | 279 | 23.57 | 26.49 | 168 | 1.66× |
-| List documents `GET /documents` | 23.5 | 25.71 | 169 | 40.17 | 43.66 | 99 | 1.71× |
-| Read a document `GET /documents/:id` | 16.51 | 20.71 | 235 | 23 | 37.97 | 157 | 1.39× |
-| Create a document `POST /documents` | 14.19 | 17.33 | 274 | 27.23 | 32.66 | 142 | 1.92× |
-| Update a document `PATCH /documents/:id` | 16.29 | 19.33 | 240 | 31.51 | 37.12 | 123 | 1.93× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 18.4 | 22.86 | 211 | 31.86 | 38.28 | 122 | 1.73× |
+| List projects `GET /projects` | 4.14 | 4.82 | 956 | 5.32 | 6.29 | 730 | 1.29× |
+| List documents `GET /documents` | 12.54 | 13.95 | 316 | 16.78 | 17.9 | 237 | 1.34× |
+| Read a document `GET /documents/:id` | 4.97 | 5.52 | 798 | 3.92 | 4.56 | 1,013 | 0.79× |
+| Create a document `POST /documents` | 3.35 | 8.96 | 949 | 3.67 | 11.58 | 788 | 1.10× |
+| Update a document `PATCH /documents/:id` | 5.22 | 6.38 | 737 | 5.73 | 6.64 | 675 | 1.10× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 6.64 | 12.24 | 542 | 6.09 | 8.91 | 618 | 0.92× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, Django 6.1.2, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

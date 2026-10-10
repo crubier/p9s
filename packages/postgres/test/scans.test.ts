@@ -2,7 +2,6 @@ import { expect, describe, test, beforeEach, afterEach } from 'bun:test'
 import { query as sql, identifier, join, literal, raw, type SQL } from "pg-sql2";
 import { setupTests, testDatabaseUrl } from '@p9s/postgres-testing';
 import { bits, combineModes, setupBlog } from './helpers';
-import { FEW_RESOURCES } from '../generation';
 
 // Trees of 1 + 8 + 64 + 512 + 4096 resources and roles, numbered breadth first from 1. On smaller tables a
 // sequential scan is the cheapest plan and nothing to worry about.
@@ -16,8 +15,6 @@ const OTHER_PARENT = 585 - 3;
 // returns the whole table, whatever the parent.
 const FLAT_POSTS = 20000;
 const MAX_ROWS_READ = 100;
-// Select policies first list up to this many entries of the access of the user
-const FIRST_LISTING = FEW_RESOURCES + 1;
 // A role of its own, assigned an empty group: it reads a single resource
 const LIGHT_ROLE = FLAT_POSTS + 1;
 
@@ -135,17 +132,16 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
   ];
 
   // Role 1 may select, update and delete in the root, which holds every post. Policies check one row by its ancestors,
-  // rather than listing the 20000 posts the role can see. A read first lists a few of them: that many first listings.
-  // A write lists none, since it checks the rows it reads.
-  const userRowStatements: Array<[string, SQL, number]> = [
-    ["read a post", sql`select "id" from "blog_post" where "id" = 5`, 1],
-    ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "id" = 5 returning "id"`, 0],
-    ["move a post", sql`update "blog_post" set "group_id" = 1 where "id" = 5 returning "id"`, 0],
-    ["delete a post", sql`delete from "blog_post" where "id" = 5 returning "id"`, 0],
-    ["read a comment", sql`select "id" from "blog_comment" where "id" = 5`, 1],
-    ["edit a comment", sql`update "blog_comment" set "body" = 'edited' where "id" = 5 returning "id"`, 0],
-    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 5 returning "id"`, 0],
-    ["delete a comment", sql`delete from "blog_comment" where "id" = 5 returning "id"`, 0],
+  // rather than listing the 20000 posts the role can see.
+  const userRowStatements: Array<[string, SQL]> = [
+    ["read a post", sql`select "id" from "blog_post" where "id" = 5`],
+    ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "id" = 5 returning "id"`],
+    ["move a post", sql`update "blog_post" set "group_id" = 1 where "id" = 5 returning "id"`],
+    ["delete a post", sql`delete from "blog_post" where "id" = 5 returning "id"`],
+    ["read a comment", sql`select "id" from "blog_comment" where "id" = 5`],
+    ["edit a comment", sql`update "blog_comment" set "body" = 'edited' where "id" = 5 returning "id"`],
+    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 5 returning "id"`],
+    ["delete a comment", sql`delete from "blog_comment" where "id" = 5 returning "id"`],
   ];
 
   for (const combineAssignmentsWith of combineModes) {
@@ -181,9 +177,9 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
       const [[{ role_id: keyRoleId }]] = await context.exec(sql`select "role_id" from "api_key" where "group_id" = 1 order by "id" desc limit 1`);
       const userReads: Record<string, Record<string, number>> = {};
       for (const currentRoleId of ["1", String(keyRoleId)]) {
-        for (const [name, statement, listings] of userRowStatements) {
+        for (const [name, statement] of userRowStatements) {
           const asUser = sql`set local role ${identifier(context.database_user_username)}; select set_config('jwt.claims.role_id', ${literal(currentRoleId)}, true); ${statement}; reset role`;
-          const tables = Object.fromEntries(Object.entries(await userRowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ + listings * FIRST_LISTING));
+          const tables = Object.fromEntries(Object.entries(await userRowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ));
           if (Object.keys(tables).length > 0) userReads[`${name} as ${currentRoleId}`] = tables;
           const [, , , rows] = await context.runTestQuery(sql`begin; ${asUser}; rollback;`);
           expect({ name, currentRoleId, rows: rows.length }).toEqual({ name, currentRoleId, rows: 1 });

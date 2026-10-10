@@ -26,14 +26,14 @@
       "method": "GET",
       "path": "/projects",
       "before": {
-        "median": 14.16,
-        "p95": 16.16,
-        "rps": 279
+        "median": 4.14,
+        "p95": 4.82,
+        "rps": 956
       },
       "after": {
-        "median": 23.57,
-        "p95": 26.49,
-        "rps": 168
+        "median": 5.32,
+        "p95": 6.29,
+        "rps": 730
       }
     },
     {
@@ -41,14 +41,14 @@
       "method": "GET",
       "path": "/documents",
       "before": {
-        "median": 23.5,
-        "p95": 25.71,
-        "rps": 169
+        "median": 12.54,
+        "p95": 13.95,
+        "rps": 316
       },
       "after": {
-        "median": 40.17,
-        "p95": 43.66,
-        "rps": 99
+        "median": 16.78,
+        "p95": 17.9,
+        "rps": 237
       }
     },
     {
@@ -56,14 +56,14 @@
       "method": "GET",
       "path": "/documents/:id",
       "before": {
-        "median": 16.51,
-        "p95": 20.71,
-        "rps": 235
+        "median": 4.97,
+        "p95": 5.52,
+        "rps": 798
       },
       "after": {
-        "median": 23,
-        "p95": 37.97,
-        "rps": 157
+        "median": 3.92,
+        "p95": 4.56,
+        "rps": 1013
       }
     },
     {
@@ -71,14 +71,14 @@
       "method": "POST",
       "path": "/documents",
       "before": {
-        "median": 14.19,
-        "p95": 17.33,
-        "rps": 274
+        "median": 3.35,
+        "p95": 8.96,
+        "rps": 949
       },
       "after": {
-        "median": 27.23,
-        "p95": 32.66,
-        "rps": 142
+        "median": 3.67,
+        "p95": 11.58,
+        "rps": 788
       }
     },
     {
@@ -86,14 +86,14 @@
       "method": "PATCH",
       "path": "/documents/:id",
       "before": {
-        "median": 16.29,
-        "p95": 19.33,
-        "rps": 240
+        "median": 5.22,
+        "p95": 6.38,
+        "rps": 737
       },
       "after": {
-        "median": 31.51,
-        "p95": 37.12,
-        "rps": 123
+        "median": 5.73,
+        "p95": 6.64,
+        "rps": 675
       }
     },
     {
@@ -101,14 +101,14 @@
       "method": "PUT",
       "path": "/documents/:id/shares/:user_id",
       "before": {
-        "median": 18.4,
-        "p95": 22.86,
-        "rps": 211
+        "median": 6.64,
+        "p95": 12.24,
+        "rps": 542
       },
       "after": {
-        "median": 31.86,
-        "p95": 38.28,
-        "rps": 122
+        "median": 6.09,
+        "p95": 8.91,
+        "rps": 618
       }
     }
   ]

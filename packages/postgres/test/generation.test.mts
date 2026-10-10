@@ -822,6 +822,17 @@ test('Default Migration', () => {
           using errcode = 'program_limit_exceeded';
       end if;
 
+      if not exists (select from "p9s_new_rows" as "the_new" join "resource_edge" as "the_edge" on "the_edge"."parent_id" = "the_new"."child_id") then
+      insert into "resource_edge_cache" as "the_cache" ("parent_id", "child_id", "permission")
+      select "the_ancestor"."parent_id", "the_new"."child_id", "or_bitmap_4" (("the_ancestor"."permission" & "the_new"."permission")::bit(4))
+      from "p9s_new_rows" as "the_new"
+      join "resource_edge_cache" as "the_ancestor" on "the_ancestor"."child_id" = "the_new"."parent_id"
+      group by "the_ancestor"."parent_id", "the_new"."child_id"
+      on conflict on constraint "resource_edge_cache_pkey"
+      do update set "permission" = coalesce("the_cache"."permission", b'0'::bit(4)) | excluded."permission"
+      where coalesce("the_cache"."permission", b'0'::bit(4)) | excluded."permission" is distinct from "the_cache"."permission";
+      else
+
       with recursive "affected" ("parent_id") as (
         (select "child_id" from "p9s_new_rows")
         union
@@ -894,6 +905,7 @@ test('Default Migration', () => {
       )
       on conflict on constraint "resource_edge_cache_pkey"
       do update set "permission" = excluded."permission";
+      end if;
       return null;
     end;
     $$ language plpgsql security definer set search_path = "public", pg_temp
@@ -1627,6 +1639,17 @@ test('Default Migration', () => {
           using errcode = 'program_limit_exceeded';
       end if;
 
+      if not exists (select from "p9s_new_rows" as "the_new" join "role_edge" as "the_edge" on "the_edge"."parent_id" = "the_new"."child_id") then
+      insert into "role_edge_cache" as "the_cache" ("parent_id", "child_id", "permission")
+      select "the_ancestor"."parent_id", "the_new"."child_id", "or_bitmap_4" (("the_ancestor"."permission" & "the_new"."permission")::bit(4))
+      from "p9s_new_rows" as "the_new"
+      join "role_edge_cache" as "the_ancestor" on "the_ancestor"."child_id" = "the_new"."parent_id"
+      group by "the_ancestor"."parent_id", "the_new"."child_id"
+      on conflict on constraint "role_edge_cache_pkey"
+      do update set "permission" = coalesce("the_cache"."permission", b'0'::bit(4)) | excluded."permission"
+      where coalesce("the_cache"."permission", b'0'::bit(4)) | excluded."permission" is distinct from "the_cache"."permission";
+      else
+
       with recursive "affected" ("parent_id") as (
         (select "child_id" from "p9s_new_rows")
         union
@@ -1699,6 +1722,7 @@ test('Default Migration', () => {
       )
       on conflict on constraint "role_edge_cache_pkey"
       do update set "permission" = excluded."permission";
+      end if;
       return null;
     end;
     $$ language plpgsql security definer set search_path = "public", pg_temp
@@ -2584,13 +2608,13 @@ test('Default Migration', () => {
       when (select current_setting('p9s.writing_blog_post', true) = statement_timestamp()::text) then case current_setting('p9s.checked_blog_post_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
         when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_0_check"("blog_post"."resource_id") end
-      else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(1000)) end, case current_setting('p9s.checked_blog_post_select', true)
-        when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
-        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '200' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"())
-        when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
-        and "current_resource_access_0_check"("blog_post"."resource_id")
-        else coalesce(case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(3000)) end, set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
-        and "current_resource_access_0_check"("blog_post"."resource_id")) end) end
+      else coalesce(
+        case current_setting('p9s.checked_blog_post_select', true) when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_0_check"("blog_post"."resource_id") end,
+        case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(3000)) end,
+        case current_setting('p9s.checked_blog_post_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '200' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        and "current_resource_access_0_check"("blog_post"."resource_id") end) end
     )
     ;
 
@@ -2605,8 +2629,7 @@ test('Default Migration', () => {
         when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.checked_blog_post_update', (coalesce(nullif(current_setting('p9s.checked_blog_post_update', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
-    with check (
-      exists (select from "current_resource_access_1" as "var_access" where "var_access"."resource_id" = "blog_post"."resource_id")
+    with check ("current_resource_access_1_check"("blog_post"."resource_id")
     );
 
 
@@ -2966,7 +2989,7 @@ test('Default Migration', () => {
     -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "p9s_migration" () returns jsonb
-      as $$ select '{"version":"0.1.0","hash":"139a7f5b49d61a9b"}'::jsonb $$
+      as $$ select '{"version":"0.1.0","hash":"2abeca0f003497e0"}'::jsonb $$
       language sql immutable;
 
     select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');

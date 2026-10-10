@@ -84,15 +84,15 @@ An app that wrote its policies by hand drops them first, in a migration of its o
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/postgraphile-rls) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 12.08 | 30.71 | 281 | 2.24 | 3.2 | 1,708 | 0.19× |
-| List documents `GET /documents` | 294.51 | 307.15 | 13 | 12.67 | 16.02 | 311 | 0.04× |
-| Read a document `GET /documents/:id` | 0.63 | 1.08 | 5,835 | 0.99 | 1.66 | 3,687 | 1.57× |
-| Create a document `POST /documents` | 0.62 | 1.27 | 5,533 | 1.14 | 1.99 | 3,122 | 1.84× |
-| Update a document `PATCH /documents/:id` | 1.11 | 2.11 | 3,262 | 2.19 | 3.45 | 1,694 | 1.97× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 1.36 | 2.39 | 2,695 | 2.18 | 3.45 | 1,690 | 1.60× |
+| List projects `GET /projects` | 12.1 | 13.36 | 330 | 1.75 | 3.25 | 2,058 | 0.14× |
+| List documents `GET /documents` | 295.35 | 305.43 | 13 | 10.85 | 14.4 | 362 | 0.04× |
+| Read a document `GET /documents/:id` | 0.64 | 1.16 | 5,606 | 0.68 | 1.21 | 5,294 | 1.06× |
+| Create a document `POST /documents` | 0.64 | 1.32 | 5,506 | 1.06 | 1.92 | 3,491 | 1.66× |
+| Update a document `PATCH /documents/:id` | 1.13 | 2.31 | 3,158 | 1.49 | 3.04 | 2,338 | 1.32× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 1.51 | 2.79 | 2,410 | 1.75 | 3.16 | 2,072 | 1.16× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Bun 1.3.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

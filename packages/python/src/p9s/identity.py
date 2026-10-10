@@ -54,17 +54,28 @@ class Identity:
             return json.dumps({self.claim: str(user_id)}, separators=(",", ":"))
         return str(user_id)
 
-    def settings(self, user_id: UserId, *, role: str | None = None, settings: Settings | None = None) -> list[tuple[str, str]]:
-        """The settings of a transaction of the user, as (name, value) pairs, the role first. No user reads as no one."""
+    def settings(
+        self, user_id: UserId, *, role: str | None = None, settings: Settings | None = None, read_only: bool = False
+    ) -> list[tuple[str, str]]:
+        """The settings of a transaction of the user, as (name, value) pairs, the role first, with
+        ``transaction_read_only`` for a read only transaction, which Postgres takes even after the transaction has run a
+        statement. No user reads as no one."""
         chosen = role or self.role
         if chosen not in self.roles:
             raise ValueError(f"p9s: {chosen} is not a role of engine.users or engine.graphWriters")
-        return [("role", chosen), (self.setting, self.value(user_id)), *((name, _text(value)) for name, value in (settings or {}).items())]
+        return [
+            ("role", chosen),
+            (self.setting, self.value(user_id)),
+            *((name, _text(value)) for name, value in (settings or {}).items()),
+            *([("transaction_read_only", "on")] if read_only else []),
+        ]
 
-    def statement(self, user_id: UserId, *, role: str | None = None, settings: Settings | None = None) -> tuple[str, dict[str, str]]:
+    def statement(
+        self, user_id: UserId, *, role: str | None = None, settings: Settings | None = None, read_only: bool = False
+    ) -> tuple[str, dict[str, str]]:
         """The statement to run first in a transaction, with named parameters:
         ``select set_config(%(name_0)s, %(value_0)s, true), ...``"""
-        pairs = self.settings(user_id, role=role, settings=settings)
+        pairs = self.settings(user_id, role=role, settings=settings, read_only=read_only)
         text = "select " + ", ".join(f"set_config(%(name_{i})s, %(value_{i})s, true)" for i in range(len(pairs)))
         params: dict[str, str] = {}
         for i, (name, value) in enumerate(pairs):

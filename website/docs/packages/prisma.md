@@ -26,7 +26,7 @@ const document = await withUser(prisma, users, userId, tx =>
   tx.document.create({ data: { projectId, title } }));
 ```
 
-`withUser(prisma, identity, userId, fn, options?)` runs `fn(tx)` in an interactive transaction, `prisma.$transaction(fn)`, as the user, and returns what it returns. It runs `set transaction read only` first for `readOnly`, then the statement of the user, so every query of `tx` goes through the policies.
+`withUser(prisma, identity, userId, fn, options?)` runs `fn(tx)` in an interactive transaction, `prisma.$transaction(fn)`, as the user, and returns what it returns. It runs the statement of the user first, with `transaction_read_only` for `readOnly`, so every query of `tx` goes through the policies.
 
 | Parameter | |
 | --- | --- |

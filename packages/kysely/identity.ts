@@ -11,8 +11,7 @@ export const withUser = <DB, T>(
   options: RunOptions = {},
 ): Promise<T> =>
   db.transaction().execute(async trx => {
-    // Rather than the access mode of the transaction, which some dialects leave out
-    if (options.readOnly) await sql`set transaction read only`.execute(trx);
+    // With transaction_read_only rather than the access mode of the transaction, which some dialects leave out
     const settings = identity.settings(userId, options).map(([name, value]) => sql`set_config(${name}, ${value}, true)`);
     await sql`select ${sql.join(settings)}`.execute(trx);
     return fn(trx);

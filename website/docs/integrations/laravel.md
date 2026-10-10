@@ -55,6 +55,8 @@ $documents = P9s::asUser($user->id, fn () => Document::orderByDesc('updated_at')
 
 `P9s::setUser($userId)` acts as the user for the rest of a transaction already begun. The settings end with the transaction, so a connection never keeps the identity of a previous request, with Octane too.
 
+The first request of a connection reads the catalog of what the policies use and plans their queries, a few milliseconds, which PHP pays on every request when it opens a connection for each one, as the example does. Octane, persistent connections of PDO, or a pooler like PgBouncer keep connections open.
+
 ## Refused writes
 
 `P9s::isRefused($error)` tells a write the policies refused, through the `QueryException` of Laravel. In `bootstrap/app.php`:
@@ -95,15 +97,15 @@ protected $hidden = ['resource_id'];
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/laravel) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 12.56 | 16.75 | 308 | 17.82 | 22.57 | 216 | 1.42× |
-| List documents `GET /documents` | 27.75 | 30.74 | 140 | 37.46 | 42.27 | 104 | 1.35× |
-| Read a document `GET /documents/:id` | 12.51 | 16.95 | 303 | 16.37 | 22.74 | 234 | 1.31× |
-| Create a document `POST /documents` | 11.67 | 16.07 | 326 | 19.45 | 28.74 | 189 | 1.67× |
-| Update a document `PATCH /documents/:id` | 12.38 | 16.34 | 312 | 20.78 | 28.53 | 183 | 1.68× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 12.03 | 22.02 | 306 | 20.33 | 28.76 | 184 | 1.69× |
+| List projects `GET /projects` | 12.08 | 14.79 | 321 | 16.79 | 21.32 | 227 | 1.39× |
+| List documents `GET /documents` | 27.54 | 31.76 | 141 | 35.45 | 68.37 | 102 | 1.29× |
+| Read a document `GET /documents/:id` | 12.65 | 16.98 | 303 | 15.6 | 20.7 | 249 | 1.23× |
+| Create a document `POST /documents` | 11.44 | 14.85 | 339 | 18.16 | 24.46 | 209 | 1.59× |
+| Update a document `PATCH /documents/:id` | 12.75 | 17.07 | 298 | 19.6 | 25.67 | 196 | 1.54× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 12.09 | 22.37 | 299 | 19.57 | 26.89 | 193 | 1.62× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. PHP 8.5.11, Laravel 13.35.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

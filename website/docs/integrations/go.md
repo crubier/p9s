@@ -94,15 +94,15 @@ The structs do not change: GORM reads the columns its structs name, and leaves t
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 0.38 | 1.41 | 5,193 | 1.74 | 2.41 | 1,925 | 4.58× |
-| List documents `GET /documents` | 3.36 | 9.95 | 1,019 | 7.54 | 8.43 | 509 | 2.24× |
-| Read a document `GET /documents/:id` | 0.44 | 6.19 | 4,090 | 0.93 | 1.72 | 2,770 | 2.11× |
-| Create a document `POST /documents` | 0.42 | 6.13 | 4,514 | 0.87 | 2.85 | 2,847 | 2.07× |
-| Update a document `PATCH /documents/:id` | 0.69 | 7.62 | 2,891 | 1.83 | 4.37 | 1,494 | 2.65× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 0.87 | 7.94 | 2,549 | 2.21 | 3.27 | 1,594 | 2.54× |
+| List projects `GET /projects` | 0.39 | 1.07 | 4,931 | 1.27 | 2.82 | 2,137 | 3.26× |
+| List documents `GET /documents` | 3.33 | 5.55 | 1,045 | 6.33 | 12.29 | 510 | 1.90× |
+| Read a document `GET /documents/:id` | 0.74 | 8.88 | 2,660 | 0.77 | 2.22 | 2,746 | 1.04× |
+| Create a document `POST /documents` | 0.49 | 5.73 | 3,754 | 0.85 | 2.57 | 2,982 | 1.73× |
+| Update a document `PATCH /documents/:id` | 0.64 | 7.06 | 3,139 | 1 | 2.27 | 2,717 | 1.56× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.87 | 8.35 | 2,484 | 1.33 | 2.02 | 2,434 | 1.53× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Go 1.26.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

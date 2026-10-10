@@ -77,10 +77,7 @@ final class P9s
         ?Identity $identity = null,
     ): void {
         $database = self::connection($connection);
-        if ($readOnly) {
-            $database->statement('set transaction read only');
-        }
-        [$sql, $values] = ($identity ?? self::identity())->statement($userId, $role, $settings);
+        [$sql, $values] = ($identity ?? self::identity())->statement($userId, $role, $settings, $readOnly);
         $database->select($sql, $values);
     }
 

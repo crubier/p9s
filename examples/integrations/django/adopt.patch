@@ -13,7 +13,7 @@ index b03a302..a60b236 100644
 +[tool.uv.sources]
 +p9s = { path = "../../../../packages/python", editable = true }
 diff --git a/site_config/settings.py b/site_config/settings.py
-index e22343a..ae3772f 100644
+index c280389..054aebf 100644
 --- a/site_config/settings.py
 +++ b/site_config/settings.py
 @@ -11,7 +11,10 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]

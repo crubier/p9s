@@ -76,15 +76,15 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 0.59 | 1.18 | 5,874 | 2.04 | 2.73 | 1,899 | 3.46× |
-| List documents `GET /documents` | 3.78 | 4.98 | 1,003 | 8.29 | 9.49 | 476 | 2.19× |
-| Read a document `GET /documents/:id` | 0.6 | 1.17 | 6,014 | 1.04 | 1.57 | 3,585 | 1.73× |
-| Create a document `POST /documents` | 0.41 | 0.83 | 8,280 | 1.15 | 1.86 | 3,154 | 2.80× |
-| Update a document `PATCH /documents/:id` | 0.6 | 1.14 | 6,022 | 1.85 | 2.86 | 2,003 | 3.08× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 0.68 | 1.21 | 5,252 | 2.13 | 2.91 | 1,790 | 3.13× |
+| List projects `GET /projects` | 0.55 | 1.17 | 6,220 | 1.35 | 2.05 | 2,812 | 2.45× |
+| List documents `GET /documents` | 3.74 | 4.49 | 1,040 | 6.4 | 7.57 | 614 | 1.71× |
+| Read a document `GET /documents/:id` | 0.58 | 1.08 | 6,171 | 0.58 | 1.03 | 6,243 | 1.00× |
+| Create a document `POST /documents` | 0.39 | 0.82 | 8,903 | 0.8 | 1.4 | 4,480 | 2.05× |
+| Update a document `PATCH /documents/:id` | 0.59 | 1.12 | 5,905 | 1.01 | 1.7 | 3,591 | 1.71× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.68 | 1.18 | 5,297 | 1.03 | 1.68 | 3,511 | 1.51× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Bun 1.3.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

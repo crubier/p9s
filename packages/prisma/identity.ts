@@ -14,13 +14,10 @@ export interface InteractiveClient<Tx> {
   $transaction<T>(fn: (tx: Tx) => Promise<T>, options?: any): Promise<T>;
 }
 
-// The statements that start a transaction of the user: read only first, as it has to come before any query
+// The statement that starts a transaction of the user, read only with transaction_read_only
 const statements = (client: RawClient, identity: Identity, userId: UserId, options: RunOptions) => {
   const { text, values } = identity.statement(userId, options);
-  return [
-    ...(options.readOnly ? [client.$executeRawUnsafe("set transaction read only")] : []),
-    client.$executeRawUnsafe(text, ...values),
-  ];
+  return [client.$executeRawUnsafe(text, ...values)];
 };
 
 // A client whose every query runs as the user, in a transaction of its own that starts with the settings of the user,

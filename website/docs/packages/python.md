@@ -42,8 +42,8 @@ It raises `ValueError` when `engine.users` is empty, or when there is no setting
 | `setting`, `claim` | The setting the current user function reads, and its claim or `None` |
 | `roles` | The roles of `engine.users` and `engine.graphWriters` |
 | `value(user_id)` | The value of the setting for a user: the id as text, JSON claims, or `""` for `None` |
-| `settings(user_id, *, role=None, settings=None)` | The settings of a transaction of the user, as `(name, value)` pairs, the role first |
-| `statement(user_id, *, role=None, settings=None)` | `(text, params)` of `select set_config(%(name_0)s, %(value_0)s, true), ...`, with named parameters |
+| `settings(user_id, *, role=None, settings=None, read_only=False)` | The settings of a transaction of the user, as `(name, value)` pairs, the role first, with `transaction_read_only` for `read_only` |
+| `statement(user_id, *, role=None, settings=None, read_only=False)` | `(text, params)` of `select set_config(%(name_0)s, %(value_0)s, true), ...`, with named parameters |
 
 `user_id` is an `int`, a `str` or `None`, for no one. `role` takes another role of `engine.users` or `engine.graphWriters`, and raises `ValueError` for another. `settings` adds settings to the transaction, like `{"app.tenant_id": 3}`: `None` sets them empty, and booleans `on` and `off`.
 
@@ -72,11 +72,11 @@ async with Session() as session, as_user_async(session, users, user_id):
     session.add(Document(project_id=1, title="Plan"))
 ```
 
-`as_user(session, identity, user_id, *, read_only=False, role=None, settings=None)` is a context manager that runs its block in a transaction of the session, `session.begin()`, as the user, and yields the session. It runs `set transaction read only` first for `read_only`, then the statement of the user, so every query of the block goes through the policies. It commits when the block ends, and rolls back when it raises. `as_user_async` does the same for an `AsyncSession`, as an async context manager. The session must not be in a transaction already.
+`as_user(session, identity, user_id, *, read_only=False, role=None, settings=None)` is a context manager that runs its block in a transaction of the session, `session.begin()`, as the user, and yields the session. It runs the statement of the user first, with `transaction_read_only` for `read_only`, so every query of the block goes through the policies. It commits when the block ends, and rolls back when it raises. `as_user_async` does the same for an `AsyncSession`, as an async context manager. The session must not be in a transaction already.
 
 ### set_user and set_user_async
 
-`set_user(session, identity, user_id, *, role=None, settings=None)` acts as the user for the rest of the transaction a `Session` or `Connection` is in, or begins. `set_user_async` does the same for an `AsyncSession` or `AsyncConnection`. For a read only transaction, run `set transaction read only` before.
+`set_user(session, identity, user_id, *, read_only=False, role=None, settings=None)` acts as the user for the rest of the transaction a `Session` or `Connection` is in, or begins. `set_user_async` does the same for an `AsyncSession` or `AsyncConnection`.
 
 A write the policies refuse raises `sqlalchemy.exc.DBAPIError`, with the error of the driver as `orig`, which `is_refused` tells.
 

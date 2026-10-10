@@ -97,15 +97,15 @@ The queries name their columns, so the `role_id` and `resource_id` columns p9s a
 
 ## Benchmark
 
-The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/axum) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds.
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 0.43 | 0.61 | 8,752 | 1.76 | 2.2 | 2,192 | 4.09× |
-| List documents `GET /documents` | 3.23 | 3.76 | 1,208 | 7.7 | 8.62 | 511 | 2.38× |
-| Read a document `GET /documents/:id` | 0.62 | 0.92 | 6,035 | 0.87 | 1.18 | 4,445 | 1.40× |
-| Create a document `POST /documents` | 0.37 | 0.66 | 9,921 | 0.82 | 1.32 | 4,491 | 2.22× |
-| Update a document `PATCH /documents/:id` | 0.72 | 1.08 | 5,274 | 0.99 | 1.44 | 3,788 | 1.38× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 0.71 | 1.05 | 5,282 | 1.98 | 2.31 | 1,925 | 2.79× |
+| List projects `GET /projects` | 0.41 | 0.73 | 8,680 | 1.25 | 1.54 | 3,109 | 3.05× |
+| List documents `GET /documents` | 3.24 | 3.81 | 1,198 | 5.92 | 6.81 | 660 | 1.83× |
+| Read a document `GET /documents/:id` | 0.63 | 0.97 | 5,913 | 0.41 | 0.62 | 8,231 | 0.65× |
+| Create a document `POST /documents` | 0.37 | 0.61 | 9,929 | 0.74 | 1.19 | 5,036 | 2.00× |
+| Update a document `PATCH /documents/:id` | 0.74 | 1.06 | 5,105 | 0.74 | 1.09 | 5,144 | 1.00× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.76 | 1.14 | 4,949 | 1.18 | 1.6 | 3,223 | 1.55× |
 
 Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. rustc 1.90.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

@@ -33,7 +33,7 @@ titles = P9s.as_user(user.id, read_only: true) { Document.pluck(:title) }
 
 | Option | |
 | --- | --- |
-| `read_only` | Runs `set transaction read only` first |
+| `read_only` | Adds `transaction_read_only` to the settings, for a read only transaction |
 | `role` | Another role of `engine.users` or `engine.graphWriters`. Another raises `ArgumentError` |
 | `settings` | Other settings of the transaction, like `{ "app.tenant_id" => 3 }`. `nil` sets them empty, and booleans `on` and `off` |
 | `identity` | Another identity than `P9s.identity` |
@@ -88,5 +88,5 @@ A write the policies refuse rolls the transaction back, and raises `ActiveRecord
 | --- | --- |
 | `role`, `setting`, `claim`, `roles` | The role transactions take, the first of `engine.users`, the setting the current user function reads, its claim or `nil`, and the roles of `engine.users` and `engine.graphWriters` |
 | `value(user_id)` | The value of the setting for a user: the id as text, JSON claims, or `""` for `nil` |
-| `settings(user_id, role: nil, settings: {})` | The settings of a transaction of the user, as `[name, value]` pairs, the role first |
-| `statement(user_id, role: nil, settings: {})` | `["select set_config($1, $2, true), ...", values]` |
+| `settings(user_id, role: nil, settings: {}, read_only: false)` | The settings of a transaction of the user, as `[name, value]` pairs, the role first, with `transaction_read_only` for `read_only` |
+| `statement(user_id, role: nil, settings: {}, read_only: false)` | `["select set_config($1, $2, true), ...", values]` |

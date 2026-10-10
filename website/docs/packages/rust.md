@@ -35,7 +35,7 @@ let users = p9s::Identity::from_file("p9s.config.json")?;
 | `with_setting(setting)` | Reads the user from another setting than the one of the config, with no claim |
 | `with_claim(claim)` | Sets the user as this claim of JSON claims in the setting |
 | `value(&UserId) -> String` | The value of the setting for a user: the id, JSON claims, or `""` for no user |
-| `settings(user_id, &TxOptions) -> Result<Vec<(String, String)>, Error>` | The settings of a transaction of the user, the role first |
+| `settings(user_id, &TxOptions) -> Result<Vec<(String, String)>, Error>` | The settings of a transaction of the user, the role first, with `transaction_read_only` for `read_only` |
 | `statement(user_id, &TxOptions) -> Result<(String, Vec<String>), Error>` | `select set_config($1, $2, true), ...` and its values |
 | `as_user(&pool, user_id).await -> sqlx::Result<Transaction<'static, Postgres>>` | Begins a transaction of the pool as the user |
 | `as_user_with(&pool, user_id, &TxOptions).await` | The same, with options |
@@ -51,7 +51,7 @@ let mut tx = users.as_user_with(&pool, 7, &options).await?;
 
 | Builder | |
 | --- | --- |
-| `read_only(bool)` | Runs `set transaction read only` first |
+| `read_only(bool)` | Adds `transaction_read_only` to the settings, for a read only transaction |
 | `role(role)` | Another role of `engine.users` or `engine.graphWriters` |
 | `set(name, value)` | Another setting of the transaction |
 
