@@ -206,3 +206,32 @@ The benchmark shares 15,000 times over 111,000 resources, at every level, so onl
 
 Before this, the primary key of the cache started with the parent. Postgres 18 could then look the ancestors of a resource up with a skip scan of that key, which it expected to take a single search, as p9s tells it that parents have most of the cache, and which took one search per parent. Both plans cost about the same to the planner, and with `role` and the assigned cache it took the skip scan: `resource_permission` of a row took 3 ms instead of 0.2 ms, and a first page with permissions 119 ms instead of 3.8 ms. The key now starts with the child, and the index on the child, which it replaces, is gone: 13% less space in both modes.
 
+## The examples
+
+Each [example app](https://github.com/crubier/p9s/tree/main/examples/integrations) has a benchmark of the app before p9s, which checks permissions in its code, and of the app after `p9s adopt` and `after.patch`, which leaves them to the policies. Each app gets its own database on the same server, with its migrations, the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql), and for the app after, the migration of p9s. 20 users, each in 3 teams that share about 60 projects and 1200 documents with them, list the projects and the documents, read a document, create one, rename one, and share one with another user. The requests go to each app in turns, a few at a time, after a warm-up, and every answer must have the status the rules give. The apps have no endpoint that counts.
+
+```bash
+P9S_ADOPTION_DATABASE_URL=postgresql://postgres@localhost:5432/postgres bun run bench:integrations [kysely ...]
+bun run bench:integrations:docs
+```
+
+The first writes the `benchmark.json` of each example, the second the table of its integration page and the one below. CI runs each with fewer requests, `--compare --fail`, and fails when a request of the app after got more than twice as slow against the app before as its `benchmark.json` says, and more than 2 ms slower.
+
+The median of the app after p9s divided by the median of the app before:
+
+| Example | List projects | List documents | Read a document | Create a document | Update a document | Share a document |
+|---|---:|---:|---:|---:|---:|---:|
+| [Axum](./integrations/rust#benchmark) | 4.09× | 2.38× | 1.40× | 2.22× | 1.38× | 2.79× |
+| [Django](./integrations/django#benchmark) | 1.66× | 1.71× | 1.39× | 1.92× | 1.93× | 1.73× |
+| [Drizzle](./integrations/drizzle#benchmark) | 3.08× | 1.90× | 1.28× | 2.31× | 2.30× | 2.12× |
+| [FastAPI](./integrations/sqlalchemy#benchmark) | 1.32× | 1.20× | 0.82× | 1.04× | 0.89× | 0.92× |
+| [GORM](./integrations/go#benchmark) | 4.58× | 2.24× | 2.11× | 2.07× | 2.65× | 2.54× |
+| [Kysely](./integrations/kysely#benchmark) | 3.46× | 2.19× | 1.73× | 2.80× | 3.08× | 3.13× |
+| [Laravel](./integrations/laravel#benchmark) | 1.42× | 1.35× | 1.31× | 1.67× | 1.68× | 1.69× |
+| [Phoenix](./integrations/elixir#benchmark) | 4.74× | 2.14× | 2.10× | 3.48× | 3.26× | 3.82× |
+| [PostGraphile](./integrations/postgraphile#benchmark) | 0.19× | 0.04× | 1.57× | 1.84× | 1.97× | 1.60× |
+| [Prisma](./integrations/prisma#benchmark) | 3.32× | 1.43× | 1.43× | 2.47× | 3.16× | 2.22× |
+| [Rails](./integrations/rails#benchmark) | 1.34× | 1.18× | 0.91× | 0.85× | 1.09× | 0.77× |
+| [Supabase](./integrations/supabase#benchmark) | 1.02× | 2.15× | 0.39× | 0.57× | 0.68× | 0.71× |
+
+Measured on Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64, PostgreSQL 18.6.

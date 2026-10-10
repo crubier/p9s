@@ -4,5 +4,6 @@
   "start": "mix phx.server",
   "env": {"MIX_ENV": "prod"},
   "format": {"name": "ecto"},
-  "adopt": ["--user-id", "conn.assigns.user_id"]
+  "adopt": ["--user-id", "conn.assigns.user_id"],
+  "version": "elixir -e 'IO.puts(\"Elixir #{System.version()}, Erlang/OTP #{System.otp_release()}\")'"
 }

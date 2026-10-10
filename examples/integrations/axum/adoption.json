@@ -3,5 +3,7 @@
   "migrate": "cargo run --quiet -- migrate",
   "start": "cargo run --quiet",
   "env": {"CARGO_TARGET_DIR": "../../adoption/.adoption/cargo-target"},
-  "format": {"name": "sqlx"}
+  "format": {"name": "sqlx"},
+  "version": "rustc --version | cut -d' ' -f1-2",
+  "benchmark": {"setup": ["cargo build --release --quiet"], "start": "cargo run --release --quiet"}
 }

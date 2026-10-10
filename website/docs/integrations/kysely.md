@@ -73,3 +73,18 @@ npx @p9s/cli postgres migrate --config p9s.config.json
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/kysely/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/kysely/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`. Sharing a document is still an insert into `document_shares`, which p9s checks gives no more than the user has.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/kysely) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 0.59 | 1.18 | 5,874 | 2.04 | 2.73 | 1,899 | 3.46× |
+| List documents `GET /documents` | 3.78 | 4.98 | 1,003 | 8.29 | 9.49 | 476 | 2.19× |
+| Read a document `GET /documents/:id` | 0.6 | 1.17 | 6,014 | 1.04 | 1.57 | 3,585 | 1.73× |
+| Create a document `POST /documents` | 0.41 | 0.83 | 8,280 | 1.15 | 1.86 | 3,154 | 2.80× |
+| Update a document `PATCH /documents/:id` | 0.6 | 1.14 | 6,022 | 1.85 | 2.86 | 2,003 | 3.08× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.68 | 1.21 | 5,252 | 2.13 | 2.91 | 1,790 | 3.13× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Bun 1.3.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

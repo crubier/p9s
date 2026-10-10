@@ -82,3 +82,18 @@ The schemas do not change: Ecto reads the fields its schemas name, and leaves th
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix/before) checks every action with `lib/documents/permissions.ex`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/phoenix/adopt.patch) is what `p9s adopt --user-id conn.assigns.user_id` writes: the package, and `P9s.Controller` in the controllers of the app. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/phoenix/after.patch) is the rest, by hand: it deletes `permissions.ex` and its checks, and answers refused writes with the JSON of the app, in `p9s_refused/2`.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/phoenix) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 0.43 | 0.89 | 8,052 | 2.04 | 2.49 | 1,916 | 4.74× |
+| List documents `GET /documents` | 4.2 | 4.99 | 927 | 9 | 10.08 | 439 | 2.14× |
+| Read a document `GET /documents/:id` | 0.51 | 0.75 | 7,517 | 1.07 | 1.37 | 3,626 | 2.10× |
+| Create a document `POST /documents` | 0.33 | 0.65 | 10,464 | 1.15 | 1.72 | 3,204 | 3.48× |
+| Update a document `PATCH /documents/:id` | 0.58 | 0.94 | 6,357 | 1.89 | 2.55 | 2,007 | 3.26× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.56 | 0.86 | 6,617 | 2.14 | 2.67 | 1,808 | 3.82× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Elixir 1.20.4, Erlang/OTP 29, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

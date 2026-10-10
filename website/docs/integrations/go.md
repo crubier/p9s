@@ -91,3 +91,18 @@ The structs do not change: GORM reads the columns its structs name, and leaves t
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm/before) checks every handler with `permissions.go`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/gorm/adopt.patch) is what `p9s adopt` writes: the module, and `p9s.go`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/gorm/after.patch) is the rest, by hand: it deletes `permissions.go` and its checks, and runs each handler in a GORM transaction as the user of its request.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/gorm) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 0.38 | 1.41 | 5,193 | 1.74 | 2.41 | 1,925 | 4.58× |
+| List documents `GET /documents` | 3.36 | 9.95 | 1,019 | 7.54 | 8.43 | 509 | 2.24× |
+| Read a document `GET /documents/:id` | 0.44 | 6.19 | 4,090 | 0.93 | 1.72 | 2,770 | 2.11× |
+| Create a document `POST /documents` | 0.42 | 6.13 | 4,514 | 0.87 | 2.85 | 2,847 | 2.07× |
+| Update a document `PATCH /documents/:id` | 0.69 | 7.62 | 2,891 | 1.83 | 4.37 | 1,494 | 2.65× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.87 | 7.94 | 2,549 | 2.21 | 3.27 | 1,594 | 2.54× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Go 1.26.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

@@ -2,5 +2,6 @@
   "setup": ["uv sync"],
   "migrate": "uv run alembic upgrade head",
   "start": "uv run uvicorn app.main:app --host 127.0.0.1 --port $PORT",
-  "format": {"name": "alembic", "options": "--previous 0001"}
+  "format": {"name": "alembic", "options": "--previous 0001"},
+  "version": "uv run python -c \"import sys, fastapi; print(f'Python {sys.version.split()[0]}, FastAPI {fastapi.__version__}')\""
 }

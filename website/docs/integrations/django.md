@@ -89,3 +89,18 @@ The models do not change, and `makemigrations` finds nothing to do: Django compa
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/django/before) checks every view with `documents/permissions.py`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/django/adopt.patch) is what `p9s adopt --user-id documents.middleware.user_id_of` writes: the package, and the middleware of p9s after the one that finds the user. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/django/after.patch) is the rest, by hand: it deletes `permissions.py` and its checks, and answers 403 to refused writes, in a savepoint of each view that writes.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/django) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 14.16 | 16.16 | 279 | 23.57 | 26.49 | 168 | 1.66× |
+| List documents `GET /documents` | 23.5 | 25.71 | 169 | 40.17 | 43.66 | 99 | 1.71× |
+| Read a document `GET /documents/:id` | 16.51 | 20.71 | 235 | 23 | 37.97 | 157 | 1.39× |
+| Create a document `POST /documents` | 14.19 | 17.33 | 274 | 27.23 | 32.66 | 142 | 1.92× |
+| Update a document `PATCH /documents/:id` | 16.29 | 19.33 | 240 | 31.51 | 37.12 | 123 | 1.93× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 18.4 | 22.86 | 211 | 31.86 | 38.28 | 122 | 1.73× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, Django 6.1.2, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

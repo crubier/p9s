@@ -3,5 +3,6 @@
   "migrate": "uv run python manage.py migrate",
   "start": "uv run gunicorn site_config.wsgi --bind 127.0.0.1:$PORT --workers 2",
   "format": {"name": "django", "options": "--previous documents.0001_initial"},
-  "adopt": ["--user-id", "documents.middleware.user_id_of"]
+  "adopt": ["--user-id", "documents.middleware.user_id_of"],
+  "version": "uv run python -c \"import sys, django; print(f'Python {sys.version.split()[0]}, Django {django.get_version()}')\""
 }

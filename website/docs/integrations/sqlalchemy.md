@@ -97,3 +97,18 @@ context.configure(connection=connection, target_metadata=target_metadata, includ
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi/before) works out the access of a user in `app/permissions.py`, which every route asks first. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/fastapi/adopt.patch) is what `p9s adopt` writes: the package, the identity, the exception handler and `include_object`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/fastapi/after.patch) is the rest, by hand: it deletes `permissions.py` and its checks, gives each route a session as its user, and answers refused writes with the JSON of the app. The models do not change.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/fastapi) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 3.8 | 4.91 | 1,003 | 5.02 | 5.82 | 732 | 1.32× |
+| List documents `GET /documents` | 25.61 | 44.45 | 144 | 30.86 | 33.1 | 127 | 1.20× |
+| Read a document `GET /documents/:id` | 5.03 | 5.89 | 793 | 4.1 | 5.37 | 953 | 0.82× |
+| Create a document `POST /documents` | 3.99 | 5.05 | 953 | 4.14 | 5.14 | 951 | 1.04× |
+| Update a document `PATCH /documents/:id` | 5.73 | 18.1 | 517 | 5.1 | 5.75 | 782 | 0.89× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 5.72 | 6.44 | 685 | 5.27 | 6.81 | 738 | 0.92× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, FastAPI 0.143.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

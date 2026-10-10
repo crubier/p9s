@@ -18,6 +18,8 @@
     "bench": "bun benchmarks/postgres/run.ts",
     "bench:compare": "bun benchmarks/postgres/compare.ts",
     "bench:ab": "bun benchmarks/postgres/ab.ts",
+    "bench:integrations": "bun examples/integrations/adoption/benchmark.ts",
+    "bench:integrations:docs": "bun examples/integrations/adoption/benchmark-docs.ts",
     "docs": "bun run --cwd website start"
   },
   "devDependencies": {

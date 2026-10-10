@@ -1,0 +1,115 @@
+{
+  "example": "drizzle",
+  "date": "2026-10-10",
+  "machine": {
+    "cpu": "Apple M2 Max",
+    "cores": 12,
+    "memory": "64 GiB",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "versions": {
+    "app": "Bun 1.3.0",
+    "PostgreSQL": "18.6",
+    "p9s": "0.1.0",
+    "benchmark": "Bun 1.3.0"
+  },
+  "settings": {
+    "requests": 200,
+    "warmup": 20,
+    "rounds": 3,
+    "concurrency": 4,
+    "users": 20
+  },
+  "results": [
+    {
+      "request": "List projects",
+      "method": "GET",
+      "path": "/projects",
+      "before": {
+        "median": 0.63,
+        "p95": 1.32,
+        "rps": 4926
+      },
+      "after": {
+        "median": 1.94,
+        "p95": 2.63,
+        "rps": 1990
+      }
+    },
+    {
+      "request": "List documents",
+      "method": "GET",
+      "path": "/documents",
+      "before": {
+        "median": 4.55,
+        "p95": 5.73,
+        "rps": 845
+      },
+      "after": {
+        "median": 8.65,
+        "p95": 9.88,
+        "rps": 456
+      }
+    },
+    {
+      "request": "Read a document",
+      "method": "GET",
+      "path": "/documents/:id",
+      "before": {
+        "median": 0.83,
+        "p95": 1.47,
+        "rps": 4435
+      },
+      "after": {
+        "median": 1.06,
+        "p95": 1.82,
+        "rps": 3280
+      }
+    },
+    {
+      "request": "Create a document",
+      "method": "POST",
+      "path": "/documents",
+      "before": {
+        "median": 0.54,
+        "p95": 0.84,
+        "rps": 6688
+      },
+      "after": {
+        "median": 1.25,
+        "p95": 1.9,
+        "rps": 2914
+      }
+    },
+    {
+      "request": "Update a document",
+      "method": "PATCH",
+      "path": "/documents/:id",
+      "before": {
+        "median": 1,
+        "p95": 1.95,
+        "rps": 3588
+      },
+      "after": {
+        "median": 2.3,
+        "p95": 3.69,
+        "rps": 1585
+      }
+    },
+    {
+      "request": "Share a document",
+      "method": "PUT",
+      "path": "/documents/:id/shares/:user_id",
+      "before": {
+        "median": 1.11,
+        "p95": 2.21,
+        "rps": 3171
+      },
+      "after": {
+        "median": 2.35,
+        "p95": 4.05,
+        "rps": 1450
+      }
+    }
+  ]
+}

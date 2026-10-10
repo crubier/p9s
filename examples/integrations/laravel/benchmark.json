@@ -1,0 +1,115 @@
+{
+  "example": "laravel",
+  "date": "2026-10-10",
+  "machine": {
+    "cpu": "Apple M2 Max",
+    "cores": 12,
+    "memory": "64 GiB",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "versions": {
+    "app": "PHP 8.5.11, Laravel 13.35.0",
+    "PostgreSQL": "18.6",
+    "p9s": "0.1.0",
+    "benchmark": "Bun 1.3.0"
+  },
+  "settings": {
+    "requests": 200,
+    "warmup": 20,
+    "rounds": 3,
+    "concurrency": 4,
+    "users": 20
+  },
+  "results": [
+    {
+      "request": "List projects",
+      "method": "GET",
+      "path": "/projects",
+      "before": {
+        "median": 12.56,
+        "p95": 16.75,
+        "rps": 308
+      },
+      "after": {
+        "median": 17.82,
+        "p95": 22.57,
+        "rps": 216
+      }
+    },
+    {
+      "request": "List documents",
+      "method": "GET",
+      "path": "/documents",
+      "before": {
+        "median": 27.75,
+        "p95": 30.74,
+        "rps": 140
+      },
+      "after": {
+        "median": 37.46,
+        "p95": 42.27,
+        "rps": 104
+      }
+    },
+    {
+      "request": "Read a document",
+      "method": "GET",
+      "path": "/documents/:id",
+      "before": {
+        "median": 12.51,
+        "p95": 16.95,
+        "rps": 303
+      },
+      "after": {
+        "median": 16.37,
+        "p95": 22.74,
+        "rps": 234
+      }
+    },
+    {
+      "request": "Create a document",
+      "method": "POST",
+      "path": "/documents",
+      "before": {
+        "median": 11.67,
+        "p95": 16.07,
+        "rps": 326
+      },
+      "after": {
+        "median": 19.45,
+        "p95": 28.74,
+        "rps": 189
+      }
+    },
+    {
+      "request": "Update a document",
+      "method": "PATCH",
+      "path": "/documents/:id",
+      "before": {
+        "median": 12.38,
+        "p95": 16.34,
+        "rps": 312
+      },
+      "after": {
+        "median": 20.78,
+        "p95": 28.53,
+        "rps": 183
+      }
+    },
+    {
+      "request": "Share a document",
+      "method": "PUT",
+      "path": "/documents/:id/shares/:user_id",
+      "before": {
+        "median": 12.03,
+        "p95": 22.02,
+        "rps": 306
+      },
+      "after": {
+        "median": 20.33,
+        "p95": 28.76,
+        "rps": 184
+      }
+    }
+  ]
+}

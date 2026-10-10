@@ -122,6 +122,67 @@ jobs:
         env:
           P9S_ADOPTION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
+  # Each example app before and after p9s answers the same requests on a larger seed, and fails when a request of the
+  # app after got much slower against the app before than its benchmark.json says, see the Benchmarks page
+  benchmark-integrations:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [kysely, prisma, supabase, drizzle, postgraphile-rls, fastapi, django, rails, gorm, axum, phoenix, laravel]
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - uses: astral-sh/setup-uv@v6
+      - uses: ruby/setup-ruby@v1
+        if: matrix.example == 'rails'
+        with:
+          ruby-version: "3.4"
+      - uses: actions/setup-go@v5
+        if: matrix.example == 'gorm'
+        with:
+          go-version-file: examples/integrations/gorm/before/go.mod
+          cache-dependency-path: examples/integrations/gorm/before/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.example == 'axum'
+      - uses: erlef/setup-beam@v1
+        if: matrix.example == 'phoenix'
+        with:
+          elixir-version: "1.18"
+          otp-version: "27"
+      - uses: shivammathur/setup-php@v2
+        if: matrix.example == 'laravel'
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql
+          tools: composer
+          coverage: none
+      - name: Benchmark of ${{ matrix.example }} against its benchmark.json
+        run: bun run bench:integrations ${{ matrix.example }} --requests 100 --rounds 2 --compare --fail --out benchmark-results
+        env:
+          P9S_ADOPTION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-${{ matrix.example }}
+          path: benchmark-results
+          if-no-files-found: ignore
+
   # The Python package, on SQLAlchemy and Django, see packages/python
   python:
     runs-on: ubuntu-latest

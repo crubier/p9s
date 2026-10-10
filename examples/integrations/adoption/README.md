@@ -59,6 +59,26 @@ To change the code after p9s, `bun examples/integrations/adoption/patch.ts edit 
 again: `adopt.patch` from what `p9s adopt` writes now, and `after.patch` from the rest of `.adoption-edit`. After a
 change to `p9s adopt`, `edit` then `save` writes both again, `after.patch` on top of what `p9s adopt` writes now.
 
+## Benchmark
+
+```bash
+P9S_ADOPTION_DATABASE_URL=postgresql://postgres@localhost:5432/postgres bun run bench:integrations [kysely ...]
+bun run bench:integrations:docs
+```
+
+[`benchmark.ts`](./benchmark.ts) makes the copies before and after p9s as the test does, a database for each with the
+migrations of the app and the rows of [`benchmark-seed.sql`](./benchmark-seed.sql), 1000 users, 1000 projects and
+20,000 documents, and runs the p9s migration on the second. It starts both apps, and 20 of the users list the projects
+and the documents, read a document, create one, rename one and share one, 200 times each per round, 4 at a time, in 3
+rounds that switch which app goes first. Every answer must have the status the rules give. It writes the median, p95
+and requests per second of each request in `benchmark.json` next to `adoption.json`, with the machine and the versions,
+and [`benchmark-docs.ts`](./benchmark-docs.ts) writes them into the integration pages of the website.
+
+`version` in `adoption.json` prints the runtime of the app, and `benchmark` adds to `setup` and `env` and replaces
+`start`, like a release build of Rust. With `--compare`, it compares how much slower the app after is than the app
+before with `benchmark.json` instead of writing it, and with `--fail`, exits with 1 when a request got more than
+`--threshold` (1) times slower than that, and more than `--min-ms` (2) slower. CI runs it so, with fewer requests.
+
 ## The app
 
 ### Tables

@@ -2,5 +2,6 @@
   "setup": ["go mod tidy", "go build -o documents ."],
   "migrate": "./documents migrate",
   "start": "./documents",
-  "format": {"name": "goose"}
+  "format": {"name": "goose"},
+  "version": "echo \"Go $(go env GOVERSION | sed 's/^go//')\""
 }

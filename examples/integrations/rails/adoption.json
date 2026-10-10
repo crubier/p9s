@@ -4,5 +4,6 @@
   "start": "bundle exec puma --bind tcp://127.0.0.1:$PORT --threads 1:5",
   "env": {"RAILS_ENV": "production", "BUNDLE_PATH": "../../adoption/.adoption/ruby-bundle"},
   "format": {"name": "rails"},
-  "adopt": ["--user-id", "@user_id"]
+  "adopt": ["--user-id", "@user_id"],
+  "version": "bundle exec ruby -e 'require \"rails\"; puts \"Ruby #{RUBY_VERSION}, Rails #{Rails.version}\"'"
 }

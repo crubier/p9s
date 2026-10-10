@@ -4,5 +4,7 @@
   "start": "env DB_URL=\"$DATABASE_URL\" php -S 127.0.0.1:$PORT public/index.php",
   "env": {"APP_ENV": "production", "APP_DEBUG": "false", "DB_CONNECTION": "pgsql", "LOG_CHANNEL": "stderr"},
   "format": {"name": "laravel"},
-  "adopt": ["--user-id", "$request->attributes->get('user_id')"]
+  "adopt": ["--user-id", "$request->attributes->get('user_id')"],
+  "version": "echo \"PHP $(php -r 'echo PHP_VERSION;'), $(php artisan --version | sed 's/ Framework//')\"",
+  "benchmark": {"env": {"PHP_CLI_SERVER_WORKERS": "4"}}
 }

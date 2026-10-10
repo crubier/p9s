@@ -120,3 +120,18 @@ npx p9s postgres doctor --config p9s.config.ts --database-url "$DATABASE_URL"
 ```
 
 `status` tells whether the database ran the migration of this config, and `doctor` checks the roles, RLS, grants, indexes, JIT and caches. Use the direct connection string, or the session pooler.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/supabase) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 2.03 | 2.83 | 1,626 | 2.08 | 2.7 | 1,855 | 1.02× |
+| List documents `GET /documents` | 4.53 | 5.46 | 870 | 9.72 | 11.96 | 404 | 2.15× |
+| Read a document `GET /documents/:id` | 2.99 | 3.91 | 1,289 | 1.16 | 1.64 | 3,272 | 0.39× |
+| Create a document `POST /documents` | 1.87 | 2.66 | 1,982 | 1.06 | 1.72 | 3,404 | 0.57× |
+| Update a document `PATCH /documents/:id` | 2.81 | 3.55 | 1,384 | 1.92 | 2.74 | 1,945 | 0.68× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 3.24 | 4.04 | 1,211 | 2.29 | 3.04 | 1,669 | 0.71× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Bun 1.3.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

@@ -72,3 +72,18 @@ The schema of Drizzle does not change. Keep migrating with `drizzle-kit generate
 ## The example
 
 [`before/`](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle/before) checks every route with `src/permissions.ts`. [`adopt.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/drizzle/adopt.patch) is what `p9s adopt` writes: `src/p9s.ts`, and `app.onError`. [`after.patch`](https://github.com/crubier/p9s/blob/main/examples/integrations/drizzle/after.patch) is the rest, by hand: it deletes `src/permissions.ts` and its checks, and runs the queries of each request as its user with `withUser`.
+
+## Benchmark
+
+The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/drizzle) before p9s and after p9s, each on its own database with the rows of [`benchmark-seed.sql`](https://github.com/crubier/p9s/blob/main/examples/integrations/adoption/benchmark-seed.sql): 1000 users in 100 teams, 1000 projects and 20,000 documents, of which each user reads about 1200. 20 of the users send each request 600 times to each app, 4 at a time, in 3 rounds that switch which app goes first. Times are in milliseconds, and the app has no endpoint that counts.
+
+| Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| List projects `GET /projects` | 0.63 | 1.32 | 4,926 | 1.94 | 2.63 | 1,990 | 3.08× |
+| List documents `GET /documents` | 4.55 | 5.73 | 845 | 8.65 | 9.88 | 456 | 1.90× |
+| Read a document `GET /documents/:id` | 0.83 | 1.47 | 4,435 | 1.06 | 1.82 | 3,280 | 1.28× |
+| Create a document `POST /documents` | 0.54 | 0.84 | 6,688 | 1.25 | 1.9 | 2,914 | 2.31× |
+| Update a document `PATCH /documents/:id` | 1 | 1.95 | 3,588 | 2.3 | 3.69 | 1,585 | 2.30× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 1.11 | 2.21 | 3,171 | 2.35 | 4.05 | 1,450 | 2.12× |
+
+Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Bun 1.3.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

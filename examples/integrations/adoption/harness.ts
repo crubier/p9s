@@ -10,8 +10,8 @@ import { prepareSupabase, startSupabase } from "./supabase.ts";
 
 // The adoption test of an example, see the README of this folder
 
-const repository = path.resolve(import.meta.dir, "../../..");
-const cli = path.join(repository, "packages/cli/src/index.ts");
+export const repository = path.resolve(import.meta.dir, "../../..");
+export const cli = path.join(repository, "packages/cli/src/index.ts");
 const seed = path.join(import.meta.dir, "seed.sql");
 const timeout = 15 * 60_000;
 
@@ -32,6 +32,10 @@ export interface Descriptor {
   format?: { name: string; options?: string };
   // The options of p9s adopt for the app, like ["--user-id", "@user_id"]
   adopt?: string[];
+  // Prints the runtime of the app and its version, like "Bun 1.3.0", for its benchmark
+  version?: string;
+  // What its benchmark adds to setup and env, and runs instead of start, like a release build
+  benchmark?: { setup?: string[]; start?: string; env?: Record<string, string> };
 }
 
 // Folders of a copy that its setup makes, and that copies leave out
@@ -94,7 +98,7 @@ export const run = async (command: string, cwd: string, env: Record<string, stri
   return stdout;
 };
 
-const databaseUrl = (base: string, name: string) => {
+export const databaseUrl = (base: string, name: string) => {
   const url = new URL(base);
   url.pathname = `/${name}`;
   return url.toString();
@@ -108,7 +112,7 @@ const freePort = () => {
 };
 
 // The app in the foreground of its own process group, so that stopping it stops what its command started
-const startApp = async (directory: string, descriptor: Descriptor, url: string, log: string, stackEnv: Record<string, string> = {}) => {
+export const startApp = async (directory: string, descriptor: Descriptor, url: string, log: string, stackEnv: Record<string, string> = {}) => {
   const port = freePort();
   const output = Bun.file(log);
   const child = Bun.spawn(["sh", "-c", `exec ${descriptor.start}`], {
@@ -136,6 +140,42 @@ const stopApp = async (child: Bun.Subprocess) => {
   try { process.kill(-child.pid, "SIGTERM"); } catch { return; }
   const stopped = await Promise.race([child.exited.then(() => true), Bun.sleep(10_000).then(() => false)]);
   if (!stopped) try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
+};
+
+// Runs a statement on the server of base, outside of any database of an app
+export const admin = async (base: string, statement: string) => {
+  const client = new pg.Client({ connectionString: base });
+  await client.connect();
+  try { await client.query(statement); } finally { await client.end(); }
+};
+
+export const runSql = async (url: string, file: string) => {
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  try { await client.query(await readFile(file, "utf8")); } finally { await client.end(); }
+};
+
+// A new database for a copy of the app, with what its platform gives, its migrations, and the rows of a seed
+export const prepareDatabase = async (base: string, database: string, directory: string, descriptor: Descriptor, rows = seed) => {
+  const url = databaseUrl(base, database);
+  await admin(base, `drop database if exists ${database} with (force)`);
+  await admin(base, `create database ${database}`);
+  if (descriptor.stack === "supabase") await prepareSupabase(url);
+  await run(descriptor.migrate, directory, { ...descriptor.env, DATABASE_URL: url });
+  await runSql(url, rows);
+  return url;
+};
+
+// Starts a copy of the app on its database, with PostgREST for Supabase, logs in work
+export const serveApp = async (directory: string, descriptor: Descriptor, url: string, work: string, name: string) => {
+  const stack = descriptor.stack === "supabase" ? await startSupabase(url, path.join(work, `${name}.supabase.log`)) : undefined;
+  try {
+    const server = await startApp(directory, descriptor, url, path.join(work, `${name}.log`), stack?.env);
+    return { base: server.base, leaks: stack?.leaks ?? (async () => []), stop: async () => { await server.stop(); await stack?.stop(); } };
+  } catch (error) {
+    await stack?.stop();
+    throw error;
+  }
 };
 
 export interface Answer { request: string; status: number; body: unknown }
@@ -310,30 +350,12 @@ export const describeAdoption = (example: string) => {
   let before: Answer[] = [];
   let created = new Map<number, string>();
 
-  const admin = async (statement: string) => {
-    const client = new pg.Client({ connectionString: base });
-    await client.connect();
-    try { await client.query(statement); } finally { await client.end(); }
-  };
   const p9s = (args: string, app: string, url: string) => run(`"${process.execPath}" "${cli}" ${args}`, app, { DATABASE_URL: url });
-  const seedDatabase = async (url: string) => {
-    const client = new pg.Client({ connectionString: url });
-    await client.connect();
-    try { await client.query(await readFile(seed, "utf8")); } finally { await client.end(); }
-  };
-  const prepare = async (app: "before" | "after") => {
-    await admin(`drop database if exists ${databases[app]} with (force)`);
-    await admin(`create database ${databases[app]}`);
-    if (descriptor.stack === "supabase") await prepareSupabase(urls[app]);
-    await run(descriptor.migrate, apps[app], { ...descriptor.env, DATABASE_URL: urls[app] });
-    await seedDatabase(urls[app]);
-  };
+  const prepare = (app: "before" | "after") => prepareDatabase(base!, databases[app], apps[app], descriptor);
   const serve = async (app: "before" | "after") => {
-    const stack = descriptor.stack === "supabase" ? await startSupabase(urls[app], path.join(work, `${app}.supabase.log`)) : undefined;
-    if (stack) stops.push(stack.stop);
-    const server = await startApp(apps[app], descriptor, urls[app], path.join(work, `${app}.log`), stack?.env);
+    const server = await serveApp(apps[app], descriptor, urls[app], work, app);
     stops.push(server.stop);
-    return { base: server.base, leaks: stack?.leaks ?? (async () => []), stop: async () => { await server.stop(); await stack?.stop(); } };
+    return server;
   };
 
   // Without a database: what p9s adopt changes in before/ is adopt.patch, running it again changes nothing, and the
@@ -359,7 +381,7 @@ export const describeAdoption = (example: string) => {
     afterAll(async () => {
       for (const stop of stops) await stop();
       if (!keep && base) {
-        for (const database of Object.values(databases)) await admin(`drop database if exists ${database} with (force)`);
+        for (const database of Object.values(databases)) await admin(base, `drop database if exists ${database} with (force)`);
         for (const directory of [work, apps.before, apps.after]) await rm(directory, { recursive: true, force: true });
       }
     });
@@ -425,10 +447,10 @@ export const describeAdoption = (example: string) => {
     test.skipIf(!format)(`p9s postgres generate --format ${format?.name} writes a migration that the app runs with its own`, async () => {
       expect(await p9s(`postgres generate --config p9s.config.json --format ${format!.name} ${format!.options ?? ""}`, apps.after, "")).toMatch(/Migration written/);
       for (const command of descriptor.setup ?? []) await run(command, apps.after, descriptor.env);
-      await admin(`drop database if exists ${databases.format} with (force)`);
-      await admin(`create database ${databases.format}`);
+      await admin(base!, `drop database if exists ${databases.format} with (force)`);
+      await admin(base!, `create database ${databases.format}`);
       await run(descriptor.migrate, apps.after, { ...descriptor.env, DATABASE_URL: urls.format });
-      await seedDatabase(urls.format);
+      await runSql(urls.format, seed);
       expect(await p9s("postgres status --config p9s.config.json", apps.after, urls.format)).toMatch(/Up to date/);
       const { actual, wanted } = await checkDatabase(urls.format, config);
       expect(actual).toEqual(wanted);

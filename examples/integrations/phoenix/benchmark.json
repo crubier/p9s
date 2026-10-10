@@ -1,0 +1,115 @@
+{
+  "example": "phoenix",
+  "date": "2026-10-10",
+  "machine": {
+    "cpu": "Apple M2 Max",
+    "cores": 12,
+    "memory": "64 GiB",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "versions": {
+    "app": "Elixir 1.20.4, Erlang/OTP 29",
+    "PostgreSQL": "18.6",
+    "p9s": "0.1.0",
+    "benchmark": "Bun 1.3.0"
+  },
+  "settings": {
+    "requests": 200,
+    "warmup": 20,
+    "rounds": 3,
+    "concurrency": 4,
+    "users": 20
+  },
+  "results": [
+    {
+      "request": "List projects",
+      "method": "GET",
+      "path": "/projects",
+      "before": {
+        "median": 0.43,
+        "p95": 0.89,
+        "rps": 8052
+      },
+      "after": {
+        "median": 2.04,
+        "p95": 2.49,
+        "rps": 1916
+      }
+    },
+    {
+      "request": "List documents",
+      "method": "GET",
+      "path": "/documents",
+      "before": {
+        "median": 4.2,
+        "p95": 4.99,
+        "rps": 927
+      },
+      "after": {
+        "median": 9,
+        "p95": 10.08,
+        "rps": 439
+      }
+    },
+    {
+      "request": "Read a document",
+      "method": "GET",
+      "path": "/documents/:id",
+      "before": {
+        "median": 0.51,
+        "p95": 0.75,
+        "rps": 7517
+      },
+      "after": {
+        "median": 1.07,
+        "p95": 1.37,
+        "rps": 3626
+      }
+    },
+    {
+      "request": "Create a document",
+      "method": "POST",
+      "path": "/documents",
+      "before": {
+        "median": 0.33,
+        "p95": 0.65,
+        "rps": 10464
+      },
+      "after": {
+        "median": 1.15,
+        "p95": 1.72,
+        "rps": 3204
+      }
+    },
+    {
+      "request": "Update a document",
+      "method": "PATCH",
+      "path": "/documents/:id",
+      "before": {
+        "median": 0.58,
+        "p95": 0.94,
+        "rps": 6357
+      },
+      "after": {
+        "median": 1.89,
+        "p95": 2.55,
+        "rps": 2007
+      }
+    },
+    {
+      "request": "Share a document",
+      "method": "PUT",
+      "path": "/documents/:id/shares/:user_id",
+      "before": {
+        "median": 0.56,
+        "p95": 0.86,
+        "rps": 6617
+      },
+      "after": {
+        "median": 2.14,
+        "p95": 2.67,
+        "rps": 1808
+      }
+    }
+  ]
+}
