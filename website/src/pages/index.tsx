@@ -544,21 +544,20 @@ function Adopt() {
             every user getting the same answers before and after.
           </p>
         </div>
-        <div className={styles.stackPicker} role="tablist" aria-label="Stacks">
+        <nav className={styles.stackPicker} aria-label="Guides of each stack">
           {stacks.map((item, index) => (
-            <button
+            <Link
               key={item.name}
-              type="button"
-              role="tab"
-              aria-selected={index === selected}
+              to={item.to}
               className={clsx(styles.stackButton, index === selected && styles.stackButtonActive)}
-              onClick={() => setSelected(index)}>
+              onMouseEnter={() => setSelected(index)}
+              onFocus={() => setSelected(index)}>
               <Logo icon={item.icon} brand size={26} />
               <span className={styles.stackName}>{item.name}</span>
               <span className={styles.stackLanguage}>{item.language}</span>
-            </button>
+            </Link>
           ))}
-        </div>
+        </nav>
         <div className={styles.split}>
           <ol className={styles.steps}>
             {steps.map((step, index) => (
