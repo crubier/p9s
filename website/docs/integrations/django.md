@@ -102,11 +102,11 @@ The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/dja
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 4.14 | 4.82 | 956 | 5.32 | 6.29 | 730 | 1.29× |
-| List documents `GET /documents` | 12.54 | 13.95 | 316 | 16.78 | 17.9 | 237 | 1.34× |
-| Read a document `GET /documents/:id` | 4.97 | 5.52 | 798 | 3.92 | 4.56 | 1,013 | 0.79× |
-| Create a document `POST /documents` | 3.35 | 8.96 | 949 | 3.67 | 11.58 | 788 | 1.10× |
-| Update a document `PATCH /documents/:id` | 5.22 | 6.38 | 737 | 5.73 | 6.64 | 675 | 1.10× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 6.64 | 12.24 | 542 | 6.09 | 8.91 | 618 | 0.92× |
+| List projects `GET /projects` | 4.05 | 4.56 | 982 | 4.39 | 5.29 | 889 | 1.08× |
+| List documents `GET /documents` | 12.4 | 13.74 | 319 | 11.59 | 12.89 | 343 | 0.93× |
+| Read a document `GET /documents/:id` | 4.89 | 5.44 | 819 | 4.33 | 4.83 | 922 | 0.89× |
+| Create a document `POST /documents` | 3.35 | 3.82 | 1,184 | 4.6 | 7.9 | 796 | 1.37× |
+| Update a document `PATCH /documents/:id` | 5.03 | 5.8 | 780 | 8.97 | 10.5 | 431 | 1.78× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 6.28 | 6.87 | 637 | 6.62 | 8.21 | 584 | 1.05× |
 
-Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, Django 6.1.2, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
+Measured on 2026-10-11: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, Django 6.1.2, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

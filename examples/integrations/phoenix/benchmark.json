@@ -1,6 +1,6 @@
 {
   "example": "phoenix",
-  "date": "2026-10-10",
+  "date": "2026-10-11",
   "machine": {
     "cpu": "Apple M2 Max",
     "cores": 12,
@@ -26,14 +26,14 @@
       "method": "GET",
       "path": "/projects",
       "before": {
-        "median": 0.44,
-        "p95": 0.72,
-        "rps": 8437
+        "median": 0.41,
+        "p95": 0.63,
+        "rps": 9111
       },
       "after": {
-        "median": 1.39,
-        "p95": 1.78,
-        "rps": 2790
+        "median": 0.95,
+        "p95": 1.31,
+        "rps": 4021
       }
     },
     {
@@ -41,14 +41,14 @@
       "method": "GET",
       "path": "/documents",
       "before": {
-        "median": 4.2,
+        "median": 4.25,
         "p95": 4.98,
-        "rps": 927
+        "rps": 923
       },
       "after": {
-        "median": 7.15,
-        "p95": 8.12,
-        "rps": 552
+        "median": 4.51,
+        "p95": 5.33,
+        "rps": 873
       }
     },
     {
@@ -56,14 +56,14 @@
       "method": "GET",
       "path": "/documents/:id",
       "before": {
-        "median": 0.48,
-        "p95": 0.69,
-        "rps": 7979
+        "median": 0.49,
+        "p95": 0.76,
+        "rps": 7625
       },
       "after": {
-        "median": 0.5,
-        "p95": 0.77,
-        "rps": 7440
+        "median": 0.8,
+        "p95": 1.13,
+        "rps": 4765
       }
     },
     {
@@ -71,14 +71,14 @@
       "method": "POST",
       "path": "/documents",
       "before": {
-        "median": 0.34,
-        "p95": 0.57,
-        "rps": 10884
+        "median": 0.35,
+        "p95": 0.63,
+        "rps": 10590
       },
       "after": {
-        "median": 0.94,
-        "p95": 1.35,
-        "rps": 4016
+        "median": 1.21,
+        "p95": 1.84,
+        "rps": 3082
       }
     },
     {
@@ -86,14 +86,14 @@
       "method": "PATCH",
       "path": "/documents/:id",
       "before": {
-        "median": 0.55,
-        "p95": 0.81,
-        "rps": 6827
+        "median": 0.61,
+        "p95": 1.02,
+        "rps": 6068
       },
       "after": {
-        "median": 1,
-        "p95": 1.34,
-        "rps": 3853
+        "median": 3.71,
+        "p95": 4.28,
+        "rps": 1077
       }
     },
     {
@@ -101,14 +101,14 @@
       "method": "PUT",
       "path": "/documents/:id/shares/:user_id",
       "before": {
-        "median": 0.55,
-        "p95": 0.85,
-        "rps": 6778
+        "median": 0.61,
+        "p95": 1.06,
+        "rps": 5885
       },
       "after": {
-        "median": 1.35,
-        "p95": 1.72,
-        "rps": 2866
+        "median": 1.48,
+        "p95": 2.07,
+        "rps": 2529
       }
     }
   ]

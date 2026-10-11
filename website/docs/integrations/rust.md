@@ -101,11 +101,11 @@ The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/axu
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 0.41 | 0.73 | 8,680 | 1.25 | 1.54 | 3,109 | 3.05× |
-| List documents `GET /documents` | 3.24 | 3.81 | 1,198 | 5.92 | 6.81 | 660 | 1.83× |
-| Read a document `GET /documents/:id` | 0.63 | 0.97 | 5,913 | 0.41 | 0.62 | 8,231 | 0.65× |
-| Create a document `POST /documents` | 0.37 | 0.61 | 9,929 | 0.74 | 1.19 | 5,036 | 2.00× |
-| Update a document `PATCH /documents/:id` | 0.74 | 1.06 | 5,105 | 0.74 | 1.09 | 5,144 | 1.00× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 0.76 | 1.14 | 4,949 | 1.18 | 1.6 | 3,223 | 1.55× |
+| List projects `GET /projects` | 0.5 | 2.57 | 5,143 | 1 | 1.3 | 3,933 | 2.00× |
+| List documents `GET /documents` | 3.48 | 4.8 | 1,092 | 3.77 | 7.59 | 898 | 1.08× |
+| Read a document `GET /documents/:id` | 0.63 | 1.05 | 5,619 | 0.68 | 1.09 | 5,471 | 1.08× |
+| Create a document `POST /documents` | 0.42 | 0.73 | 8,652 | 1.22 | 2.03 | 2,949 | 2.90× |
+| Update a document `PATCH /documents/:id` | 0.87 | 1.5 | 4,126 | 3.08 | 4.02 | 1,279 | 3.54× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.82 | 1.25 | 4,522 | 1.36 | 1.99 | 2,762 | 1.66× |
 
-Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. rustc 1.90.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
+Measured on 2026-10-11: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. rustc 1.90.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

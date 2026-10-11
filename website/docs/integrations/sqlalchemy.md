@@ -104,11 +104,11 @@ The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/fas
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 3.8 | 4.72 | 1,015 | 4.55 | 5.24 | 851 | 1.20× |
-| List documents `GET /documents` | 26.43 | 41.9 | 147 | 29.06 | 31.08 | 135 | 1.10× |
-| Read a document `GET /documents/:id` | 5.32 | 6.11 | 747 | 3.83 | 4.38 | 1,038 | 0.72× |
-| Create a document `POST /documents` | 3.92 | 4.57 | 987 | 4.18 | 4.72 | 957 | 1.07× |
-| Update a document `PATCH /documents/:id` | 5.8 | 6.94 | 680 | 5.33 | 6.98 | 721 | 0.92× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 5.83 | 6.63 | 674 | 5.11 | 5.77 | 784 | 0.88× |
+| List projects `GET /projects` | 3.99 | 4.84 | 995 | 4.41 | 5.32 | 867 | 1.11× |
+| List documents `GET /documents` | 26.86 | 41.75 | 144 | 26.4 | 30.43 | 147 | 0.98× |
+| Read a document `GET /documents/:id` | 5.17 | 6.32 | 762 | 3.86 | 4.54 | 1,025 | 0.75× |
+| Create a document `POST /documents` | 3.91 | 4.64 | 1,014 | 4.47 | 5.43 | 881 | 1.14× |
+| Update a document `PATCH /documents/:id` | 5.82 | 7.05 | 675 | 5.7 | 6.52 | 697 | 0.98× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 5.53 | 7.01 | 702 | 4.72 | 5.38 | 846 | 0.85× |
 
-Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, FastAPI 0.143.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
+Measured on 2026-10-11: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Python 3.12.10, FastAPI 0.143.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

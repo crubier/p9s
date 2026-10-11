@@ -21,8 +21,7 @@ const policyFor = (migration: string) => migration.slice(migration.indexOf(`crea
 // Policies read the graph through a view of the resources the current user has their bit on, which functions check
 // and list
 const accessFor = (migration: string) => {
-  expect(policyFor(migration)).toContain(`"current_resource_access_0_check"("blog_post"."resource_id")`);
-  expect(policyFor(migration)).toContain(`"blog_post"."resource_id" in (select "current_resource_access_0_list"())`);
+  expect(policyFor(migration)).toContain(`using ("blog_post"."resource_id" in (select "current_resource_access_0_list"())`);
   expect(migration).toContain(`return exists (select from "current_resource_access_0" as "var_access"`);
   expect(migration).toContain(`return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access"`);
   return migration.slice(migration.indexOf(`create or replace view "current_resource_access_0"`)).split(";")[0]!;

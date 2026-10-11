@@ -101,11 +101,11 @@ The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/lar
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 12.08 | 14.79 | 321 | 16.79 | 21.32 | 227 | 1.39× |
-| List documents `GET /documents` | 27.54 | 31.76 | 141 | 35.45 | 68.37 | 102 | 1.29× |
-| Read a document `GET /documents/:id` | 12.65 | 16.98 | 303 | 15.6 | 20.7 | 249 | 1.23× |
-| Create a document `POST /documents` | 11.44 | 14.85 | 339 | 18.16 | 24.46 | 209 | 1.59× |
-| Update a document `PATCH /documents/:id` | 12.75 | 17.07 | 298 | 19.6 | 25.67 | 196 | 1.54× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 12.09 | 22.37 | 299 | 19.57 | 26.89 | 193 | 1.62× |
+| List projects `GET /projects` | 12.34 | 16.84 | 307 | 15.98 | 23.52 | 238 | 1.29× |
+| List documents `GET /documents` | 28.9 | 55.69 | 123 | 32.7 | 38.91 | 117 | 1.13× |
+| Read a document `GET /documents/:id` | 12.14 | 17.21 | 303 | 14.87 | 20.3 | 256 | 1.22× |
+| Create a document `POST /documents` | 11.43 | 16.34 | 335 | 19.4 | 29.05 | 190 | 1.70× |
+| Update a document `PATCH /documents/:id` | 12.14 | 17.01 | 316 | 19.92 | 31.36 | 187 | 1.64× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 12.03 | 23.21 | 294 | 19.28 | 28.03 | 193 | 1.60× |
 
-Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. PHP 8.5.11, Laravel 13.35.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
+Measured on 2026-10-11: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. PHP 8.5.11, Laravel 13.35.0, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).

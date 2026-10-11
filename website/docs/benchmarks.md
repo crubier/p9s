@@ -22,7 +22,7 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#check-rows). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run with `p9s.check_rows` on, which earlier policies read and current ones ignore. Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments, and share then revoke an org, workspace, folder or project that has no other assignment; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
@@ -52,7 +52,7 @@ bun run bench --keys node --out results/key-node
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
 
-Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run "--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`.
+Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. Compared with those, policies that are a plain condition make 46 faster and 9 slower: single-row writes, the count of comments, and the size of the caches, whose indexes include more columns. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run "--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`.
 
 ## Example results
 
@@ -165,6 +165,30 @@ Policies used to leave the choice between checking ancestors and listing to the 
 
 The benchmark rolls back thousands of rows created under the projects of the application user, which stay in the indexes until a vacuum. Listing what the user can read walks them all: writes that listed first took 3 to 7 ms then, against 0.3 to 1 ms for those that check.
 
+### Policies that are a plain condition
+
+Policies are now one condition, the resource of the row among those the user has the bit on, listed once per statement, see [how policies run](./configuration/querying#how-policies-run). No count of checked rows, no state, and `p9s.check_rows` changes nothing. The list goes through index-only scans of indexes that include the columns it reads, and not through bitmaps, which walked again the rows the benchmark rolls back. `bun run bench:ab` at size 4, integer ids, p50 in milliseconds of the median of 6 runs, `combineAssignmentsWith: none` / `role`, where the application user reads 200 resources:
+
+| Read                                  | Before      | After       |
+| ------------------------------------- | ----------- | ----------- |
+| Point lookup                          | 0.22 / 0.20 | 0.23 / 0.18 |
+| First page of 50                      | 0.37 / 0.36 | 0.25 / 0.23 |
+| Count visible posts                   | 0.34 / 0.33 | 0.23 / 0.22 |
+| Search names with `ilike`             | 0.33 / 0.30 | 0.26 / 0.19 |
+| Page by keyset                        | 0.32 / 0.31 | 0.23 / 0.17 |
+| Count visible comments                | 0.47 / 0.44 | 0.78 / 0.72 |
+| First page, `p9s.check_rows` on       | 1.70 / 1.53 | 0.27 / 0.25 |
+
+| Write, as the application user        | Before      | After       |
+| ------------------------------------- | ----------- | ----------- |
+| Rename an object                      | 0.45 / 0.43 | 0.64 / 0.62 |
+| Delete an object                      | 0.36 / 0.37 | 0.51 / 0.53 |
+| Edit a comment                        | 0.39 / 0.36 | 0.50 / 0.41 |
+| Move an object to another project     | 1.09 / 1.06 | 1.42 / 1.26 |
+| Delete 1000 objects in one statement  | 23 / 33     | 16 / 16     |
+
+Reads over many rows are about 30% faster, and a point lookup is the same for a user with 200 resources. Counting comments, where the policy finds the resource of the post of each comment, is about 1.6 times slower, which is not explained yet. A write lists two or three times, as Postgres also applies the select policy to the rows it updates or deletes, before and after: 0.1 to 0.2 ms more each. A user who reads 10,000 resources pays 2 ms for each listing, in a lookup of one row too.
+
 ### Hiding the graph
 
 Policies read the graph through [views of the current user](./configuration/security-model#what-users-see-of-the-graph) rather than the tables, so that users cannot read the graph whole. With a size of 10 and integer ids, p50 in milliseconds over two runs each, before and after:
@@ -221,24 +245,24 @@ The median of the app after p9s divided by the median of the app before:
 
 | Example | List projects | List documents | Read a document | Create a document | Update a document | Share a document |
 |---|---:|---:|---:|---:|---:|---:|
-| [Axum](./integrations/rust#benchmark) | 3.05× | 1.83× | 0.65× | 2.00× | 1.00× | 1.55× |
-| [Django](./integrations/django#benchmark) | 1.29× | 1.34× | 0.79× | 1.10× | 1.10× | 0.92× |
-| [Drizzle](./integrations/drizzle#benchmark) | 2.27× | 1.61× | 0.78× | 1.63× | 1.32× | 1.11× |
-| [FastAPI](./integrations/sqlalchemy#benchmark) | 1.20× | 1.10× | 0.72× | 1.07× | 0.92× | 0.88× |
-| [GORM](./integrations/go#benchmark) | 3.26× | 1.90× | 1.04× | 1.73× | 1.56× | 1.53× |
-| [Kysely](./integrations/kysely#benchmark) | 2.45× | 1.71× | 1.00× | 2.05× | 1.71× | 1.51× |
-| [Laravel](./integrations/laravel#benchmark) | 1.39× | 1.29× | 1.23× | 1.59× | 1.54× | 1.62× |
-| [Phoenix](./integrations/elixir#benchmark) | 3.16× | 1.70× | 1.04× | 2.76× | 1.82× | 2.45× |
-| [PostGraphile](./integrations/postgraphile#benchmark) | 0.14× | 0.04× | 1.06× | 1.66× | 1.32× | 1.16× |
-| [Prisma](./integrations/prisma#benchmark) | 2.35× | 1.25× | 0.94× | 1.96× | 1.75× | 1.28× |
-| [Rails](./integrations/rails#benchmark) | 1.18× | 1.11× | 0.87× | 0.88× | 0.96× | 0.79× |
-| [Supabase](./integrations/supabase#benchmark) | 0.77× | 1.56× | 0.25× | 0.55× | 0.55× | 0.46× |
+| [Axum](./integrations/rust#benchmark) | 2.00× | 1.08× | 1.08× | 2.90× | 3.54× | 1.66× |
+| [Django](./integrations/django#benchmark) | 1.08× | 0.93× | 0.89× | 1.37× | 1.78× | 1.05× |
+| [Drizzle](./integrations/drizzle#benchmark) | 1.43× | 1.04× | 1.01× | 2.29× | 3.71× | 1.27× |
+| [FastAPI](./integrations/sqlalchemy#benchmark) | 1.11× | 0.98× | 0.75× | 1.14× | 0.98× | 0.85× |
+| [GORM](./integrations/go#benchmark) | 2.27× | 1.07× | 1.58× | 2.89× | 4.83× | 1.64× |
+| [Kysely](./integrations/kysely#benchmark) | 1.56× | 1.07× | 1.24× | 2.93× | 4.81× | 1.86× |
+| [Laravel](./integrations/laravel#benchmark) | 1.29× | 1.13× | 1.22× | 1.70× | 1.64× | 1.60× |
+| [Phoenix](./integrations/elixir#benchmark) | 2.32× | 1.06× | 1.63× | 3.46× | 6.08× | 2.43× |
+| [PostGraphile](./integrations/postgraphile#benchmark) | 0.11× | 0.03× | 1.56× | 2.16× | 3.38× | 1.46× |
+| [Prisma](./integrations/prisma#benchmark) | 1.56× | 0.82× | 1.07× | 2.50× | 4.61× | 1.44× |
+| [Rails](./integrations/rails#benchmark) | 1.17× | 0.99× | 0.85× | 0.84× | 1.09× | 0.77× |
+| [Supabase](./integrations/supabase#benchmark) | 0.57× | 0.99× | 0.31× | 0.80× | 1.15× | 0.56× |
 
 Measured on Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64, PostgreSQL 18.6.
 
 Where the time of the apps after p9s goes, measured with pgbench on the database of the Kysely example:
 
 - Each request is a transaction that starts with the settings of the user, in one `select set_config(...)` that also makes it read only for reads: `begin`, that statement and `commit` take about 0.1 ms more than the queries.
-- A read checks its first row by its ancestors, which is all a lookup by id does, about 0.05 ms, then lists what the user can read, about 0.6 ms for the 1,600 resources of a user here, and probes each row. Each row also reads the count of the policy, about 80 ns, 1.6 ms over the 20,000 rows the list of documents reads.
+- Each statement lists what the user can read, about 0.3 ms for the 1,600 resources of a user here, and probes each row, about 45 ns: a lookup by id takes 0.6 ms from `begin` to `commit`, and the list of 20,000 documents 2.9 ms, 3.3 ms without p9s. An update lists three times, what the user may write and twice what it may read, for the row before and after: 1.4 ms, and the apps read the document before they update it.
 - Writes keep the graph up to date in triggers: a new document adds the cache rows of its ancestors, a share refreshes the assignment it changes, about 0.1 ms each.
 - A new connection reads the catalog of the tables, views and functions that the policies use, and plans their queries, 5 to 8 ms on its first request instead of 1 to 2 ms before. An app that opens a connection for each request pays it every time, like Laravel here, as PHP does by default. Keep connections open: `CONN_MAX_AGE` of Django, as the example does, persistent connections of PDO, or a pooler like PgBouncer.

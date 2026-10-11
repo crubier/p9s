@@ -131,17 +131,19 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
     ["delete a comment", sql`delete from "blog_comment" where "id" = 1`],
   ];
 
-  // Role 1 may select, update and delete in the root, which holds every post. Policies check one row by its ancestors,
-  // rather than listing the 20000 posts the role can see.
-  const userRowStatements: Array<[string, SQL]> = [
-    ["read a post", sql`select "id" from "blog_post" where "id" = 5`],
-    ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "id" = 5 returning "id"`],
-    ["move a post", sql`update "blog_post" set "group_id" = 1 where "id" = 5 returning "id"`],
-    ["delete a post", sql`delete from "blog_post" where "id" = 5 returning "id"`],
-    ["read a comment", sql`select "id" from "blog_comment" where "id" = 5`],
-    ["edit a comment", sql`update "blog_comment" set "body" = 'edited' where "id" = 5 returning "id"`],
-    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 5 returning "id"`],
-    ["delete a comment", sql`delete from "blog_comment" where "id" = 5 returning "id"`],
+  // Role 1 may select, update and delete in the root, which holds every post. Policies list the resources the role
+  // reaches, the 20004 of the graph, once for each policy of the statement: reads have one, deletes add theirs, and
+  // updates check the new row against the select policy too. Nothing past them.
+  const REACHED = FLAT_POSTS + 4;
+  const userRowStatements: Array<[string, SQL, number]> = [
+    ["read a post", sql`select "id" from "blog_post" where "id" = 5`, 1],
+    ["rename a post", sql`update "blog_post" set "name" = 'renamed' where "id" = 5 returning "id"`, 3],
+    ["move a post", sql`update "blog_post" set "group_id" = 1 where "id" = 5 returning "id"`, 3],
+    ["delete a post", sql`delete from "blog_post" where "id" = 5 returning "id"`, 2],
+    ["read a comment", sql`select "id" from "blog_comment" where "id" = 5`, 1],
+    ["edit a comment", sql`update "blog_comment" set "body" = 'edited' where "id" = 5 returning "id"`, 3],
+    ["move a comment", sql`update "blog_comment" set "post_id" = 2 where "id" = 5 returning "id"`, 3],
+    ["delete a comment", sql`delete from "blog_comment" where "id" = 5 returning "id"`, 2],
   ];
 
   for (const combineAssignmentsWith of combineModes) {
@@ -177,9 +179,10 @@ describe.skipIf(!testDatabaseUrl)('writes near the leaves never scan a whole gra
       const [[{ role_id: keyRoleId }]] = await context.exec(sql`select "role_id" from "api_key" where "group_id" = 1 order by "id" desc limit 1`);
       const userReads: Record<string, Record<string, number>> = {};
       for (const currentRoleId of ["1", String(keyRoleId)]) {
-        for (const [name, statement] of userRowStatements) {
+        for (const [name, statement, listings] of userRowStatements) {
           const asUser = sql`set local role ${identifier(context.database_user_username)}; select set_config('jwt.claims.role_id', ${literal(currentRoleId)}, true); ${statement}; reset role`;
-          const tables = Object.fromEntries(Object.entries(await userRowsRead(asUser, false)).filter(([, n]) => n > MAX_ROWS_READ));
+          const tables = Object.fromEntries(Object.entries(await userRowsRead(asUser, false))
+            .filter(([table, n]) => n > MAX_ROWS_READ + (table.endsWith("_edge_cache") ? listings * REACHED : 0)));
           if (Object.keys(tables).length > 0) userReads[`${name} as ${currentRoleId}`] = tables;
           const [, , , rows] = await context.runTestQuery(sql`begin; ${asUser}; rollback;`);
           expect({ name, currentRoleId, rows: rows.length }).toEqual({ name, currentRoleId, rows: 1 });

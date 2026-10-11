@@ -89,11 +89,11 @@ The [example](https://github.com/crubier/p9s/tree/main/examples/integrations/pho
 
 | Request | Before: median | p95 | Requests/s | After: median | p95 | Requests/s | After / before |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| List projects `GET /projects` | 0.44 | 0.72 | 8,437 | 1.39 | 1.78 | 2,790 | 3.16× |
-| List documents `GET /documents` | 4.2 | 4.98 | 927 | 7.15 | 8.12 | 552 | 1.70× |
-| Read a document `GET /documents/:id` | 0.48 | 0.69 | 7,979 | 0.5 | 0.77 | 7,440 | 1.04× |
-| Create a document `POST /documents` | 0.34 | 0.57 | 10,884 | 0.94 | 1.35 | 4,016 | 2.76× |
-| Update a document `PATCH /documents/:id` | 0.55 | 0.81 | 6,827 | 1 | 1.34 | 3,853 | 1.82× |
-| Share a document `PUT /documents/:id/shares/:user_id` | 0.55 | 0.85 | 6,778 | 1.35 | 1.72 | 2,866 | 2.45× |
+| List projects `GET /projects` | 0.41 | 0.63 | 9,111 | 0.95 | 1.31 | 4,021 | 2.32× |
+| List documents `GET /documents` | 4.25 | 4.98 | 923 | 4.51 | 5.33 | 873 | 1.06× |
+| Read a document `GET /documents/:id` | 0.49 | 0.76 | 7,625 | 0.8 | 1.13 | 4,765 | 1.63× |
+| Create a document `POST /documents` | 0.35 | 0.63 | 10,590 | 1.21 | 1.84 | 3,082 | 3.46× |
+| Update a document `PATCH /documents/:id` | 0.61 | 1.02 | 6,068 | 3.71 | 4.28 | 1,077 | 6.08× |
+| Share a document `PUT /documents/:id/shares/:user_id` | 0.61 | 1.06 | 5,885 | 1.48 | 2.07 | 2,529 | 2.43× |
 
-Measured on 2026-10-10: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Elixir 1.20.4, Erlang/OTP 29, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
+Measured on 2026-10-11: Apple M2 Max, 12 cores, 64 GiB, Darwin 25.6.0 arm64. Elixir 1.20.4, Erlang/OTP 29, PostgreSQL 18.6, p9s 0.1.0. [How it runs](../benchmarks#the-examples).
