@@ -29,6 +29,8 @@ Usage: bun run.ts [options]
   --comments-per-post <n> Comments on each post (default: 4 times the size)
   --keys <leaf|node>      Whether the api keys of users are rows of a role leaf table or nodes of the graph (default: leaf)
   --keys-per-user <n>     Api keys of each user (default: 2)
+  --heavy-roles <n>       Teams of a user who reads about the whole graph through them, 0 to skip its scenarios (default: 10)
+  --only <regex>          Only the read, write and concurrent scenarios whose name matches
   --out <dir>             Where to write the JSON results (default: ./results)
 `;
 
@@ -49,6 +51,8 @@ const { values: args } = parseArgs({
     'comments-per-post': { type: 'string' },
     keys: { type: 'string', default: 'leaf' },
     'keys-per-user': { type: 'string' },
+    'heavy-roles': { type: 'string', default: '10' },
+    only: { type: 'string', default: '' },
     out: { type: 'string', default: path.join(import.meta.dir, 'results') },
     help: { type: 'boolean', default: false },
   },
@@ -73,6 +77,8 @@ const comments = args.comments as CommentMode;
 const commentsPerPost = args['comments-per-post'] === undefined ? undefined : Number(args['comments-per-post']);
 const keys = args.keys as KeyMode;
 const keysPerUser = args['keys-per-user'] === undefined ? undefined : Number(args['keys-per-user']);
+const heavyRoles = Number(args['heavy-roles']);
+const only = args.only!;
 
 const composeDir = import.meta.dir;
 const composeUrl = 'postgresql://postgres:postgres@localhost:54321/postgres';
@@ -130,9 +136,13 @@ try {
             commentsPerPost,
             keys,
             keysPerUser,
+            heavyRoles,
+            only,
           });
           runs.push(result);
           console.log(`  loaded ${result.dataset.resourceNodes} resources, ${result.dataset.roleNodes} roles in ${result.load.insert.toFixed(1)}s`);
+          const heavy = result.dataset.heavyUser;
+          if (heavy) console.log(`  heavy user: ${heavy.roles} roles, reaches ${heavy.resources} resources, ${heavy.readable} with the select bit of posts, reads ${heavy.posts} posts`);
         } finally {
           await teardown();
         }
@@ -203,7 +213,7 @@ const output = {
     memoryGb: Math.round(os.totalmem() / 1024 ** 3),
     bun: Bun.version,
   },
-  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'], concurrency, concurrencySeconds, comments, commentsPerPost, keys, keysPerUser },
+  args: { sizes, ids, combines, reps, warmup, baseline: !args['no-baseline'], concurrency, concurrencySeconds, comments, commentsPerPost, keys, keysPerUser, heavyRoles, only },
   runs,
 };
 

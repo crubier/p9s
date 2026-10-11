@@ -1,6 +1,6 @@
 import { $ } from 'bun';
 import { parseArgs } from 'node:util';
-import { mkdir, mkdtemp, readdir } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { format, metrics, runKey, type Metric, type ResultFile } from './metrics';
@@ -21,6 +21,8 @@ fail with --tails: with 30 samples they are one or two of them.
   --run <args>            Options of run.ts for every run
                           (default: --sizes 4 --ids integer --combine none,role --no-baseline --concurrency 0)
   --url <url>             Use an existing Postgres server instead of starting compose.yaml
+  --head-benchmark        Run the benchmark code of the working tree on both sides, so that only the p9s packages
+                          differ: the base then also runs the scenarios the working tree adds
   --threshold <ratio>     Relative change of the medians reported as slower or faster (default: 0.2)
   --min-ms <ms>           Ignore latency changes smaller than this (default: 0.1)
   --alpha <p>             Significance of the test across rounds (default: 0.01)
@@ -37,6 +39,7 @@ const { values: args } = parseArgs({
     'warmup-runs': { type: 'string', default: '1' },
     run: { type: 'string', default: '--sizes 4 --ids integer --combine none,role --no-baseline --concurrency 0' },
     url: { type: 'string' },
+    'head-benchmark': { type: 'boolean', default: false },
     threshold: { type: 'string', default: '0.2' },
     'min-ms': { type: 'string', default: '0.1' },
     alpha: { type: 'string', default: '0.01' },
@@ -76,6 +79,11 @@ try {
     await $`docker compose up -d --wait`.cwd(composeDir);
   }
   const dirs = { base: path.join(worktree, 'benchmarks', 'postgres'), head: import.meta.dir };
+  if (args['head-benchmark']) {
+    for (const file of (await readdir(dirs.head)).filter(file => file.endsWith('.ts'))) {
+      await copyFile(path.join(dirs.head, file), path.join(dirs.base, file));
+    }
+  }
   const runOnce = async (side: 'base' | 'head', name: string): Promise<ResultFile> => {
     const started = performance.now();
     const log = path.join(outDir, `${name}.log`);

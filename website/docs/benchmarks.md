@@ -26,6 +26,9 @@ For a size factor `f`:
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments, and share then revoke an org, workspace, folder or project that has no other assignment; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
+- **A heavy user**, a member of 10 teams of its own (`--heavy-roles`) that share every org between them with every bit, so it reaches every resource of the graph: the reads above, including one of a post it cannot read and the comments of a post, and creating, renaming, moving and deleting posts and comments, and renaming 1000 posts in one statement.
+
+`--only <regex>` keeps the read, write and concurrent scenarios whose name matches, like `--only "heavy|row:"`.
 
 Each scenario runs a few untimed warm-up repetitions, then reports p50, p95 and p99 over the timed ones. `EXPLAIN (ANALYZE, BUFFERS)` plans of every read are saved with the results.
 
@@ -52,7 +55,7 @@ bun run bench --keys node --out results/key-node
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
 
-Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. Compared with those, policies that are a plain condition make 46 faster and 9 slower: single-row writes, the count of comments, and the size of the caches, whose indexes include more columns. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run "--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`.
+Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. Compared with those, policies that are a plain condition make 46 faster and 9 slower: single-row writes, the count of comments, and the size of the caches, whose indexes include more columns. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run="--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`. The base runs its own benchmark code, so the scenarios that the working tree adds have no base to compare with: `--head-benchmark` runs the benchmark code of the working tree on both sides, and only the p9s packages differ.
 
 ## Example results
 
@@ -188,6 +191,27 @@ Policies are now one condition, the resource of the row among those the user has
 | Delete 1000 objects in one statement  | 23 / 33     | 16 / 16     |
 
 Reads over many rows are about 30% faster, and a point lookup is the same for a user with 200 resources. Counting comments, where the policy finds the resource of the post of each comment, is about 1.6 times slower, which is not explained yet. A write lists two or three times, as Postgres also applies the select policy to the rows it updates or deletes, before and after: 0.1 to 0.2 ms more each. A user who reads 10,000 resources pays 2 ms for each listing, in a lookup of one row too.
+
+At size 12, 271,452 resources, the heavy user reaches all of them through its 10 teams, and 152,174 with the select bit of posts. `bench:ab --head-benchmark`, p50 in milliseconds of the quieter runs, 3 before and 2 after, `combineAssignmentsWith: none`:
+
+| As the heavy user                     | Before | After |
+| ------------------------------------- | ------ | ----- |
+| Point lookup of a post                | 0.22   | 70    |
+| Point lookup of a post it cannot read | 0.22   | 69    |
+| First page of 50 posts                | 2.8    | 70    |
+| Page by keyset                        | 3.5    | 72    |
+| Comments of a post                    | 1.9    | 70    |
+| Count visible posts                   | 72     | 74    |
+| Count visible comments                | 306    | 136   |
+| Search names with `ilike`             | 72     | 75    |
+| Create a post                         | 0.25   | 0.30  |
+| Rename a post                         | 0.40   | 150   |
+| Move a post to another project        | 0.64   | 150   |
+| Delete a post                         | 0.62   | 103   |
+| Edit a comment                        | 0.29   | 150   |
+| Rename 1000 posts in one statement    | 292    | 276   |
+
+Listing 152,000 resources takes about 70 ms, which every statement pays, a write two or three times: single rows get 100 to 500 times slower, and the org admin too, 0.2 ms to read a post and 70 ms now. Statements over every row listed before as well and take about as long. Users who read a few thousand resources get faster reads over many rows, 2.5 to 3 times, and lookups of one row go from 0.2–0.3 ms to 2–2.7 ms. `combineAssignmentsWith: role` gives the same.
 
 ### Hiding the graph
 
