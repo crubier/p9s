@@ -2339,7 +2339,7 @@ const currentAccessListOf = (naming: Naming<any>, bit: number) => identifier(`${
 const currentAccessFirstOf = (naming: Naming<any>, bit: number) => identifier(`${nameOf(naming.currentAccessView)}_${bit}_first`);
 // Reads check their first row, which is all a lookup by id reads, then list this many resources the user has the bit
 // on, once per statement: all of them for most users, at the cost of checking about 80 rows one by one. Telling the
-// first row from the others reads the count at every row, about 0.1 µs, which listing at the first row would spare to
+// first row from the others reads the count at every row, about 80 ns, which listing at the first row would spare to
 // statements over many rows, at the cost of a listing in every lookup by id.
 export const LISTED_RESOURCES = 3000;
 // Then statements check this many rows before listing every resource the user has the bit on. Listing costs about one
@@ -2740,7 +2740,8 @@ ${grantExecute(sql`${resource.parentValidateFunction} (${idType}, ${idType}, int
   const inserting = (table: CompleteConfig<User>["tables"][number]) => textLiteral(`p9s.inserting_${settingName(table)}`);
   const readCheck = (table: CompleteConfig<User>["tables"][number], operation: "select" | "update" | "delete", target: SQL, bit: number, parent?: SQL) => {
     const tableName = settingName(table);
-    const counter = textLiteral(`p9s.checked_${tableName}_${operation}`);
+    // Reads read the count at every row, which takes longer for a longer name
+    const counter = textLiteral(`p9s.${operation[0]}_${tableName}`);
     const writing = textLiteral(`p9s.writing_${tableName}`);
     const list = sql`${target} in (select ${currentAccessListOf(naming, bit)}())`;
     const reset = sql`(select set_config(${counter}, '0', true)) is not null`;

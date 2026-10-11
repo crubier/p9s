@@ -73,7 +73,7 @@ export const summary = (benchmarks: Benchmark[]) => {
     "Where the time of the apps after p9s goes, measured with pgbench on the database of the Kysely example:",
     "",
     "- Each request is a transaction that starts with the settings of the user, in one `select set_config(...)` that also makes it read only for reads: `begin`, that statement and `commit` take about 0.1 ms more than the queries.",
-    "- A read checks its first row by its ancestors, which is all a lookup by id does, about 0.05 ms, then lists what the user can read, about 0.6 ms for the 1,600 resources of a user here, and probes each row. Each row also reads the count of the policy, about 0.1 µs: the list of documents reads 20,000 rows, about 2 ms more than the query of the app before.",
+    "- A read checks its first row by its ancestors, which is all a lookup by id does, about 0.05 ms, then lists what the user can read, about 0.6 ms for the 1,600 resources of a user here, and probes each row. Each row also reads the count of the policy, about 80 ns, 1.6 ms over the 20,000 rows the list of documents reads.",
     "- Writes keep the graph up to date in triggers: a new document adds the cache rows of its ancestors, a share refreshes the assignment it changes, about 0.1 ms each.",
     "- A new connection reads the catalog of the tables, views and functions that the policies use, and plans their queries, 5 to 8 ms on its first request instead of 1 to 2 ms before. An app that opens a connection for each request pays it every time, like Laravel here, as PHP does by default. Keep connections open: `CONN_MAX_AGE` of Django, as the example does, persistent connections of PDO, or a pooler like PgBouncer.",
     "",

@@ -53,7 +53,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
       set local role ${identifier(context.database_user_username)};
       select set_config('jwt.claims.role_id', ${raw(`'${roleId}'`)}, true);
       ${statement};
-      select coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), ''), '0')::int as "checked";
+      select coalesce(nullif(current_setting('p9s.s_blog_post', true), ''), '0')::int as "checked";
       reset role;
       ${count};
       rollback;`);
@@ -213,7 +213,7 @@ describe.skipIf(!testDatabaseUrl)('reads through RLS (real Postgres only)', () =
         }
         const { rows: [{ n: checked, read }] } = await asRole2(sql`
           update "blog_post" set "name" = "name" where "name" ilike '%7%';
-          select current_setting('p9s.checked_blog_post_update')::int as "n", current_setting('p9s.checked_blog_post_select')::int as "read"`);
+          select current_setting('p9s.u_blog_post')::int as "n", current_setting('p9s.s_blog_post')::int as "read"`);
         expect(checked).toBe(CHECKED_WRITTEN_ROWS);
         expect(read).toBe(CHECKED_WRITTEN_ROWS);
       }, { timeout: 60000 });

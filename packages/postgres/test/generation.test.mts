@@ -2604,16 +2604,16 @@ test('Default Migration', () => {
     create policy "blog_post_user1_select_policy" on "public"."blog_post" 
     as permissive for select to "user1" 
     using (
-      case when not (select set_config('p9s.checked_blog_post_select', '0', true)) is not null then null
-      when (select current_setting('p9s.writing_blog_post', true) = statement_timestamp()::text) then case current_setting('p9s.checked_blog_post_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
-        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+      case when not (select set_config('p9s.s_blog_post', '0', true)) is not null then null
+      when (select current_setting('p9s.writing_blog_post', true) = statement_timestamp()::text) then case current_setting('p9s.s_blog_post', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.s_blog_post', (coalesce(nullif(current_setting('p9s.s_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_0_check"("blog_post"."resource_id") end
       else coalesce(
-        case current_setting('p9s.checked_blog_post_select', true) when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        case current_setting('p9s.s_blog_post', true) when (select case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then '0' end) then set_config('p9s.s_blog_post', (coalesce(nullif(current_setting('p9s.s_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_0_check"("blog_post"."resource_id") end,
         case when (select coalesce(current_setting('p9s.check_rows', true), '') !~ '^(on|off|[0-9]{1,9})$') then "blog_post"."resource_id" in (select "current_resource_access_0_first"(3000)) end,
-        case current_setting('p9s.checked_blog_post_select', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
-        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '200' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.checked_blog_post_select', (coalesce(nullif(current_setting('p9s.checked_blog_post_select', true), '')::bigint, 0) + 1)::text, true) is not null
+        case current_setting('p9s.s_blog_post', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '200' end) then "blog_post"."resource_id" in (select "current_resource_access_0_list"()) else set_config('p9s.s_blog_post', (coalesce(nullif(current_setting('p9s.s_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_0_check"("blog_post"."resource_id") end) end
     )
     ;
@@ -2624,9 +2624,9 @@ test('Default Migration', () => {
     create policy "blog_post_user1_update_policy" on "public"."blog_post" 
     as permissive for update to "user1" 
     using (
-      case when not (select set_config('p9s.checked_blog_post_update', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
-      else case current_setting('p9s.checked_blog_post_update', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
-        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.checked_blog_post_update', (coalesce(nullif(current_setting('p9s.checked_blog_post_update', true), '')::bigint, 0) + 1)::text, true) is not null
+      case when not (select set_config('p9s.u_blog_post', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
+      else case current_setting('p9s.u_blog_post', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.u_blog_post', (coalesce(nullif(current_setting('p9s.u_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
     with check ("current_resource_access_1_check"("blog_post"."resource_id")
@@ -2637,9 +2637,9 @@ test('Default Migration', () => {
     create policy "blog_post_user1_delete_policy" on "public"."blog_post" 
     as permissive for delete to "user1" 
     using (
-      case when not (select set_config('p9s.checked_blog_post_delete', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
-      else case current_setting('p9s.checked_blog_post_delete', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
-        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.checked_blog_post_delete', (coalesce(nullif(current_setting('p9s.checked_blog_post_delete', true), '')::bigint, 0) + 1)::text, true) is not null
+      case when not (select set_config('p9s.d_blog_post', '0', true) || set_config('p9s.writing_blog_post', statement_timestamp()::text, true)) is not null then null
+      else case current_setting('p9s.d_blog_post', true) when (select case when coalesce(current_setting('p9s.check_rows', true), '') = 'on' then '-1' when coalesce(current_setting('p9s.check_rows', true), '') = 'off' then '0'
+        when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.d_blog_post', (coalesce(nullif(current_setting('p9s.d_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
     ;
@@ -2989,7 +2989,7 @@ test('Default Migration', () => {
     -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "p9s_migration" () returns jsonb
-      as $$ select '{"version":"0.1.0","hash":"2abeca0f003497e0"}'::jsonb $$
+      as $$ select '{"version":"0.1.0","hash":"119540ead7a757b3"}'::jsonb $$
       language sql immutable;
 
     select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');
