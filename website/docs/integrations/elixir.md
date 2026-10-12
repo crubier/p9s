@@ -63,6 +63,19 @@ def p9s_refused(conn, _error), do: conn |> put_status(403) |> json(%{error: "for
 
 `P9s.refused?(error)` tells, for `Postgrex.Error`. An `update_all` or a `delete_all` of rows the user reads but cannot change returns a count of 0.
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, whose rows `Repo.load/2` turns into structs:
+
+```elixir
+pattern = "%" <> String.replace(String.trim(query), ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+
+%{columns: columns, rows: rows} =
+  Repo.query!("select * from documents_search($1) where project_id = $2 order by id limit 50", [pattern, project_id])
+
+documents = Enum.map(rows, &Repo.load(Document, {columns, &1}))
+```
+
 ## The migration
 
 After `mix ecto.migrate`:

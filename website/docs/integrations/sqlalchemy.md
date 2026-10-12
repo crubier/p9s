@@ -71,6 +71,18 @@ async def refused(request: Request, error: DBAPIError):
     raise error
 ```
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which the ORM maps back to its model:
+
+```python
+from sqlalchemy import select, text
+
+pattern = "%" + query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+found = text("select * from documents_search(:pattern) where project_id = :project_id order by id limit 50")
+documents = session.scalars(select(Document).from_statement(found.bindparams(pattern=pattern, project_id=project_id))).all()
+```
+
 ## The migration
 
 After `alembic upgrade head`:

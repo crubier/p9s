@@ -60,6 +60,16 @@ app.onError((error, c) => isRefused(error) ? c.json({ error: "forbidden" }, 403)
 
 `update` and `delete` fail when the row is not there for the user. `updateMany` and `deleteMany` return a count of 0 for a row the user reads but cannot change, which the app answers with 403.
 
+## Searches
+
+`contains` with `mode: "insensitive"` is an `ilike`, which never uses an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which queries filter and page like a table. Create the trigram index in a migration of Prisma, then:
+
+```ts
+const pattern = `%${query.trim().replace(/[\\%_]/g, character => `\\${character}`)}%`;
+const documents = await withUser(prisma, users, userId, tx => tx.$queryRaw<{ id: bigint, title: string }[]>`
+  select id, title from documents_search(${pattern}) where project_id = ${projectId} order by id limit 50`, { readOnly: true });
+```
+
 ## The migration
 
 After `prisma migrate deploy`:

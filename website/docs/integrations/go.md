@@ -72,6 +72,20 @@ if p9s.IsRefused(err) {
 
 An update or a delete of rows the user reads but cannot change touches no row: check `RowsAffected`.
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which queries filter and page like a table:
+
+```go
+pattern := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(strings.TrimSpace(query)) + "%"
+
+// database/sql or pgx
+rows, err := tx.QueryContext(ctx, "select id, title from documents_search($1) where project_id = $2 order by id limit 50", pattern, projectID)
+
+// GORM
+err := tx.Table("documents_search(?) as documents", pattern).Where("project_id = ?", projectID).Order("id").Limit(50).Find(&documents).Error
+```
+
 ## The migration
 
 After the migrations of the app:

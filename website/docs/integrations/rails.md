@@ -60,6 +60,15 @@ rescue_from ActiveRecord::StatementInvalid do |error|
 end
 ```
 
+## Searches
+
+`ILIKE` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`. Create the trigram index in a migration, `enable_extension "pg_trgm"` and `add_index :documents, :title, using: :gin, opclass: :gin_trgm_ops`, then:
+
+```ruby
+pattern = "%#{Document.sanitize_sql_like(query.strip)}%"
+Document.find_by_sql(["select * from documents_search(?) where project_id = ? order by id limit 50", pattern, project_id])
+```
+
 ## The migration
 
 After `bin/rails db:migrate`:

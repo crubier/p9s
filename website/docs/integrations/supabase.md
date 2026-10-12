@@ -98,6 +98,16 @@ select resource_id, $2, ~ b'0'::bit(128) from project where id = $1;
 
 Users share what they have the `share` bit on with `resource_share`, see [sharing](../configuration/security-model#sharing).
 
+### Searches
+
+`.ilike()` and `.textSearch()` filter through RLS, which never lets them use an index. A [search](../configuration/searches) declared in the config does: `search: { search: { columns: ["title"], operator: "ilike" } }` on `task` gives `task_search(the_value)`, which `rpc` calls and filters like a table. Create the index in a migration of Supabase, `create extension if not exists pg_trgm with schema extensions;` and `create index on task using gin (title extensions.gin_trgm_ops);`, then:
+
+```ts
+const pattern = `%${query.trim().replace(/[\\%_]/g, character => `\\${character}`)}%`;
+const { data: tasks } = await supabase.rpc("task_search", { the_value: pattern })
+  .select("id, title").eq("project_id", projectId).order("title").limit(50);
+```
+
 ## Servers that connect directly
 
 A server that connects with the connection string, through Drizzle, Prisma or node-postgres, sets the claim `auth.uid()` reads rather than a setting of p9s:

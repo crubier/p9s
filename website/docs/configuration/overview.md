@@ -268,7 +268,7 @@ create index on document using gin (content gin_trgm_ops);
 select id, title from document_search('%budget%') where org_id = $1 order by updated_at desc limit 50;
 ```
 
-The operator is `like`, `ilike`, `~`, `~*` or `%`, on text columns with a `text` value, which a [`pg_trgm`](https://www.postgresql.org/docs/current/pgtrgm.html) index serves, or `@@`, on `tsvector` columns with a `tsquery` value, which a GIN index serves. p9s does not create the indexes. The search matches through them as the owner, checks the rows that match against the select policy of the user, and reads those the user can read through RLS: it costs about what matches, readable or not, rather than the whole table. [Searches](./security-model#searches) explains why it shows no more than a filter through RLS would. Each user role with the `select` bit on the table can run it, and a migration drops the searches the config no longer declares.
+The operator is `like`, `ilike`, `~`, `~*` or `%`, on text columns with a `text` value, which a [`pg_trgm`](https://www.postgresql.org/docs/current/pgtrgm.html) index serves, or `@@`, on `tsvector` columns with a `tsquery` value, which a GIN index serves. p9s does not create the indexes. The search matches through them as the owner, checks the rows that match against the select policy of the user, and reads those the user can read through RLS: it costs about what matches, readable or not, rather than the whole table. Each user role with the `select` bit on the table can run it, and a migration drops the searches the config no longer declares. [Searches](./searches) shows how to index, call, escape and rank them from each stack, what they cost, and what they show.
 
 ### Links Configuration
 

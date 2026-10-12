@@ -174,7 +174,7 @@ Graph writers keep writing any assignment, through a policy that lets them do an
 
 ## Searches
 
-A [search](./overview#searches) matches through indexes, which RLS never lets a filter that is not leakproof use, so it reads the table as the owner. It still shows a user what a filter through RLS would, and nothing of the rows they cannot read:
+A [search](./searches) matches through indexes, which RLS never lets a filter that is not leakproof use, so it reads the table as the owner. It still shows a user what a filter through RLS would, and nothing of the rows they cannot read:
 
 - Each user role with the `select` bit on the table gets its own security definer function, like `document_search_app_user`, which only that role can run. It matches as the owner and keeps the rows the select policy of that role lets through, with the expression of the policy, soft deleted rows included. It returns their `ctid`, not their values.
 - `document_search` runs as the caller. It calls the function of each user role the caller is a member of, then reads the rows at these ctids as the caller. Comparing ctids is leakproof, so Postgres finds the rows by ctid first, then checks every policy of the table for the caller, the application's own included, and the column privileges: a search reads every column, which needs `select` on the table.

@@ -69,6 +69,16 @@ The first request of a connection reads the catalog of what the policies use and
 })
 ```
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which Eloquent queries in place of the table:
+
+```php
+$pattern = '%'.addcslashes(trim($query), '\\%_').'%';
+$documents = Document::fromRaw('documents_search(?) as documents', [$pattern])
+    ->where('project_id', $projectId)->orderBy('id')->limit(50)->get();
+```
+
 ## The migration
 
 After `php artisan migrate`:

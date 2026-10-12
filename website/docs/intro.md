@@ -74,5 +74,6 @@ npx p9s postgres doctor                        # check the database
 - [CLI](./packages/cli) - `init`, `generate`, `status` and `doctor`
 - [Security Model](./configuration/security-model) - Who can change permissions, and the rules the application must follow
 - [Querying through RLS](./configuration/querying) - Searches, counts, pages and shares that stay fast through the policies
+- [Searches](./configuration/searches) - Text and full-text searches that use their index through RLS
 - [Benchmarks](./benchmarks) - What p9s costs at read and write time
 - [Core Package](./packages/core) - API reference for the core package

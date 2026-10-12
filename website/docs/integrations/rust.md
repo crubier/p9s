@@ -67,6 +67,19 @@ let app = Router::new()
 
 `p9s::is_refused(&error)` tells a write the policies refused, for the error type of the app to answer 403. An update or a delete of rows the user reads but cannot change touches no row: check `rows_affected`, or `returning`.
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which queries filter and page like a table:
+
+```rust
+let pattern = format!("%{}%", query.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+let documents: Vec<Document> = sqlx::query_as("select id, title from documents_search($1) where project_id = $2 order by id limit 50")
+    .bind(&pattern)
+    .bind(project_id)
+    .fetch_all(&mut *tx)
+    .await?;
+```
+
 ## The migration
 
 After the migrations of the app:

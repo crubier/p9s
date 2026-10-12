@@ -68,6 +68,23 @@ export const preset: GraphileConfig.Preset = {
 
 A write the policies refuse fails with `insufficient_privilege`, which PostGraphile returns as a GraphQL error, and `isRefused(error)` of `@p9s/postgres` tells. PostGraphile answers an update of a row the user reads but cannot change with no row, and its delete with an error of its own, for the app to answer 403 too.
 
+## Searches
+
+A [search](../configuration/searches) declared in the config is a query field, `documentsSearch(theValue: "%plan%")`, that matches through the trigram or full-text index, where a filter would read every row through RLS:
+
+```graphql
+query { documentsSearch(theValue: "%plan%", first: 50) { nodes { id title } } }
+```
+
+It searches everything the user reads. To search one project, and escape what the user types, hide it with `comment on function documents_search(text) is '@behavior -*'` and wrap it in a function of your own, as the [example](https://github.com/crubier/p9s/tree/main/examples/apps/postgraphile) does with `searchDocuments` on its organizations:
+
+```sql
+create function projects_search_documents(p projects, query text) returns setof documents language sql stable as $$
+  select d.* from documents_search('%' || replace(replace(replace(trim(query), '\', '\\'), '%', '\%'), '_', '\_') || '%') d
+  where d.project_id = p.id order by d.id
+$$;
+```
+
 ## The migration
 
 After `graphile-migrate migrate`:

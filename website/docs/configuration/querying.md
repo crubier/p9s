@@ -73,7 +73,7 @@ These are not: `like`, `ilike`, `~`, full-text `@@`, the trigram `%`, jsonb oper
 
 A filter that is not leakproof has two costs:
 
-- **No index**: a trigram or full-text index on the column is not used through RLS, every row of the table is read.
+- **No index**: a trigram or full-text index on the column is not used through RLS, every row of the table is read. A [declared search](./searches) goes through the index.
 - **The policy runs on every row.** Postgres expects such a filter to keep a few rows, and would check the ancestors of every row of the table. The policies list what the user can read after 200 checks instead: in the benchmarks, a search of 1,800 posts takes 1.7 to 1.9 ms instead of 17 to 19 ms.
 
 `offset 0`, which keeps a subquery from being merged into the query around it, made Postgres expect every row and list what the user can read. Policies do that on their own now, and the fence makes no difference.
@@ -90,7 +90,7 @@ limit 50;
 
 ### Searches through an index
 
-A filter still reads every row of the table, and every row the user can read. A [search](./overview#searches) declared in the config matches through a trigram or full-text index instead, and checks only the rows that match:
+A filter still reads every row of the table, and every row the user can read. A [search](./searches) declared in the config matches through a trigram or full-text index instead, and checks only the rows that match:
 
 ```sql
 select id, title
@@ -100,16 +100,7 @@ order by d.updated_at desc
 limit 50;
 ```
 
-In the example app, for the member who reads 108,000 documents, with trigram indexes on the titles and contents of the 181,000 documents of every organization, against an `ilike` filter that lists what the member can read:
-
-| Searched for  | Documents that match | `ilike` | `document_search` |
-| ------------- | -------------------- | ------- | ----------------- |
-| "zebra"       | 0                    | 380 ms  | 2 ms              |
-| "hiring plan" | 279                  | 390 ms  | 18 ms             |
-| "roadmap"     | 11,000               | 400 ms  | 290 ms            |
-| "budget"      | 76,000               | 600 ms  | 730 ms            |
-
-A search costs about what matches in the whole table, readable or not, plus reading back those the user can read: rare words take milliseconds, and a word in nearly half the documents takes a little longer than the filter.
+In the example app, a rare word takes 2 ms instead of 380 ms for a member who reads 108,000 of the 181,000 documents. A search costs about what matches in the whole table, readable or not, plus reading back those the user can read: a word in nearly half the documents takes a little longer than the filter, see [what it costs](./searches#what-it-costs).
 
 ## The views of the current user
 

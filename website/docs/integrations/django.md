@@ -76,6 +76,16 @@ except DatabaseError as error:
     raise
 ```
 
+## Searches
+
+`icontains` is an `ilike`, which never uses an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`. Create the trigram index in a migration, with `TrigramExtension` and `GinIndex(..., opclasses=["gin_trgm_ops"])` of `django.contrib.postgres`, then:
+
+```python
+pattern = "%" + query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+documents = Document.objects.raw(
+    "select * from documents_search(%s) where project_id = %s order by id limit 50", [pattern, project_id])
+```
+
 ## The migration
 
 After `manage.py migrate`:

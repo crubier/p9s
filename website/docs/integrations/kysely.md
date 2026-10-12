@@ -62,6 +62,18 @@ app.onError((error, c) => isRefused(error) ? c.json({ error: "forbidden" }, 403)
 
 An update or a delete of a row the user reads but cannot change touches no row: check `numUpdatedRows`, or `returning`.
 
+## Searches
+
+`ilike` and other filters that are not leakproof never use an index through RLS. A [search](../configuration/searches) declared in the config does, as `documents_search(the_value)`, which queries filter and page like a table:
+
+```ts
+import { sql } from "kysely";
+
+const pattern = `%${query.trim().replace(/[\\%_]/g, character => `\\${character}`)}%`;
+const { rows } = await withUser(db, users, userId, trx => sql<{ id: string, title: string }>`
+  select id, title from documents_search(${pattern}) where project_id = ${projectId} order by id limit 50`.execute(trx), { readOnly: true });
+```
+
 ## The migration
 
 After the migrations of the app:
