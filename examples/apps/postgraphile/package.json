@@ -42,7 +42,7 @@
     "@graphql-codegen/client-preset": "^6.2.1",
     "@graphql-typed-document-node/core": "^3.2.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/bun": "latest",
+    "@types/bun": "1.4.2",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",

@@ -51,7 +51,7 @@
     }
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "1.4.2",
     "@p9s/core": "workspace:*",
     "@p9s/postgres-testing": "workspace:*",
     "prisma": "7.10.0",

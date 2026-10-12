@@ -45,7 +45,7 @@
     "zod": "4.3.5"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "1.4.2",
     "ajv": "^8.20.0"
   }
 }

@@ -23,7 +23,7 @@
     "docs": "bun run --cwd website start"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "1.4.2",
     "typescript": "^5.9.3"
   },
   "overrides": {
