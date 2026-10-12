@@ -29,7 +29,8 @@ describe('postgres benchmark smoke test', () => {
       expect(result.cache.some(({ table }) => table === "assignment_edge_cache")).toBe(combineAssignmentsWith !== "none");
       expect(result.dataset.comments).toBeGreaterThan(0);
       expect(result.dataset.apiKeys).toBe(2 * 27);
-      expect(result.reads.filter(({ policy }) => policy === "p9s")).toHaveLength(20);
+      expect(result.reads.filter(({ policy }) => policy === "p9s")).toHaveLength(21);
+      expect(result.reads.find(read => read.policy === "p9s" && read.name === "search names with post_search (object)")).toBeDefined();
       expect(result.reads.filter(({ policy }) => policy === "baseline")).toHaveLength(4);
       expect(result.writes.length).toBeGreaterThan(20);
       expect(result.writes.filter(({ name }) => name.startsWith("comment: "))).toHaveLength(6);
