@@ -162,4 +162,4 @@ await writeFile(path.join(migrationDirectories.alembic, fileName), content);
 
 ### Constants
 
-`version` is the version of the package, which the migration records. `LISTED_RESOURCES`, `CHECKED_ROWS` and `CHECKED_WRITTEN_ROWS` are the number of resources the policies list after the first row and of rows they check before listing everything, see [how policies run](../configuration/querying#how-policies-run).
+`version` is the version of the package, which the migration records. `LISTED_RESOURCES`, `CHECKED_ROWS` and `CHECKED_WRITTEN_ROWS` are the number of resources the policies list after the first row and of rows they check before listing everything, and `LISTING_WORK_MEM` the `work_mem` of that listing, see [how policies run](../configuration/querying#how-policies-run).

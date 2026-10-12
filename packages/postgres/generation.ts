@@ -2349,6 +2349,10 @@ export const LISTED_RESOURCES = 3000;
 export const CHECKED_ROWS = 200;
 // Writes have no first listing to go past, and are rarely pages: one that writes many rows lists sooner.
 export const CHECKED_WRITTEN_ROWS = 50;
+// Listing every resource a user has the bit on keeps their ids in memory, about 40 bytes each for integer ids, and
+// writes them to disk past work_mem, 4 MB by default and less on small hosted plans: 150,000 resources took 15 ms
+// longer. This much holds about 400,000 integer ids, fewer uuids, and only applies while listing.
+export const LISTING_WORK_MEM = "16MB";
 
 // The part of the graph users can see. They have no privileges on the graph tables: the policies read these views,
 // which run as their owner and only return rows of the current user. As security barriers, a filter of the user runs
@@ -2511,7 +2515,7 @@ begin
   return query select "var_access".${assignment.resourceId} from ${currentAccessViewOf(naming, bit)} as "var_access";
 end
 $$ language plpgsql stable cost 1 rows 1000 set search_path = ${naming.schema}, pg_temp
-  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+  set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off set work_mem = ${textLiteral(LISTING_WORK_MEM)};
 
 ${grantExecute(sql`${currentAccessListOf(naming, bit)} ()`, everyone)}
 
@@ -2889,6 +2893,9 @@ ${join(config.tables.flatMap(table => {
         // cannot be told apart from an update that keeps its parent.
         const target = table.resourceLeaf ? parent! : sql`${name}.${resourceId}`;
         const ownCheck = accessCheck(target, bit);
+        // The triggers of a node table stop updates that change resource ids, so a new row has the id of an old row
+        // that the update policy checked, and the permissions it had: the cache only follows a move after the statement
+        const newRowCheck = table.resourceLeaf ? ownCheck : sql`true`;
         // A new row has no permissions of its own yet: it gets them from its parent, so only a row with a parent can
         // be inserted, by users allowed to insert under that parent
         if (operation === "insert") {
@@ -2919,7 +2926,7 @@ create policy ${policyName} on ${schema}.${name}
 as permissive for ${join([sql``, sql``], operation) /* Yeah it's hacky I know */} to ${identifier(user)} 
 using (${operation === "select" ? selectUsing(table, user as User) : sql`${readCheck(table, operation, target, bit)}${deletedCheck || sql``}`}
 )
-${operation === "update" ? sql`with check (${ownCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
+${operation === "update" ? sql`with check (${newRowCheck}${moveCheck || sql``}${softDeleteCheck || sql``}
 )` : sql``};
 `];
       });

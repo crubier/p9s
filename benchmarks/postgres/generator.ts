@@ -50,6 +50,10 @@ export interface BenchmarkOptions {
   // Users themselves stay nodes, so that resources can be shared with them.
   keysPerUser?: number;
   keys?: KeyMode;
+  // Teams of a user who reads about the whole graph through them, 0 to skip its scenarios
+  heavyRoles?: number;
+  // Only the read, write and concurrent scenarios whose name matches this regular expression, all when empty
+  only?: string;
   logger?: typeof console;
 }
 
@@ -68,7 +72,9 @@ export interface Stats {
 
 export interface BenchmarkResult {
   options: Required<Omit<BenchmarkOptions, "logger">>;
-  dataset: Record<"resourceNodes" | "resourceEdges" | "roleNodes" | "roleEdges" | "assignmentPairs" | "businessRows" | "comments" | "apiKeys", number>;
+  dataset: Record<"resourceNodes" | "resourceEdges" | "roleNodes" | "roleEdges" | "assignmentPairs" | "businessRows" | "comments" | "apiKeys", number>
+    // What the heavy user reaches: resources with any bit, resources it can read posts of, and posts it reads
+    & { heavyUser?: { roles: number, resources: number, readable: number, posts: number } };
   // Seconds
   // Rows are the business rows of both trees, inserted with triggers disabled like edges and assignments
   load: Record<"schema" | "dataGen" | "insert" | "disableTriggers" | "resourceRows" | "resourceEdge" | "roleRows" | "roleEdge" | "assignmentEdge" | "commentRows" | "keyRows" | "enableTriggers" | "analyze", number>;
@@ -145,9 +151,12 @@ export async function runPostgresBenchmark(context: Context, {
   comments = "leaf",
   keysPerUser = 2,
   keys = "leaf",
+  heavyRoles = 10,
+  only = "",
   logger = nullConsole
 }: BenchmarkOptions): Promise<BenchmarkResult> {
   const startTime = performance.now();
+  const selected = ({ name }: { name: string }) => !only || new RegExp(only).test(name);
 
   const { database_admin_username, database_user_username, runTestQuery, exec } = context;
 
@@ -225,6 +234,10 @@ export async function runPostgresBenchmark(context: Context, {
       );
       grant select, insert, update, delete on table ${identifier(resourceTable)} to ${identifier(database_user_username)};
     `), "\n")}
+
+    -- What post_search, declared below, matches names through
+    create extension if not exists "pg_trgm";
+    create index on "post" using gin ("name" gin_trgm_ops);
 
     drop table if exists "comment" cascade;
     create table "comment" (
@@ -309,6 +322,7 @@ export async function runPostgresBenchmark(context: Context, {
       isResource: true,
       resourceId: "resource_id",
       resourceParent: { column: "parent_id" },
+      ...(resourceTable === "post" ? { search: { search: { columns: ["name"], operator: "ilike" as const } } } : {}),
       permission: {
         [database_user_username]: {
           select: 12 + 4 * index,
@@ -684,6 +698,8 @@ export async function runPostgresBenchmark(context: Context, {
     // read, as it does behind offset 0
     { name: "search names (object)", table: "post", statement: () => sql`select "id", "name" from "post" where "name" ilike '%post 1777%'`, baseline: false },
     { name: "search names behind offset 0 (object)", table: "post", statement: () => sql`select "id", "name" from (select "id", "name" from "post" offset 0) as "post" where "name" ilike '%post 1777%'`, baseline: false },
+    // A declared search matches through the trigram index, and checks only the rows that match
+    { name: "search names with post_search (object)", table: "post", statement: () => sql`select "id", "name" from "post_search"('%post 1777%')`, baseline: false },
     // An offset reads and checks every row it skips, a keyset page starts at its key in the index
     { name: "page after 100 rows by offset (object)", table: "post", statement: () => sql`select "id", "name" from "post" order by "id" offset 100 limit 50`, baseline: false },
     { name: "page by keyset (object)", table: "post", statement: () => sql`select "id", "name" from "post" where "id" > md5(${literal(String(random.int(1e9)))})::uuid order by "id" limit 50`, baseline: false },
@@ -712,7 +728,7 @@ export async function runPostgresBenchmark(context: Context, {
   const plans: Record<string, string> = {};
 
   const measureReads = async (policy: "p9s" | "baseline", scenarioReps: number) => {
-    for (const scenario of readScenarios.filter(scenario => policy === "p9s" || scenario.baseline !== false)) {
+    for (const scenario of readScenarios.filter(scenario => (policy === "p9s" || scenario.baseline !== false) && selected(scenario))) {
       await exec(sql`select set_config('p9s.check_rows', ${literal(scenario.checkRows ? "on" : "")}, false)`);
       const samples: number[] = [];
       let visibleRows = 0;
@@ -939,8 +955,9 @@ export async function runPostgresBenchmark(context: Context, {
 
   const writes: BenchmarkResult["writes"] = [];
   // A scenario can prepare rows untimed in the same transaction, before its timed statement
-  const measureWrites = async (scenarios: Array<{ name: string, statement: (i: number) => SQL | { setup: SQL, statement: SQL } }>) => {
-    for (const scenario of scenarios) {
+  const measureWrites = async (scenarios: Array<{ name: string, statement: (i: number) => SQL | { setup: SQL, statement: SQL } }>,
+    record = (name: string, stats: Stats) => { writes.push({ name, stats }); }) => {
+    for (const scenario of scenarios.filter(selected)) {
       const samples: number[] = [];
       for (let i = 0; i < warmup + reps; i++) {
         const prepared = scenario.statement(i);
@@ -955,7 +972,7 @@ export async function runPostgresBenchmark(context: Context, {
           samples.push(duration);
         }
       }
-      writes.push({ name: scenario.name, stats: computeStats(samples) });
+      record(scenario.name, computeStats(samples));
     }
   };
   await measureWrites(writeScenarios);
@@ -1183,6 +1200,115 @@ export async function runPostgresBenchmark(context: Context, {
     ]);
   }
 
+  // A user who reads about the whole graph through many roles: a member of heavyRoles teams of its own, which share the
+  // orgs between them with every bit. Policies that list what it can read list about every resource, and those that
+  // check a row check one path of edges. Last, so that its assignments change none of the scenarios above.
+  let heavyUser: BenchmarkResult["dataset"]["heavyUser"];
+  if (heavyRoles > 0) {
+    const heavyRole = adminRole + 1;
+    const heavyTeams = Array.from({ length: heavyRoles }, (_, k) => heavyRole + 1 + k);
+    const roleIdText = (role: number) => idMode === "uuid" ? generateUuidFromInteger(role) : String(role);
+    await exec(sql`
+      insert into "team" ("name", "role_id", "parent_id") values
+      ${join(heavyTeams.map((team, k) => sql`(${literal(`heavy team ${k}`)}, ${nodeId(team)}, ${nodeId(roleTree.levelInfo[0]!.start)})`), ", ")};
+      insert into "human_user" ("name", "email", "role_id") values ('heavy', 'heavy@example.com', ${nodeId(heavyRole)});
+      insert into "role_edge" ("parent_id", "child_id", "permission") values
+      ${join(heavyTeams.map(team => sql`(${nodeId(team)}, ${nodeId(heavyRole)}, ${ones})`), ", ")};
+      insert into "assignment_edge" ("role_id", "resource_id", "permission") values
+      ${join(Array.from({ length: orgs.size }, (_, k) => sql`(${nodeId(heavyTeams[k % heavyRoles]!)}, ${nodeId(orgs.start + k)}, ${ones})`), ", ")};
+      analyze;
+    `);
+    await asRole(roleIdText(heavyRole));
+    const [[counts]] = await exec(sql`
+      select (select count(distinct "resource_id") from "current_resource_access")::integer as "resources",
+        (select count(distinct "resource_id") from "current_resource_access_12")::integer as "readable",
+        (select count(*) from "post")::integer as "posts"`);
+    await resetUser();
+    heavyUser = { roles: heavyRoles, ...counts };
+    logger.log("Heavy user:", heavyUser);
+
+    // Posts and projects by the bits of their path from the org, the only one, as the heavy user has every bit there
+    const fromOrgs = sql`"resource_edge_cache"."parent_id" in (${ids(Array.from({ length: orgs.size }, (_, k) => orgs.start + k))})`;
+    const postsWith = async (bits: SQL, limit: number) => (await exec(sql`
+      select "post"."resource_id"::text as "id", "post"."id"::text as "post_id" from "post"
+      join "resource_edge_cache" on "resource_edge_cache"."child_id" = "post"."resource_id"
+      where ${fromOrgs} and ${bits}
+      order by md5("post"."id"::text) limit ${raw(String(limit))}`))[0] as Array<{ id: string, post_id: string }>;
+    const postBits = (mask: string) => sql`("resource_edge_cache"."permission" << 12)::bit(4) & ${literal(mask)}::bit(4) = ${literal(mask)}::bit(4)`;
+    const samples = warmup + reps;
+    const readable = await postsWith(postBits("1000"), samples);
+    const unreadable = await postsWith(sql`("resource_edge_cache"."permission" << 12)::bit = b'0'`, samples);
+    const writable = await postsWith(postBits("1111"), samples);
+    const renamable = await postsWith(postBits("1010"), BULK_ROWS);
+    const [heavyProjects]: [Array<{ id: string }>] = await exec(sql`
+      select "project"."resource_id"::text as "id" from "project"
+      join "resource_edge_cache" on "resource_edge_cache"."child_id" = "project"."resource_id"
+      where ${fromOrgs} and ${postBits("1111")}
+      order by md5("project"."id"::text) limit 100`);
+    const [heavyComments]: [Array<{ id: string, post_id: string }>] = writable.length === 0 ? [[]] : await exec(sql`
+      select distinct on ("post_id") "id"::text, "post_id"::text from "comment"
+      where "post_id" in (${join(writable.map(({ post_id }) => uuid(post_id)), ", ")})`);
+
+    if (readable.length > 0 && unreadable.length > 0 && writable.length > 0 && renamable.length > 0 && heavyProjects.length > 1 && heavyComments.length > 0) {
+      const asHeavy = (statement: SQL) => sql`
+        set local role ${identifier(database_user_username)};
+        select set_config('jwt.claims.role_id', ${literal(roleIdText(heavyRole))}, true);
+        ${statement};
+        reset role;`;
+      const at = <T>(items: T[], i: number) => items[i % items.length]!;
+      const project = (i: number) => existingId(at(heavyProjects, i).id);
+      const otherProject = (i: number) => existingId(at(heavyProjects, i + 1).id);
+      const recordRead = (name: string, stats: Stats) => { reads.push({ name, policy: "p9s", stats }); };
+      await measureWrites([
+        { name: "heavy user: point lookup (object)", statement: (i) => asHeavy(sql`select "id" from "post" where "resource_id" = ${existingId(at(readable, i).id)}`) },
+        { name: "heavy user: point lookup of an unreadable object", statement: (i) => asHeavy(sql`select "id" from "post" where "resource_id" = ${existingId(at(unreadable, i).id)}`) },
+        { name: "heavy user: first page of 50 (object)", statement: () => asHeavy(sql`select "id", "name" from "post" order by "id" limit 50`) },
+        { name: "heavy user: page by keyset (object)", statement: (i) => asHeavy(sql`select "id", "name" from "post" where "id" > md5(${literal(String(i))})::uuid order by "id" limit 50`) },
+        { name: "heavy user: page after 1000 rows by offset (object)", statement: () => asHeavy(sql`select "id", "name" from "post" order by "id" offset 1000 limit 50`) },
+        { name: "heavy user: count visible (object)", statement: () => asHeavy(sql`select count(*) from "post"`) },
+        { name: "heavy user: search names (object)", statement: () => asHeavy(sql`select "id", "name" from "post" where "name" ilike '%post 1777%'`) },
+        { name: "heavy user: search names with post_search (object)", statement: () => asHeavy(sql`select "id", "name" from "post_search"('%post 1777%')`) },
+        { name: "heavy user: permissions of an object", statement: (i) => asHeavy(sql`select "resource_permission"(${existingId(at(readable, i).id)})`) },
+        { name: "heavy user: first page of 50 with permissions (object)", statement: () => asHeavy(sql`select "id", "name", "resource_permission"("resource_id") from "post" order by "id" limit 50`) },
+        { name: "heavy user: count visible (folder)", statement: () => asHeavy(sql`select count(*) from "folder"`) },
+        { name: "heavy user: comments of a post", statement: (i) => asHeavy(sql`select "id", "body" from "comment" where "post_id" = ${uuid(at(heavyComments, i).post_id)} order by "created_at"`) },
+        { name: "heavy user: first page of 50 (comment)", statement: () => asHeavy(sql`select "id", "body" from "comment" order by "id" limit 50`) },
+        { name: "heavy user: count visible (comment)", statement: () => asHeavy(sql`select count(*) from "comment"`) },
+      ], recordRead);
+
+      const heavyWrites = {
+        create: (i: number, object: number) => asHeavy(sql`insert into "post" ("name", "resource_id", "parent_id") values ('new object', ${nodeId(object)}, ${project(i)})`),
+        rename: (i: number) => asHeavy(sql`update "post" set "name" = 'renamed object' where "resource_id" = ${existingId(at(writable, i).id)}`),
+        renameMany: () => asHeavy(sql`update "post" set "name" = 'renamed object' where "resource_id" in (${join(renamable.map(({ id }) => existingId(id)), ", ")})`),
+        move: (i: number) => asHeavy(sql`update "post" set "parent_id" = ${otherProject(i)} where "resource_id" = ${existingId(at(writable, i).id)}`),
+        delete: (i: number) => asHeavy(sql`delete from "post" where "resource_id" = ${existingId(at(writable, i).id)}`),
+        createComment: (i: number) => asHeavy(sql`insert into "comment" ("post_id", "body") values (${uuid(at(heavyComments, i).post_id)}, 'new comment')`),
+        editComment: (i: number) => asHeavy(sql`update "comment" set "body" = 'edited comment' where "id" = ${uuid(at(heavyComments, i).id)}`),
+        deleteComment: (i: number) => asHeavy(sql`delete from "comment" where "id" = ${uuid(at(heavyComments, i).id)}`),
+      };
+      const first = existingId(writable[0]!.id);
+      const created = freshObject();
+      await verify("create object as heavy user", sql``, heavyWrites.create(0, created), sql`${postExists(created)}`);
+      await verify("rename object as heavy user", sql``, heavyWrites.rename(0), sql`(select "name" from "post" where "resource_id" = ${first}) = 'renamed object'`);
+      await verify("rename objects as heavy user", sql``, heavyWrites.renameMany(), sql`(select count(*) from "post" where "name" = 'renamed object') = ${literal(renamable.length)}`);
+      await verify("move object as heavy user", sql``, heavyWrites.move(0), sql`(select "parent_id" from "post" where "resource_id" = ${first}) = ${otherProject(0)}`);
+      await verify("delete object as heavy user", sql``, heavyWrites.delete(0), sql`not exists (select 1 from "post" where "resource_id" = ${first})`);
+      await verify("create comment as heavy user", sql``, heavyWrites.createComment(0), sql`(select count(*) from "comment" where "body" = 'new comment') = 1`);
+      await verify("edit comment as heavy user", sql``, heavyWrites.editComment(0), sql`(select "body" from "comment" where "id" = ${uuid(heavyComments[0]!.id)}) = 'edited comment'`);
+      await verify("delete comment as heavy user", sql``, heavyWrites.deleteComment(0), sql`not exists (select 1 from "comment" where "id" = ${uuid(heavyComments[0]!.id)})`);
+      await measureWrites([
+        { name: "heavy user: create object in project", statement: (i) => heavyWrites.create(i, freshObject()) },
+        { name: "heavy user: rename object", statement: heavyWrites.rename },
+        { name: `heavy user: rename ${renamable.length} objects in one statement`, statement: heavyWrites.renameMany },
+        { name: "heavy user: move object to other project", statement: heavyWrites.move },
+        { name: "heavy user: delete object", statement: heavyWrites.delete },
+        { name: "heavy user: create comment", statement: heavyWrites.createComment },
+        { name: "heavy user: edit comment", statement: heavyWrites.editComment },
+        { name: "heavy user: delete comment", statement: heavyWrites.deleteComment },
+      ]);
+    }
+  }
+
   logger.table(writes.map(({ name, stats }) => ({ name, p50: stats.p50, p95: stats.p95 })));
 
   // Several connections committing at once. Graph writes wait on each other, so this measures throughput under the
@@ -1190,6 +1316,7 @@ export async function runPostgresBenchmark(context: Context, {
   const concurrent: BenchmarkResult["concurrency"] = [];
   if (concurrency > 0 && context.connect && writableProjects.length > 1) {
     const run = async (name: string, transaction: () => SQL, background?: (i: number) => SQL) => {
+      if (!selected({ name })) return;
       const connections = await Promise.all(Array.from({ length: concurrency + (background ? 1 : 0) }, () => context.connect!()));
       const deadline = performance.now() + concurrencySeconds * 1000;
       const samples: number[] = [];
@@ -1248,7 +1375,7 @@ export async function runPostgresBenchmark(context: Context, {
   logger.log("Total time (seconds):", (performance.now() - startTime) / 1000);
 
   return {
-    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, resourceCache, reps, warmup, baseline, concurrency, concurrencySeconds, commentsPerPost, comments, keysPerUser, keys },
+    options: { benchmarkSizeFactor, idMode, combineAssignmentsWith, resourceCache, reps, warmup, baseline, concurrency, concurrencySeconds, commentsPerPost, comments, keysPerUser, keys, heavyRoles, only },
     dataset: {
       resourceNodes: resourceTree.totalNodes,
       resourceEdges: resourceTree.totalEdges,
@@ -1258,6 +1385,7 @@ export async function runPostgresBenchmark(context: Context, {
       businessRows: resourceTree.totalNodes + roleTree.totalNodes + commentCount + keyCount,
       comments: commentCount,
       apiKeys: keyCount,
+      ...(heavyUser ? { heavyUser } : {}),
     },
     load,
     cache,

@@ -2411,7 +2411,7 @@ test('Default Migration', () => {
       return query select "var_access"."resource_id" from "current_resource_access_0" as "var_access";
     end
     $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
-      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off set work_mem = '16MB';
 
 
     select pg_temp.p9s_revoke_execute('"current_resource_access_0_list" ()', 'current_resource_access_0_list');
@@ -2473,7 +2473,7 @@ test('Default Migration', () => {
       return query select "var_access"."resource_id" from "current_resource_access_1" as "var_access";
     end
     $$ language plpgsql stable cost 1 rows 1000 set search_path = "public", pg_temp
-      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off;
+      set enable_seqscan = off set enable_hashjoin = off set enable_mergejoin = off set work_mem = '16MB';
 
 
     select pg_temp.p9s_revoke_execute('"current_resource_access_1_list" ()', 'current_resource_access_1_list');
@@ -2629,7 +2629,7 @@ test('Default Migration', () => {
         when coalesce(current_setting('p9s.check_rows', true), '') ~ '^[0-9]{1,9}$' then (coalesce(current_setting('p9s.check_rows', true), '')::bigint)::text else '50' end) then "blog_post"."resource_id" in (select "current_resource_access_1_list"()) else set_config('p9s.u_blog_post', (coalesce(nullif(current_setting('p9s.u_blog_post', true), '')::bigint, 0) + 1)::text, true) is not null
         and "current_resource_access_1_check"("blog_post"."resource_id") end end
     )
-    with check ("current_resource_access_1_check"("blog_post"."resource_id")
+    with check (true
     );
 
 
@@ -2989,7 +2989,7 @@ test('Default Migration', () => {
     -- What ran: the version of p9s and a hash of the migration, which p9s postgres status compares to the config
     -----------------------------------------------------------------------------------------------------------------------
     create or replace function "p9s_migration" () returns jsonb
-      as $$ select '{"version":"0.1.0","hash":"119540ead7a757b3"}'::jsonb $$
+      as $$ select '{"version":"0.1.0","hash":"e8528b41bdaddf42"}'::jsonb $$
       language sql immutable;
 
     select pg_temp.p9s_revoke_execute('"p9s_migration" ()', 'p9s_migration');

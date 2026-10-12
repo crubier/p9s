@@ -22,10 +22,13 @@ For a size factor `f`:
 
 - **Load**: bulk insert with triggers disabled, then the time to rebuild the caches.
 - **Cache size**: rows and `pg_total_relation_size` of every edge and cache table.
-- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#check-rows). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
+- **Reads** as the application role, going through RLS, as a user and as an API key: a point lookup, the first page of 50 rows, counting every visible row, a search of names with `ilike`, plain and [behind `offset 0`](./configuration/querying#filters-that-are-not-leakproof), the same through `post_search`, a [declared search](./configuration/overview#searches) that matches through a trigram index, and a page after 100 rows by offset and one by keyset. The first page and the count also run [with `p9s.check_rows` on](./configuration/querying#check-rows). Also the bitmap of `resource_permission` for one object, and for each row of a page of 50. Each read runs against the p9s policies and against a baseline policy that walks both trees at query time with recursive queries and no cache. The run also checks that both policies show the same rows to a sample of users.
 - **Incremental writes** with triggers on, each one in a rolled back transaction: at every level of the resource tree, add a row, move it or detach it by writing its `parent_id`, and change the bits of its edge; share, revoke and change assignments, and share then revoke an org, workspace, folder or project that has no other assignment; add, remove and move users and teams.
 - **Row writes** as an application would make them: create objects one at a time and 1000 in one statement, move, rename and delete them, mostly as the application role through RLS, and delete a folder. The same for comments, and deleting a post with its comments. The same for API keys, and deleting a user with its keys.
 - **Concurrent writes**: throughput and latency of several clients creating objects, comments or API keys, alone and while a graph writer keeps moving workspaces.
+- **A heavy user**, a member of 10 teams of its own (`--heavy-roles`) that share every org between them with every bit, so it reaches every resource of the graph: the reads above, including one of a post it cannot read and the comments of a post, and creating, renaming, moving and deleting posts and comments, and renaming 1000 posts in one statement.
+
+`--only <regex>` keeps the read, write and concurrent scenarios whose name matches, like `--only "heavy|row:"`.
 
 Each scenario runs a few untimed warm-up repetitions, then reports p50, p95 and p99 over the timed ones. `EXPLAIN (ANALYZE, BUFFERS)` plans of every read are saved with the results.
 
@@ -52,7 +55,7 @@ bun run bench --keys node --out results/key-node
 
 Results are printed as tables and written to `benchmarks/postgres/results/<date>-<db>-<git sha>.json`, with the Postgres version and settings, the machine, and the git commit. `bun run bench:compare <before.json> <after.json>` lists the metrics that changed by more than 20% between two runs. `compose.yaml` configures Postgres so that the dataset fits in memory, and turns JIT off because it only adds compile time to short queries.
 
-Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run "--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`.
+Two runs of the same code can differ by 20% on some metrics, more than many regressions. To tell them apart, `bun run bench:ab --base <ref>` checks the base revision out in a git worktree and runs it and the working tree in turns on the same server, 6 times each after a warm-up run, at size 4 by default. It reports the metrics whose medians differ by more than 20% with a one-sided Mann-Whitney test of the runs at p ≤ 0.01. Compared with itself, it flags none of about 300 metrics; compared with the policies before they decided as the statement ran, it flags the 40 that got faster and the 3 of `p9s.check_rows` on that got slower. CI runs it against the base of every pull request and the previous commit of every push, and fails when a median got slower. p95 and p99 are reported but only fail with `--tails`, and `--run` passes other options to `run.ts`, for example `--run="--sizes 8 --ids integer --combine none,role --no-baseline --concurrency 4"`. The base runs its own benchmark code, so the scenarios that the working tree adds have no base to compare with: `--head-benchmark` runs the benchmark code of the working tree on both sides, and only the p9s packages differ.
 
 ## Example results
 
@@ -164,6 +167,22 @@ Policies used to leave the choice between checking ancestors and listing to the 
 `ilike` is not leakproof, so the policy runs before it, and Postgres expected it to keep few rows: it checked the ancestors of each of the 1,800 posts. The policy now lists what the user can read after 200 checks, as `offset 0` made it do. A statement that writes lists after 50: with 200, deleting 1000 objects took 24 / 51 ms. Writes check the rows they write, where the select policy used to list what the user can read. A point lookup listed up to 1000 resources instead of checking one row, up to 0.3 ms more, until reads checked their first row before listing, see [how policies run](./configuration/querying#how-policies-run). With `p9s.check_rows` on, every row is checked through a function, about twice the cost of the check it replaced. An `offset` still reads every row it skips, and a page by keyset starts at its key in the index. [Querying through RLS](./configuration/querying) explains these and other patterns.
 
 The benchmark rolls back thousands of rows created under the projects of the application user, which stay in the indexes until a vacuum. Listing what the user can read walks them all: writes that listed first took 3 to 7 ms then, against 0.3 to 1 ms for those that check.
+
+### A user who reaches every resource
+
+At size 12, 271,452 resources, the heavy user reaches all of them through its 10 teams, and 152,174 with the select bit of posts. Its statements over every post list them all, after the first listing and 200 checks. That listing now keeps them in memory, [up to 16 MB](./configuration/querying#how-policies-run) rather than the 4 MB of `work_mem`, and an update checks the bit of a post once rather than before and after. `bench:ab --head-benchmark`, p50 in milliseconds, medians of 4 runs each on a busy machine, `combineAssignmentsWith: none`:
+
+| As the heavy user                     | Before | After |
+| ------------------------------------- | ------ | ----- |
+| Count visible posts                   | 104    | 95    |
+| Page after 1000 posts, by offset      | 101    | 88    |
+| Search names with `ilike`             | 107    | 94    |
+| Search names with `post_search`       | 4.4    | 4.1   |
+| First page of 50 posts                | 6.6    | 6.8   |
+| Rename a post                         | 1.37   | 1.30  |
+| Rename 1000 posts in one statement    | 437    | 365   |
+
+Every run of one side was faster than every run of the other for the counts, the search with `ilike`, the page by offset and the 1000 renames, the lowest p-value 4 runs allow, 0.014. The other differences are within the noise. `ilike` cannot go before the policy, so it lists what the user can read, and a [declared search](./configuration/overview#searches) that matches through a trigram index is 20 times faster. The first listing and the checks before the full listing cost about 30 ms of the search with `ilike`, but pages need them: the first page of 50 posts checks about 100 rows, a page by keyset about 80.
 
 ### Hiding the graph
 
